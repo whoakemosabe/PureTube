@@ -24,6 +24,14 @@ listOf(fileTree("src/main"),
     }
 val diagnosticBuildId = diagnosticDigest.digest().take(12).joinToString("") { "%02x".format(it) }
 
+// One fixed signing key so every CI build installs over the previous one. It is never in the
+// repo: CI decodes it from the KEYSTORE_B64 secret to a temp file (KEYSTORE_FILE) and reads the
+// password from KEYSTORE_PASSWORD. Without them the build falls back to debug signing.
+val releaseKeystore = System.getenv("KEYSTORE_FILE")?.takeIf { it.isNotBlank() }?.let { file(it) }
+    ?: rootProject.file("signing/puretube-release.p12") // local builds only; signing/ is gitignored
+val storePass: String? = System.getenv("KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() }
+val runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+
 android {
     namespace = "com.hhst.youtubelite"
     compileSdk = 36
@@ -32,8 +40,10 @@ android {
         applicationId = "com.whoakemosabe.puretube"
         minSdk = 24
         targetSdk = 36
-        versionCode = 400
-        versionName = "4.0.0"
+        // Upstream Litube 4.0.0 was versionCode 400; each CI build counts up from there so
+        // Android accepts every new build as an update.
+        versionCode = 400 + runNumber
+        versionName = "4.0.$runNumber"
         buildConfigField("String", "DIAGNOSTIC_BUILD_ID", "\"$diagnosticBuildId\"")
         buildConfigField("String", "DIAGNOSTIC_DEPENDENCIES", "\"Media3=${libs.versions.media3.get()};OkHttp=${libs.versions.okhttp.get()};kotlinx-serialization=${libs.versions.kotlinxSerialization.get()};UPnPCast=${libs.versions.upnpcast.get()};MSC=${libs.versions.msc.get()}\"")
         testInstrumentationRunner = "com.hhst.youtubelite.ContentTestRunner"
@@ -49,6 +59,18 @@ android {
         )
     }
 
+    signingConfigs {
+        create("release") {
+            if (releaseKeystore.exists() && storePass != null) {
+                storeFile = releaseKeystore
+                storeType = "PKCS12"
+                storePassword = storePass
+                keyAlias = "puretube"
+                keyPassword = storePass
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -57,6 +79,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = if (releaseKeystore.exists() && storePass != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
         debug {
             isMinifyEnabled = false
