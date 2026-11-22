@@ -133,10 +133,6 @@ private fun GeneralSettings(
             ThemeMode.Light -> R.string.settings_theme_light
             ThemeMode.Dark -> R.string.settings_theme_dark
         }), tag = "settings-row-theme", onClick = { themeDialog = true })
-    SettingsRow(stringResource(R.string.settings_language),
-        value = AppLocale.OPTIONS.firstOrNull { it.first == AppLocale.tag(context) }?.second
-            ?: java.util.Locale.forLanguageTag(AppLocale.tag(context)).displayName,
-        tag = "settings-row-language", onClick = { languageDialog = true })
     SettingsGroup(stringResource(R.string.settings_group_feed))
     SettingsToggle(stringResource(R.string.settings_hide_shorts), stringResource(R.string.settings_hide_shorts_summary),
         PreferenceKeys.ENABLE_HIDE_SHORTS, preferences, onToggle)

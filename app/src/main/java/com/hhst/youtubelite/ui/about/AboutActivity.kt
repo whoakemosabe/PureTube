@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.core.content.FileProvider
+import androidx.lifecycle.lifecycleScope
 import com.hhst.youtubelite.R
 import com.hhst.youtubelite.diagnostics.AppLog
 import com.hhst.youtubelite.diagnostics.DiagnosticOutcome
@@ -25,18 +26,20 @@ import com.hhst.youtubelite.diagnostics.Documents
 import com.hhst.youtubelite.extractor.Extractor
 import com.hhst.youtubelite.extractor.MemCache
 import com.hhst.youtubelite.ui.theme.AppTheme
+import com.hhst.youtubelite.update.UpdateUi
+import com.hhst.youtubelite.update.UpdateWatch
+import com.hhst.youtubelite.update.Updater
 import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.koin.java.KoinJavaComponent.get
 
 class AboutActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); enableEdgeToEdge()
+        if (savedInstanceState == null) openUpdateFrom(intent)
         setContent { AppTheme {
             val scope = rememberCoroutineScope()
             var status by rememberSaveable { mutableStateOf("") }
@@ -80,33 +83,24 @@ class AboutActivity : ComponentActivity() {
                     busy = false
                 }
             }
-            AboutScreen(applicationInfo.loadLabel(packageManager).toString(), version, { finish() }, busy, status,
+            // Update progress shows in the same status line as the other About actions.
+            val update = UpdateWatch.ui
+            val updateStatus = when (update) {
+                UpdateUi.Checking -> "Checking for updates…"
+                is UpdateUi.UpToDate -> "Puretube is up to date (${update.version})"
+                is UpdateUi.Downloading -> "Downloading update… ${(UpdateWatch.progress * 100).toInt()}%"
+                is UpdateUi.Ready -> "Update downloaded. Tap Install."
+                is UpdateUi.Error -> update.message
+                else -> null
+            }
+            UpdateDialog(update, UpdateWatch.progress,
+                onMain = { scope.launch { UpdateWatch.tap(this@AboutActivity) } },
+                onDismiss = { UpdateWatch.notNow() })
+            AboutScreen(applicationInfo.loadLabel(packageManager).toString(), version, { finish() },
+                busy || update is UpdateUi.Checking || update is UpdateUi.Downloading, updateStatus ?: status,
                 onSource = { openUrl(SOURCE) },
-                onUpdate = { action("check_update") {
-                    val latest = withContext(Dispatchers.IO) {
-                        val request = Request.Builder().url("https://api.github.com/repos/HydeYYHH/litube/releases/latest")
-                            .header("Accept", "application/vnd.github+json").build()
-                        get<OkHttpClient>(OkHttpClient::class.java).newCall(request).execute().use { response ->
-                            check(response.isSuccessful) { "HTTP ${response.code}" }
-                            val body = response.body?.string() ?: error("Empty release response")
-                            val json = kotlinx.serialization.json.Json.parseToJsonElement(body)
-                                as kotlinx.serialization.json.JsonObject
-                            fun flag(key: String): Boolean = (json[key] as? kotlinx.serialization.json.JsonPrimitive)
-                                ?.takeUnless { it is kotlinx.serialization.json.JsonNull }?.content?.toBoolean() == true
-                            fun text(key: String): String = (json[key] as? kotlinx.serialization.json.JsonPrimitive)
-                                ?.takeUnless { it is kotlinx.serialization.json.JsonNull }?.content
-                                ?: error("update_check_payload")
-                            check(!flag("prerelease") && !flag("draft"))
-                            text("tag_name")
-                        }
-                    }
-                    when {
-                        StableVersion.isDevelopment(version) -> getString(R.string.about_development_version, latest)
-                        StableVersion.isNewer(version, latest) -> getString(R.string.about_update_available, latest)
-                        else -> getString(R.string.about_up_to_date, latest)
-                    }
-                } },
-                onRelease = { openUrl("$SOURCE/releases/latest") },
+                onUpdate = { scope.launch { UpdateWatch.checkOnly(this@AboutActivity) } },
+                onRelease = { openUrl(Updater.RELEASES_URL) },
                 onClear = { action("clear_cache") {
                     // clearCache removes HTTP cache only; cookies and WebStorage keep the account.
                     WebView(this@AboutActivity).let { it.clearCache(true); it.destroy() }
@@ -168,9 +162,21 @@ class AboutActivity : ComponentActivity() {
                 })
         } }
     }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openUpdateFrom(intent)
+    }
+
+    /** From the "new version" notification: check right away so the What's new window opens. */
+    private fun openUpdateFrom(intent: Intent?) {
+        if (intent?.getBooleanExtra(UpdateWatch.EXTRA_OPEN, false) != true) return
+        intent.removeExtra(UpdateWatch.EXTRA_OPEN)
+        lifecycleScope.launch { UpdateWatch.checkOnly(this@AboutActivity) }
+    }
+
     private fun openUrl(url: String) {
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
             .onFailure { Toast.makeText(this, R.string.application_not_found, Toast.LENGTH_SHORT).show() }
     }
-    companion object { private const val SOURCE = "https://github.com/HydeYYHH/litube" }
+    companion object { private const val SOURCE = Updater.REPO_URL }
 }

@@ -60,6 +60,8 @@ class App : Application(), Configuration.Provider {
         get<com.hhst.youtubelite.extension.ExtensionManager>().let { prefs ->
             com.hhst.youtubelite.ui.theme.AppAppearance.update(prefs.themeMode())
         }
+        // Off the main thread: schedules the 6-hourly release check and asks GitHub if due.
+        com.hhst.youtubelite.update.UpdateWatch.start(this)
     }
 
     @Synchronized fun startMediaRuntime() {

@@ -48,14 +48,9 @@ android {
         testInstrumentationRunner = "com.hhst.youtubelite.ContentTestRunner"
     }
 
-    // Keep resource qualifiers aligned with AppLocale.OPTIONS and locales_config.xml.
+    // English only: also drops the translations bundled inside libraries.
     androidResources {
-        localeFilters += setOf(
-            "en", "zh", "zh-rTW", "ar", "bg", "bn", "bs", "cs", "da", "de", "el", "es", "fa", "fi",
-            "fil", "fr", "gu", "hi", "hr", "hu", "in", "iw", "it", "ja", "kn", "ko", "ml", "mr",
-            "ms", "nb", "nl", "pa", "pl", "pt", "ro", "ru", "sk", "sl", "sr", "sv", "ta", "te",
-            "th", "tr", "uk", "ur", "vi",
-        )
+        localeFilters += setOf("en")
     }
 
     signingConfigs {
