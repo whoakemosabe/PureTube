@@ -18,7 +18,7 @@ DLNA renderer. Use an independent receiver to verify actual decoding and control
    Install matching debug application and Android test APKs, then run:
 
    ```text
-   adb shell am instrument -w -e network 1 -e dlnaDescriptionUrl DESCRIPTION_URL -e dlnaMediaUrl http://PC_IP:48081/sample.mp4 -e class com.hhst.youtubelite.cast.DlnaSoftwareRendererAndroidTest com.hhst.litube.debug.test/com.hhst.youtubelite.ContentTestRunner
+   adb shell am instrument -w -e network 1 -e dlnaDescriptionUrl DESCRIPTION_URL -e dlnaMediaUrl http://PC_IP:48081/sample.mp4 -e class com.hhst.youtubelite.cast.DlnaSoftwareRendererAndroidTest com.whoakemosabe.puretube.debug.test/com.hhst.youtubelite.ContentTestRunner
    ```
 
 The test uses the production `RealDlnaEngine`, including network selection,
@@ -50,7 +50,7 @@ validates the HTTP Host header. Remove the forward afterward using
 ## Chromecast software receiver
 
 ```text
-adb shell am instrument -w -e network 1 -e castReceiverHost PC_IP -e castReceiverPort PORT -e castMediaUrl http://PC_IP:48081/sample.mp4 -e class com.hhst.youtubelite.cast.CastSoftwareReceiverAndroidTest com.hhst.litube.debug.test/com.hhst.youtubelite.ContentTestRunner
+adb shell am instrument -w -e network 1 -e castReceiverHost PC_IP -e castReceiverPort PORT -e castMediaUrl http://PC_IP:48081/sample.mp4 -e class com.hhst.youtubelite.cast.CastSoftwareReceiverAndroidTest com.whoakemosabe.puretube.debug.test/com.hhst.youtubelite.ContentTestRunner
 ```
 
 For DASH use a served MPD plus all referenced segments and add
@@ -75,8 +75,8 @@ the real player engine, view model, media proxy, controllers and Cast DeviceAuth
 remain in the playback path.
 
 ```text
-adb shell am instrument -w -e network 1 -e qualityRoute dlna -e qualityMediaBase http://10.0.2.2:48083 -e qualityProxyPort 48082 -e dlnaDescriptionUrl DESCRIPTION_URL -e qualityHoldMs 4000 -e class com.hhst.youtubelite.cast.CastQualitySoftwareReceiverAndroidTest#manualQualityAndAutoOnKodi com.hhst.litube.debug.test/com.hhst.youtubelite.ContentTestRunner
-adb shell am instrument -w -e network 1 -e qualityRoute chromecast -e qualityMediaBase http://10.0.2.2:48083 -e qualityProxyPort 48082 -e castReceiverHost PC_IP -e castReceiverPort PORT -e qualityHoldMs 4000 -e qualityControls 1 -e class com.hhst.youtubelite.cast.CastQualitySoftwareReceiverAndroidTest#manualQualityAndAutoOnCastReceiver com.hhst.litube.debug.test/com.hhst.youtubelite.ContentTestRunner
+adb shell am instrument -w -e network 1 -e qualityRoute dlna -e qualityMediaBase http://10.0.2.2:48083 -e qualityProxyPort 48082 -e dlnaDescriptionUrl DESCRIPTION_URL -e qualityHoldMs 4000 -e class com.hhst.youtubelite.cast.CastQualitySoftwareReceiverAndroidTest#manualQualityAndAutoOnKodi com.whoakemosabe.puretube.debug.test/com.hhst.youtubelite.ContentTestRunner
+adb shell am instrument -w -e network 1 -e qualityRoute chromecast -e qualityMediaBase http://10.0.2.2:48083 -e qualityProxyPort 48082 -e castReceiverHost PC_IP -e castReceiverPort PORT -e qualityHoldMs 4000 -e qualityControls 1 -e class com.hhst.youtubelite.cast.CastQualitySoftwareReceiverAndroidTest#manualQualityAndAutoOnCastReceiver com.whoakemosabe.puretube.debug.test/com.hhst.youtubelite.ContentTestRunner
 ```
 
 The test seeks into the video, switches 360p/720p repeatedly, restores automatic

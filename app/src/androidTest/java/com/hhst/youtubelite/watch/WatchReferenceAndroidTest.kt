@@ -88,7 +88,7 @@ class WatchReferenceAndroidTest {
             val width = payload.optJSONObject("viewport")?.optInt("width") ?: 0
             val json = payload.toString(2)
             DeviceEvidence.writeJson("$scene-$width.json", json)
-            DeviceEvidence.shell("run-as com.hhst.litube.debug cp files/device-evidence/$scene-$width.json /data/local/tmp/ 2>/dev/null")
+            DeviceEvidence.shell("run-as com.whoakemosabe.puretube.debug cp files/device-evidence/$scene-$width.json /data/local/tmp/ 2>/dev/null")
             DeviceEvidence.captureScene("$scene-$width")
             assertTrue("Expected watch page, got ${payload.optString("url")}", Uri.parse(payload.optString("url")).let { it.host?.endsWith("youtube.com") == true && it.path == "/watch" })
             assertTrue("Sampled page reported it was not ready: probe=${payload.optString("probe")} tags=${payload.optString("customTags")}", payload.optBoolean("ready"))

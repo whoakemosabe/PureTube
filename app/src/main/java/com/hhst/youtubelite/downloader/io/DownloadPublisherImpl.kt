@@ -298,7 +298,7 @@ class MediaStorePublishBackend(
             put(MediaStore.Downloads.DISPLAY_NAME, name)
             put(MediaStore.Downloads.MIME_TYPE, mimeType)
             put(MediaStore.Downloads.IS_PENDING, 1)
-            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Litube")
+            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Puretube")
         }
         val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
             ?: error("MediaStore insert failed")
@@ -372,7 +372,7 @@ fun createPublishBackend(context: Context, sdk: Int = Build.VERSION.SDK_INT): Pu
     return if (sdk >= 29) {
         MediaStorePublishBackend(context)
     } else {
-        val dir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "Litube")
+        val dir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "Puretube")
         LocalPublishBackend(
             outputDir = dir,
             uriPrefix = "content://${context.packageName}$DOWNLOAD_FILE_PROVIDER_SUFFIX/downloads/",

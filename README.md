@@ -4,7 +4,7 @@
 
   <p>
     <!-- Restore the F-Droid badge when its package is updated to v4.
-    <a href="https://f-droid.org/packages/com.hhst.litube/"><img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80"></a>
+    <a href="https://f-droid.org/packages/com.whoakemosabe.puretube/"><img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80"></a>
     -->
     <a href="https://github.com/HydeYYHH/litube/releases"><img src=".github/assets/download-github.svg" alt="Get it on GitHub" width="206" height="80"></a>
   </p>
@@ -77,7 +77,7 @@ Set `ANDROID_HOME` to your Android SDK directory, or set `sdk.dir` in an untrack
 
 On Windows, replace `./gradlew` with `.\gradlew.bat` in these commands.
 
-The debug APK is saved to `app/build/outputs/apk/debug/app-debug.apk`. Debug builds use the application ID `com.hhst.litube.debug`; release builds use `com.hhst.litube`.
+The debug APK is saved to `app/build/outputs/apk/debug/app-debug.apk`. Debug builds use the application ID `com.whoakemosabe.puretube.debug`; release builds use `com.whoakemosabe.puretube`.
 
 To build the release APK, run `./gradlew :app:assembleRelease`. The unsigned APK is saved to `app/build/outputs/apk/release/app-release-unsigned.apk`; sign it with your release key before distribution.
 
