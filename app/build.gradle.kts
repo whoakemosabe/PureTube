@@ -40,10 +40,9 @@ android {
         applicationId = "com.whoakemosabe.puretube"
         minSdk = 24
         targetSdk = 36
-        // Upstream Litube 4.0.0 was versionCode 400; each CI build counts up from there so
-        // Android accepts every new build as an update.
-        versionCode = 400 + runNumber
-        versionName = "4.0.$runNumber"
+        // Puretube's own numbering: 1.0.N, N = the CI run number, so every build is an update.
+        versionCode = runNumber
+        versionName = "1.0.$runNumber"
         buildConfigField("String", "DIAGNOSTIC_BUILD_ID", "\"$diagnosticBuildId\"")
         buildConfigField("String", "DIAGNOSTIC_DEPENDENCIES", "\"Media3=${libs.versions.media3.get()};OkHttp=${libs.versions.okhttp.get()};kotlinx-serialization=${libs.versions.kotlinxSerialization.get()};UPnPCast=${libs.versions.upnpcast.get()};MSC=${libs.versions.msc.get()}\"")
         testInstrumentationRunner = "com.hhst.youtubelite.ContentTestRunner"

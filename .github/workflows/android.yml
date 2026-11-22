@@ -1,6 +1,6 @@
 name: Android
 
-# Pushes to master publish a signed release (v4.0.N) with puretube.apk attached; other branches
+# Pushes to master publish a signed release (v1.0.N) with puretube.apk attached; other branches
 # are build checks. Same pipeline as Skjálfti, Afli and Dropi.
 on:
   push:
@@ -102,7 +102,7 @@ jobs:
             echo "Tap **puretube.apk** below on your phone to install or update."
             echo
             # What's new: commit titles since the previous release tag.
-            prev=$(git describe --tags --abbrev=0 --match 'v4.*' HEAD^ 2>/dev/null || true)
+            prev=$(git describe --tags --abbrev=0 --match 'v1.*' HEAD^ 2>/dev/null || true)
             if [ -n "$prev" ]; then
               echo "### What's new since $prev"
               git log --no-merges --pretty='- %s' "$prev..HEAD" | head -25
@@ -118,8 +118,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v4.0.${{ github.run_number }}" puretube.apk \
-            --title "Puretube 4.0.${{ github.run_number }}" \
+          gh release create "v1.0.${{ github.run_number }}" puretube.apk \
+            --title "Puretube 1.0.${{ github.run_number }}" \
             --notes-file notes.md \
             --target "${GITHUB_SHA}" \
             --latest
