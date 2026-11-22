@@ -1,6 +1,6 @@
 package com.hhst.youtubelite.downloader.io
 
-/** Display names for Downloads/Litube: keeps Unicode, strips OS-illegal chars, caps length, disambiguates collisions. */
+/** Display names for Downloads/Puretube: keeps Unicode, strips OS-illegal chars, caps length, disambiguates collisions. */
 object DownloadFileNames {
     private const val MAX_BASE = 180
     private val ILLEGAL = Regex("""[\\/:*?"<>|\u0000-\u001F]""")

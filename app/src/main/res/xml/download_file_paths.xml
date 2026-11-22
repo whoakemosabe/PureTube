@@ -5,5 +5,5 @@
     <cache-path name="download_tmp" path="download/" />
     <cache-path name="updates" path="updates/" />
     <files-path name="download_files" path="download/" />
-    <external-files-path name="download_ext" path="Download/Litube/" />
+    <external-files-path name="download_ext" path="Download/Puretube/" />
 </paths>

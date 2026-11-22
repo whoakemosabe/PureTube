@@ -279,7 +279,7 @@ class MediaStorePublishBackend(
             MediaStore.Downloads.EXTERNAL_CONTENT_URI,
             arrayOf(MediaStore.Downloads.DISPLAY_NAME),
             "${MediaStore.Downloads.RELATIVE_PATH} LIKE ?",
-            arrayOf("%Litube%"),
+            arrayOf("%Puretube%"),
             null,
         )?.use { cursor ->
             val idx = cursor.getColumnIndex(MediaStore.Downloads.DISPLAY_NAME)
