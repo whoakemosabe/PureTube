@@ -129,6 +129,8 @@ android {
             all {
                 it.maxHeapSize = "256m"
                 it.maxParallelForks = 1
+                // Print the assertion message and stack, not just "AssertionError at line N".
+                it.testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
             }
         }
     }

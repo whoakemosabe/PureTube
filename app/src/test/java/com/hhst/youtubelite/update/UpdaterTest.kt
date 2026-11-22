@@ -5,6 +5,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+// Pure-Kotlin parts only: org.json is a stub in local unit tests, so the JSON helpers are
+// left to the device.
 class UpdaterTest {
     @Test fun comparesVersionsNumerically() {
         assertTrue(Updater.isNewer("v1.0.12", "1.0.9"))
@@ -24,16 +26,5 @@ class UpdaterTest {
             Puretube — ad-free YouTube for Android.
         """.trimIndent()
         assertEquals(listOf("Block more ads", "Fix the player"), Updater.whatsNew(body))
-    }
-
-    @Test fun collectsNotesFromEveryNewerRelease() {
-        val json = """[
-            {"tag_name":"v1.0.8","body":"### What's new since v1.0.7\n- Third"},
-            {"tag_name":"v1.0.7","body":"### What's new since v1.0.6\n- Second"},
-            {"tag_name":"v1.0.6","body":"### What's new since v1.0.5\n- First","prerelease":true},
-            {"tag_name":"v1.0.5","body":"### What's new\n- Old"}
-        ]"""
-        assertEquals(listOf("Third", "Second"), Updater.notesSince(json, "1.0.5"))
-        assertEquals(2, Updater.countSince(json, "1.0.5"))
     }
 }
