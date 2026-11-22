@@ -96,9 +96,28 @@ fun AppTheme(content: @Composable () -> Unit) {
 fun androidx.activity.ComponentActivity.setAppContent(content: @Composable () -> Unit) {
     setContent {
         AppTheme {
-            Box(Modifier.fillMaxSize().background(DesignTokens.Background)) { content() }
+            Box(Modifier.fillMaxSize().background(DesignTokens.Background)) {
+                content()
+                StatusBarScrim()
+            }
         }
     }
+}
+
+/**
+ * Puretube keeps a solid black status bar on every screen, light or dark, with white icons.
+ * The app draws edge to edge (Android 15+ ignores window.statusBarColor), so the black is a
+ * strip drawn over the status bar area. It is zero height wherever the status bar is hidden,
+ * such as the fullscreen player.
+ */
+@Composable
+fun StatusBarScrim() {
+    Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Color.Black))
+}
+
+/** White status bar icons, to sit on [StatusBarScrim]. */
+fun android.app.Activity.whiteStatusBarIcons() {
+    androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
 }
 
 /** Draws the message card shadow without platform elevation. */

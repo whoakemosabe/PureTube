@@ -24,7 +24,7 @@ class DownloadActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         (application as com.hhst.youtubelite.App).startMediaRuntime()
-        enableEdgeToEdge()
+        enableEdgeToEdge(androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
         val batchId = intent.getStringExtra(DownloadUi.EXTRA_BATCH_ID)
         setContent {
             AppTheme { NeutralControls {
@@ -34,6 +34,7 @@ class DownloadActivity : ComponentActivity() {
                     newBatchRequests = batchEvents,
                     onClose = { finish() },
                 )
+                com.hhst.youtubelite.ui.design.StatusBarScrim()
             } }
         }
     }

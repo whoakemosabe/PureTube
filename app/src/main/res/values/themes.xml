@@ -47,9 +47,10 @@
 
     <style name="Theme.App.Home" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/white</item>
-        <item name="android:statusBarColor">@android:color/white</item>
+        <!-- Black status bar with white icons on every screen, from the first frame. -->
+        <item name="android:statusBarColor">@android:color/black</item>
         <item name="android:navigationBarColor">@android:color/white</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
         <item name="android:colorAccent">#0F0F0F</item>
     </style>
 

@@ -170,7 +170,7 @@ class PostDetailActivity : com.hhst.youtubelite.ui.ContentActivity() {
         setAppContent {
             val state by postDetailViewModel.uiState.collectAsStateWithLifecycle()
             val commentsState by postCommentsViewModel.uiState.collectAsStateWithLifecycle()
-            WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true
+            WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
             val back = {
                 if (state.commentsOpen && commentsState.overlay != CommentsOverlay.None) postCommentsViewModel.onAction(CommentAction.CloseMenu)
                 else if (state.commentsOpen) postDetailViewModel.onAction(PostDetailAction.CloseComments)

@@ -162,10 +162,11 @@ abstract class NativeActivity : ComponentActivity() {
         val dark = darkAppearance()
         applyWindowBackground(dark)
         androidx.core.view.WindowInsetsControllerCompat(window, window.decorView).apply {
-            isAppearanceLightStatusBars = !dark
+            // Always white icons: the status bar is black on every screen (StatusBarScrim).
+            isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = !dark
         }
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.statusBarColor = android.graphics.Color.BLACK
         window.navigationBarColor = if (dark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
     }
 

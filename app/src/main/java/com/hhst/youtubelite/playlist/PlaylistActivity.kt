@@ -157,7 +157,7 @@ class PlaylistActivity : com.hhst.youtubelite.ui.ContentActivity() {
             playlistViewModel.saveSheet?.let { com.hhst.youtubelite.ui.design.WriteProgressOverlay(it.writes) }
             val pageColor = (state.content as? PlaylistContent.Ready)?.page?.summary?.accent
             SideEffect {
-                WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = pageColor == null
+                WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
                 WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars = true
             }
             val back: () -> Unit = {

@@ -11,6 +11,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,9 +41,9 @@ import org.koin.java.KoinJavaComponent.get
 
 class AboutActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState); enableEdgeToEdge()
+        super.onCreate(savedInstanceState); enableEdgeToEdge(androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
         if (savedInstanceState == null) openUpdateFrom(intent)
-        setContent { AppTheme {
+        setContent { AppTheme { Box(Modifier.fillMaxSize()) {
             val scope = rememberCoroutineScope()
             var status by rememberSaveable { mutableStateOf("") }
             var pendingArchive by rememberSaveable { mutableStateOf<String?>(null) }
@@ -160,7 +163,8 @@ class AboutActivity : ComponentActivity() {
                         }
                     }
                 })
-        } }
+            com.hhst.youtubelite.ui.design.StatusBarScrim()
+        } } }
     }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
