@@ -4,6 +4,9 @@ import com.hhst.youtubelite.ui.design.reasonResources
 import com.hhst.youtubelite.ui.design.labelResource
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import com.hhst.youtubelite.ui.design.frosted
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.*
@@ -149,7 +152,10 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
                     onAction(HomeAction.AutomaticLoadNext)
             }
             val searchOpen = state.overlay == HomeOverlay.Search
-            Column(Modifier.fillMaxSize().then(if (state.overlay != HomeOverlay.None) Modifier.clearAndSetSemantics {} else Modifier)) {
+            // The feed is recorded here and shown frosted behind the top bar, chips and tab bar.
+            val glass = rememberLayerBackdrop()
+            Box(Modifier.fillMaxSize().then(if (state.overlay != HomeOverlay.None) Modifier.clearAndSetSemantics {} else Modifier)) {
+            Column(Modifier.fillMaxSize()) {
                 if (feed == null && state.content != HomeContent.Loading) {
                     HomeTopBar(onAction)
                     if (catalogMode) ChipStrip(state.selectedChip, state.chips, true, onAction)
@@ -179,14 +185,16 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
                         }
                         is HomeContent.Feed -> Box(Modifier.fillMaxSize()) {
                             // Pull moves the feed rows only; the chrome stack keeps its place.
-                            Column(Modifier.fillMaxSize().graphicsLayer { translationY = pull }) {
+                            Column(Modifier.fillMaxSize().layerBackdrop(glass).graphicsLayer { translationY = pull }) {
                             if (content.refreshFailed) Box(Modifier.graphicsLayer { translationY = (96f + chipExtraHeight.value - chromeTravel * chromeOffset) * density }) {
                                 RetryRow(stringResource(R.string.ui_couldn_t_refresh_try_again)) { onAction(HomeAction.Refresh) }
                             }
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(HomeLayout.columns(width)), state = grid,
                                 modifier = Modifier.fillMaxSize().testTag("home-feed"),
-                                contentPadding = PaddingValues(start = HomeLayout.outerPadding(width).dp, end = HomeLayout.outerPadding(width).dp, top = feedTopInset, bottom = 24.dp),
+                                contentPadding = PaddingValues(start = HomeLayout.outerPadding(width).dp, end = HomeLayout.outerPadding(width).dp, top = feedTopInset,
+                                    // The tab bar floats over the feed, so the last row can scroll clear of it.
+                                    bottom = 24.dp + DesignTokens.BottomBarHeight + 1.dp),
                                 horizontalArrangement = Arrangement.spacedBy(DesignTokens.GridGap),
                             ) {
                                 homeCards(visibleItems, currentWidth, state.live, onAction, postInteractions)
@@ -203,15 +211,18 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
                                 }
                             }
                             }
-                            Box(Modifier.graphicsLayer { translationY = (48f - chromeTravel * chromeOffset) * density }.background(DesignTokens.Background)) { ChipStrip(state.selectedChip, state.chips, content.page.catalog != null, onAction) }
-                            Box(Modifier.graphicsLayer { translationY = -48f * chromeOffset * density }.background(DesignTokens.Background)) { HomeTopBar(onAction) }
+                            Box(Modifier.graphicsLayer { translationY = (48f - chromeTravel * chromeOffset) * density }.frosted(glass)) { ChipStrip(state.selectedChip, state.chips, content.page.catalog != null, onAction) }
+                            Box(Modifier.graphicsLayer { translationY = -48f * chromeOffset * density }.frosted(glass)) { HomeTopBar(onAction) }
                         }
                     }
                     val refreshAnchor = if (state.content is HomeContent.Feed)
                         (96f + chipExtraHeight.value - chromeTravel * chromeOffset).dp else 0.dp
                     PullRefreshIndicator(pullMotion, "home-refresh-indicator", refreshAnchor)
                 }
-                HomeBottomBar(state.signedInPreview, onAction, state.avatar)
+                // Without a feed there is nothing to scroll under the tab bar: keep its space.
+                if (feed == null) Spacer(Modifier.height(DesignTokens.BottomBarHeight + 1.dp))
+            }
+            HomeBottomBar(state.signedInPreview, onAction, state.avatar, Modifier.align(Alignment.BottomCenter).frosted(glass))
             }
             when (val overlay = state.overlay) {
                 HomeOverlay.None -> Unit
@@ -299,9 +310,9 @@ private fun HomeTopBar(onAction: (HomeAction) -> Unit) {
 }
 
 @Composable
-private fun HomeBottomBar(signedIn: Boolean, onAction: (HomeAction) -> Unit, avatar: String? = null) {
+private fun HomeBottomBar(signedIn: Boolean, onAction: (HomeAction) -> Unit, avatar: String? = null, modifier: Modifier = Modifier) {
     val haptic = rememberHapticAction(com.hhst.youtubelite.core.HapticsController.Event.TAB)
-    Column(Modifier.fillMaxWidth().testTag("home-navigation")) {
+    Column(modifier.fillMaxWidth().testTag("home-navigation")) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(DesignTokens.NavigationDivider))
         Row(Modifier.fillMaxWidth().height(DesignTokens.BottomBarHeight)) {
             val destinations = if (signedIn) HomeDestination.entries else listOf(HomeDestination.Home, HomeDestination.Shorts, HomeDestination.You)
