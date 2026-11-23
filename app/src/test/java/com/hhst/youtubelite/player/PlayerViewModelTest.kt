@@ -203,6 +203,39 @@ class PlayerViewModelTest {
         assertEquals(VideoId.watchUrl("bbbbbbbbbbb"), engine.playCalls.last())
     }
 
+    @Test fun addToQueueWhileWatchingPlaysTheQueuedVideoNextEvenWithAutoplayOff() {
+        bindViewModel { "ddddddddddd" }
+        preferences.setEnabled(PreferenceKeys.ENABLE_AUTOPLAY, false)
+        viewModel.openVideo(watchId)
+        engine.settle(watchId)
+        viewModel.onQueueAdd(QueueItem("bbbbbbbbbbb", title = "Queued"))
+        viewModel.onQueueAdd(QueueItem("ccccccccccc", title = "Later"))
+        engine.finish()
+        assertEquals(VideoId.watchUrl("bbbbbbbbbbb"), engine.playCalls.last())
+        engine.settle("bbbbbbbbbbb")
+        engine.finish()
+        assertEquals(VideoId.watchUrl("ccccccccccc"), engine.playCalls.last())
+    }
+
+    @Test fun addToQueueWhileWatchingMakesNextPlayIt() {
+        bindViewModel { "ddddddddddd" }
+        viewModel.openVideo(watchId)
+        engine.settle(watchId)
+        viewModel.onQueueAddNext(QueueItem("bbbbbbbbbbb", title = "Queued"))
+        viewModel.skipToNext()
+        assertEquals(VideoId.watchUrl("bbbbbbbbbbb"), engine.playCalls.last())
+    }
+
+    @Test fun anOldQueueDoesNotHijackPlainWatching() {
+        bindViewModel { "ddddddddddd" }
+        queue.setEnabled(true)
+        queue.add(QueueItem("bbbbbbbbbbb", title = "Old queue"))
+        viewModel.openVideo(watchId)
+        engine.settle(watchId)
+        engine.finish()
+        assertFalse(engine.playCalls.contains(VideoId.watchUrl("bbbbbbbbbbb")))
+    }
+
     @Test
     fun gesturePrefKey_picksEmbeddedOrFullscreen() {
         assertEquals(

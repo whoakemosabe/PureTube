@@ -670,6 +670,8 @@ class PlayerViewModel(
         val token = playbackRequestSeq
         val id = VideoId.parse(url)
         val previousId = _uiState.value.videoId
+        // The handoff belongs to the video it was armed on; leaving it ends it.
+        if (queueHandoff?.first != id) queueHandoff = null
         val previousKind = mediaKind
         if (kind != null) mediaKind = kind
         engine.setShortsMode(mediaKind == MediaKind.SHORTS)
@@ -880,6 +882,27 @@ class PlayerViewModel(
         return if (index < 0) null else playlistItems.getOrNull(index + direction)
     }
 
+    /**
+     * "Add to queue" while watching a video that is not itself queued: the video the user
+     * just queued plays after this one. Without it the end of the video fell through to
+     * related autoplay (or nothing, with autoplay off), as if the add never happened. Only
+     * an add made during this video counts, so an old queue never hijacks plain watching.
+     */
+    private var queueHandoff: Pair<String, String>? = null
+
+    private fun armQueueHandoff(videoId: String, replace: Boolean) {
+        val current = playbackQueueId() ?: return
+        if (mediaKind != MediaKind.WATCH || current == videoId || currentInQueue()) return
+        if (!replace && queueHandoff?.first == current) return
+        queueHandoff = current to videoId
+    }
+
+    private fun handoffTarget(id: String?): QueueItem? {
+        val (from, target) = queueHandoff ?: return null
+        if (from != id || !queueActive()) return null
+        return queue.state.value.items.firstOrNull { it.videoId == target }
+    }
+
     private fun queueActive(): Boolean {
         val q = queue.state.value
         return !playlistActive && q.enabled && q.items.isNotEmpty()
@@ -907,7 +930,7 @@ class PlayerViewModel(
                 else -> queue.nextStrict(id)
             }
             playlistActive && playlistItems.any { it.videoId == id } -> playlistNeighbor(1)
-            else -> null
+            else -> handoffTarget(id)
         }
     }
 
@@ -923,6 +946,7 @@ class PlayerViewModel(
     private fun relatedAvailable(id: String?): Boolean {
         if (id == null || nextVideo == null) return false
         if (queueActive() && currentInQueue()) return false
+        if (handoffTarget(id) != null) return false
         if (playlistActive && playlistItems.any { it.videoId == id }) return false
         val resolved = relatedNext
         return resolved?.first != id || resolved.second != null
@@ -1123,6 +1147,8 @@ class PlayerViewModel(
         playlistItems = emptyList()
         if (!queue.state.value.enabled) queue.setEnabled(true)
         queue.add(item)
+        armQueueHandoff(item.videoId, replace = false)
+        refreshNavAvailability()
     }
 
     /** "Play next" — same manual population path, but positioned after the playing entry. */
@@ -1131,6 +1157,8 @@ class PlayerViewModel(
         playlistItems = emptyList()
         if (!queue.state.value.enabled) queue.setEnabled(true)
         queue.addNext(item)
+        armQueueHandoff(item.videoId, replace = true)
+        refreshNavAvailability()
     }
 
     /** True when [videoId] is already in the manual queue (dedupe feedback for menus). */
@@ -1481,9 +1509,9 @@ class PlayerViewModel(
         val current = playbackQueueId()
         val target = when (_uiState.value.loopMode) {
             LoopMode.QUEUE_NEXT ->
-                if (queueContext) queue.nextStrict(current) else null
+                if (queueContext) queue.nextStrict(current) else handoffTarget(current)
             LoopMode.QUEUE_RANDOM ->
-                if (queueContext) queue.random(current) else null
+                if (queueContext) queue.random(current) else handoffTarget(current)
             LoopMode.LOOP_ONE, LoopMode.PAUSE_AT_END -> null
         }
         if (target != null) {
