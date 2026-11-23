@@ -77,4 +77,19 @@ class DownloadRangeParserTest {
             ),
         )
     }
+
+    @Test
+    fun longNonLatinTitlesStayWithinTheFileSystemNameLimit() {
+        val japanese = "日本語のタイトル".repeat(13) // 104 characters, 312 bytes
+        val name = DownloadFileNames.sanitize("$japanese.mp4", "mp4")
+        assertTrue(name.endsWith(".mp4"))
+        assertTrue("$name.pending".toByteArray(Charsets.UTF_8).size <= 255)
+        assertTrue(name.removeSuffix(".mp4").toByteArray(Charsets.UTF_8).size <= 180)
+        // Emoji are never cut in half.
+        val emoji = DownloadFileNames.sanitize("😀".repeat(60) + ".mp4", "mp4")
+        assertTrue(emoji.removeSuffix(".mp4").all { it.isSurrogate() })
+        assertEquals(0, emoji.removeSuffix(".mp4").length % 2)
+        // Short titles are untouched.
+        assertEquals("日本語.mp4", DownloadFileNames.sanitize("日本語.mp4", "mp4"))
+    }
 }
