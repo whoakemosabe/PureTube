@@ -632,7 +632,7 @@ class MediaSessionTest {
         MediaSession.tokenFactory = { initial, signInClient -> AccountToken(initial, signInClient, object : HttpClient {
             override fun execute(request: HttpRequest) = HttpReply(400, """{"error":"invalid_grant"}""", emptyMap())
         }) }
-        MediaSession.completeSignIn(client(), token(access = "", expires = 0), accounts())
+        MediaSession.completeSignIn(client(), token(access = "stale", expires = 0), accounts())
         assertTrue(MediaSession.signedIn())
         val failure = assertThrows(MediaException::class.java) { MediaSession.freshContext() }
         assertEquals("sign_in_expired", failure.failure.code)
@@ -651,7 +651,7 @@ class MediaSessionTest {
         MediaSession.tokenFactory = { initial, signInClient -> AccountToken(initial, signInClient, object : HttpClient {
             override fun execute(request: HttpRequest) = HttpReply(503, "", emptyMap())
         }) }
-        MediaSession.completeSignIn(client(), token(access = "", expires = 0), accounts())
+        MediaSession.completeSignIn(client(), token(access = "stale", expires = 0), accounts())
         assertThrows(MediaException::class.java) { MediaSession.freshContext() }
         assertTrue(MediaSession.signedIn())
         assertFalse(MediaSession.signInExpired.value)
