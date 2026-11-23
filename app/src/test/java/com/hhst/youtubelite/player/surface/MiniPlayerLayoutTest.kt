@@ -52,6 +52,18 @@ class MiniPlayerLayoutTest {
     }
 
     @Test
+    fun snapY_restsAtTheNearerOfTopAndBottom() {
+        // A bottom-docked 107px window in an 800px parent starts at 625px; 60px top inset.
+        val bottom = 0f
+        val top = 60f - 625f
+        assertEquals(bottom, MiniPlayerLayout.snapY(-150f, 625, 107, 800, 60f, 68f), 0f)
+        assertEquals(top, MiniPlayerLayout.snapY(-400f, 625, 107, 800, 60f, 68f), 0f)
+        // A swipe-down that lets go mid-screen still lands in a corner, never in between.
+        val mid = MiniPlayerLayout.snapY(-280f, 625, 107, 800, 60f, 68f)
+        assertTrue(mid == bottom || mid == top)
+    }
+
+    @Test
     fun computeSpec_marginGrowsWithWindowWidthAndKeepsBottomInset() {
         for ((width, margin) in listOf(320 to 12, 420 to 14, 600 to 20, 840 to 24, 1280 to 24)) {
             val spec = MiniPlayerLayout.computeSpec(width, 80, MiniPlayerLayout.NO_WIDTH_OVERRIDE_DP)

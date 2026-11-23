@@ -292,7 +292,7 @@ fun MiniPlayerWindow(
 
     fun settledMiniX(x: Float) = collapsedSide?.let(::collapsedX) ?: snapMiniX(x)
 
-    fun clampMiniY(y: Float) = MiniPlayerLayout.clampTranslation(
+    fun snapMiniY(y: Float) = MiniPlayerLayout.snapY(
         y, restY.toInt(), heightPx.toInt(), parentSize.height, topMarginPx, edgeMarginPx,
     )
 
@@ -329,7 +329,7 @@ fun MiniPlayerWindow(
             placementRestored = true
         }
         val x = settledMiniX(dragX)
-        val y = clampMiniY(dragY)
+        val y = snapMiniY(dragY)
         dragX = x
         dragY = y
         // Pinch re-docks/clamps every frame but persists only when no gesture holds
@@ -678,7 +678,7 @@ fun MiniPlayerWindow(
                 swipeRelease++
                 if (commit) {
                     dragX = snapMiniX(viewport.center.x - widthPx / 2f - restX)
-                    dragY = clampMiniY(viewport.center.y - heightPx / 2f - restY)
+                    dragY = snapMiniY(viewport.center.y - heightPx / 2f - restY)
                     persist(dragX, dragY)
                     miniSwipeCommitted = true
                     currentOnMiniSwipe()
@@ -733,7 +733,7 @@ fun MiniPlayerWindow(
                 if (swipeToMini) {
                     if (committed) {
                         dragX = snapMiniX(viewport.center.x - widthPx / 2f - restX)
-                        dragY = clampMiniY(viewport.center.y - heightPx / 2f - restY)
+                        dragY = snapMiniY(viewport.center.y - heightPx / 2f - restY)
                         persist(dragX, dragY)
                         miniSwipeCommitted = true
                         currentOnMiniSwipe()
@@ -815,7 +815,7 @@ fun MiniPlayerWindow(
             if (!moved || parentSize.width <= 0) return
             snapJob?.cancel()
             val x = settledMiniX(dragX)
-            val y = clampMiniY(dragY)
+            val y = snapMiniY(dragY)
             // Released drag continues toward its dock rather than stopping and
             // accelerating from rest again.
             val snapSpec = tween<Float>(motionDuration(220, motionScale), easing = LinearOutSlowInEasing)

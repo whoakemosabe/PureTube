@@ -150,6 +150,25 @@ object MiniPlayerLayout {
         }
     }
 
+    /**
+     * The mini player rests in a corner: like [snapX], the vertical rest is the nearer of the
+     * top and bottom docks. Clamping alone left it wherever a swipe-down let go, often
+     * mid-screen over the feed (LiTube #379).
+     */
+    fun snapY(
+        translationPx: Float,
+        layoutStartPx: Int,
+        viewSizePx: Int,
+        parentSizePx: Int,
+        topInsetPx: Float,
+        bottomInsetPx: Float,
+    ): Float {
+        val minTranslation = clampTranslation(Float.NEGATIVE_INFINITY, layoutStartPx, viewSizePx, parentSizePx, topInsetPx, bottomInsetPx)
+        val maxTranslation = clampTranslation(Float.POSITIVE_INFINITY, layoutStartPx, viewSizePx, parentSizePx, topInsetPx, bottomInsetPx)
+        val clamped = translationPx.coerceIn(minTranslation, maxTranslation)
+        return if (abs(clamped - minTranslation) < abs(maxTranslation - clamped)) minTranslation else maxTranslation
+    }
+
     fun hitsCloseTarget(centerX: Float, centerY: Float, left: Float, top: Float, right: Float, bottom: Float): Boolean =
         right > left && bottom > top && centerX >= left && centerX <= right && centerY >= top && centerY <= bottom
 
