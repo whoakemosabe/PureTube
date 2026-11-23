@@ -162,7 +162,8 @@ fun SubscriptionsScreen(state: SubscriptionsUiState, onAction: (SubscriptionsAct
                         }
                     }
                 }
-                RefreshableContent(value = state, refreshing = state.content == SubscriptionsContent.Loading,
+                RefreshableContent(value = state, refreshing = state.content == SubscriptionsContent.Loading ||
+                    (state.content as? SubscriptionsContent.Feed)?.refreshing == true,
                     onRefresh = { onAction(SubscriptionsAction.Retry) }, modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(headerScroll),
                     enabled = state.signedIn && state.overlay == SubscriptionsOverlay.None, contentKey = Triple(state.signedIn, state.selectedChannel?.channelId, state.selectedChip), tag = "subscriptions-refresh",
                     canPull = { !gridState.canScrollBackward }) { state ->

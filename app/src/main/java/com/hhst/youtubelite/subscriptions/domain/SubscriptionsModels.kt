@@ -31,6 +31,8 @@ sealed interface SubscriptionsContent {
         val page: SubscriptionsPage,
         val append: com.hhst.youtubelite.home.domain.AppendState = com.hhst.youtubelite.home.domain.AppendState.Idle,
         val emptyAutoLoads: Int = 0,
+        /** A pull-to-refresh is running; the old page stays readable until the new one lands. */
+        val refreshing: Boolean = false,
     ) : SubscriptionsContent
     data object Failed : SubscriptionsContent
 }

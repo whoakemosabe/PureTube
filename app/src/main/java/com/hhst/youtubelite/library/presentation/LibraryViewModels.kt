@@ -328,8 +328,11 @@ class YouViewModel(
         playlistsShelfJob?.cancel()
         val request = ++generation
         val previousWrite = actionJob
+        // A pull keeps the page on screen for the round trip; a failed pull keeps it too.
+        val shown = _uiState.value.content as? LibraryContent.Ready
         loadJob = viewModelScope.launch {
-            _uiState.update { it.copy(content = LibraryContent.Loading, historyRetrying = false, playlistsRetrying = false) }
+            _uiState.update { it.copy(content = shown?.copy(refreshing = true) ?: LibraryContent.Loading,
+                historyRetrying = false, playlistsRetrying = false) }
             runCatching {
                 previousWrite?.join()
                 currentCoroutineContext().ensureActive()
@@ -340,7 +343,8 @@ class YouViewModel(
                     if (request != generation) return@fold
                     val challenge = (failure as? com.hhst.youtubelite.data.media.MediaException)
                         ?.let(::trafficChallenge)
-                    _uiState.update { it.copy(content = LibraryContent.Failed, verification = challenge ?: it.verification) } },
+                    _uiState.update { it.copy(content = shown?.copy(refreshing = false) ?: LibraryContent.Failed,
+                        verification = challenge ?: it.verification) } },
             )
         }
     }
@@ -483,6 +487,7 @@ class HistoryViewModel(
     /** On failure the loaded entries stay; only the append state reports failure. */
     private fun loadHistoryNext() {
         val ready = _uiState.value.content as? HistoryContent.Ready ?: return
+        if (ready.refreshing) return
         val cursor = ready.page.nextKey ?: return
         if (_uiState.value.append == com.hhst.youtubelite.home.domain.AppendState.Loading) return
         appendJob?.cancel()
@@ -687,8 +692,10 @@ class HistoryViewModel(
         emptyAppends = 0
         val request = ++generation
         val previousWrite = actionJob
+        val shown = _uiState.value.content as? HistoryContent.Ready
         loadJob = viewModelScope.launch {
-            _uiState.update { it.copy(content = HistoryContent.Loading, append = com.hhst.youtubelite.home.domain.AppendState.Idle) }
+            _uiState.update { it.copy(content = shown?.copy(refreshing = true) ?: HistoryContent.Loading,
+                append = com.hhst.youtubelite.home.domain.AppendState.Idle) }
             runCatching {
                 previousWrite?.join()
                 currentCoroutineContext().ensureActive()
@@ -707,7 +714,8 @@ class HistoryViewModel(
                     if (request != generation) return@fold
                     val challenge = (failure as? com.hhst.youtubelite.data.media.MediaException)
                         ?.let(::trafficChallenge)
-                    _uiState.update { it.copy(content = HistoryContent.Failed, verification = challenge ?: it.verification) } },
+                    _uiState.update { it.copy(content = shown?.copy(refreshing = false) ?: HistoryContent.Failed,
+                        verification = challenge ?: it.verification) } },
             )
         }
     }

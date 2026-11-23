@@ -50,14 +50,15 @@ data class SignInPrompt(val title: String, val message: String, val action: Stri
 sealed interface LibraryContent {
     data object Loading : LibraryContent
     data class SignedOut(val prompt: SignInPrompt) : LibraryContent
-    data class Ready(val page: YouPage) : LibraryContent
+    /** [refreshing]: a pull is running and this page stays up until the new one lands. */
+    data class Ready(val page: YouPage, val refreshing: Boolean = false) : LibraryContent
     data object Failed : LibraryContent
 }
 
 sealed interface HistoryContent {
     data object Loading : HistoryContent
     data class SignedOut(val prompt: SignInPrompt) : HistoryContent
-    data class Ready(val page: HistoryPage) : HistoryContent
+    data class Ready(val page: HistoryPage, val refreshing: Boolean = false) : HistoryContent
     data class Empty(val title: String = "No videos", val message: String = "Videos you watch will show up here.") : HistoryContent
     data object Failed : HistoryContent
 }

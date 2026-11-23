@@ -130,7 +130,7 @@ class SubscriptionsViewModel(
     fun onAction(action: SubscriptionsAction) {
         when (action) {
             SubscriptionsAction.Retry -> {
-                refresh(SubscriptionsFilter.from(_uiState.value.selectedChip))
+                refresh(SubscriptionsFilter.from(_uiState.value.selectedChip), keepFeed = true)
                 loadChannels(quiet = true)
             }
             SubscriptionsAction.LoadNext -> loadNext()
@@ -312,13 +312,20 @@ class SubscriptionsViewModel(
         return SubscriptionsChannels.Ready(merged, page.nextKey, AppendState.Idle)
     }
 
-    private fun refresh(filter: SubscriptionsFilter) {
+    /**
+     * [keepFeed] is a pull-to-refresh of the page on screen: the old page stays up (with the
+     * pull spinner) until the new one lands, instead of a skeleton for the whole round trip.
+     * A failed pull keeps the old page. A new chip or channel is new content and shows Loading.
+     */
+    private fun refresh(filter: SubscriptionsFilter, keepFeed: Boolean = false) {
         if (!signedIn) return
         loadJob?.cancel()
         pageJob?.cancel()
         val request = ++generation
         val channel = _uiState.value.selectedChannel
-        _uiState.update { it.copy(content = SubscriptionsContent.Loading, menuLoading = false, menuFailed = false) }
+        val shown = (_uiState.value.content as? SubscriptionsContent.Feed)?.takeIf { keepFeed }
+        _uiState.update { it.copy(content = shown?.copy(refreshing = true, append = com.hhst.youtubelite.home.domain.AppendState.Idle)
+            ?: SubscriptionsContent.Loading, menuLoading = false, menuFailed = false) }
         loadJob = viewModelScope.launch {
             try {
                 val page = if (channel == null) repository.subscriptions(filter)
@@ -333,10 +340,10 @@ class SubscriptionsViewModel(
                 throw cancelled
             } catch (error: com.hhst.youtubelite.data.media.MediaException) {
                 if (request == generation) _uiState.update { it.copy(
-                    content = SubscriptionsContent.Failed,
+                    content = shown?.copy(refreshing = false) ?: SubscriptionsContent.Failed,
                     verification = com.hhst.youtubelite.core.trafficChallenge(error) ?: it.verification) }
             } catch (_: Exception) {
-                if (request == generation) _uiState.update { it.copy(content = SubscriptionsContent.Failed) }
+                if (request == generation) _uiState.update { it.copy(content = shown?.copy(refreshing = false) ?: SubscriptionsContent.Failed) }
             }
         }
     }
@@ -354,7 +361,7 @@ class SubscriptionsViewModel(
 
     private fun loadNext(autoLoads: Int = MAX_EMPTY_AUTO_LOADS, automatic: Boolean = false) {
         val current = _uiState.value.content as? SubscriptionsContent.Feed ?: return
-        if (current.page.nextKey == null || current.append == AppendState.Loading) return
+        if (current.page.nextKey == null || current.append == AppendState.Loading || current.refreshing) return
         if (automatic && autoLoads > MAX_EMPTY_AUTO_LOADS) return
         val request = generation
         val filter = SubscriptionsFilter.from(_uiState.value.selectedChip)

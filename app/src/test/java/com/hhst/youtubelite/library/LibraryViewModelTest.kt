@@ -171,6 +171,28 @@ class LibraryViewModelTest {
         assertTrue(vm.uiState.value.content is LibraryContent.Ready)
     }
 
+    @Test fun youPullToRefreshKeepsThePageOnScreenAndAfterAFailure() = runTest {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var loads = 0
+        val repository = object : LibraryRepository {
+            override suspend fun you(): YouPage {
+                if (++loads > 1) { gate.await(); error("offline") }
+                return YouPage(FixtureLibraryRepository.profile(), FixtureLibraryRepository.historyEntries(), emptyList())
+            }
+            override suspend fun history() = error("unused")
+            override suspend fun playlists() = PlaylistCollectionPage(FixtureLibraryRepository.collections())
+        }
+        val vm = YouViewModel(repository, SavedStateHandle(), LibraryScenario.Content, true)
+        advanceUntilIdle()
+        val first = vm.uiState.value.content as LibraryContent.Ready
+        vm.onAction(LibraryAction.Retry)
+        advanceUntilIdle()
+        assertTrue((vm.uiState.value.content as LibraryContent.Ready).refreshing)
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(first, vm.uiState.value.content)
+    }
+
     @Test fun historyAppendsPagesAndKeepsRowsOnFailure() = runTest {
         var failNext = true
         val page1 = listOf(FixtureLibraryRepository.historyEntries().first())

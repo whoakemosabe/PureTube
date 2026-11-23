@@ -53,7 +53,7 @@ fun YouScreen(state: LibraryUiState, onAction: (LibraryAction) -> Unit, modifier
                 YouTopBar(state.signedIn, onAction)
 
             }
-            RefreshableContent(value = state, refreshing = state.content == LibraryContent.Loading,
+            RefreshableContent(value = state, refreshing = state.content == LibraryContent.Loading || (state.content as? LibraryContent.Ready)?.refreshing == true,
                     onRefresh = { onAction(LibraryAction.Retry) }, modifier = Modifier.weight(1f).fillMaxWidth(),
                     enabled = state.overlay == LibraryOverlay.None && state.content !is LibraryContent.SignedOut, contentKey = state.signedIn, tag = "you-refresh",
                     canPull = { !listState.canScrollBackward }) { state ->
@@ -216,7 +216,7 @@ fun HistoryScreen(state: HistoryUiState, onAction: (LibraryAction) -> Unit, onBa
         }))
 
             }
-            RefreshableContent(value = state, refreshing = state.content == HistoryContent.Loading,
+            RefreshableContent(value = state, refreshing = state.content == HistoryContent.Loading || (state.content as? HistoryContent.Ready)?.refreshing == true,
                     onRefresh = { onAction(LibraryAction.Retry) }, modifier = Modifier.weight(1f).fillMaxWidth(),
                     enabled = state.overlay == LibraryOverlay.None && state.content !is HistoryContent.SignedOut, contentKey = Unit, tag = "history-refresh",
                     canPull = { !listState.canScrollBackward }) { state ->

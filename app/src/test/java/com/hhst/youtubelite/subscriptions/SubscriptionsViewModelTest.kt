@@ -516,6 +516,29 @@ class SubscriptionsViewModelTest {
         assertEquals(SubscriptionsChannels.Ready(FixtureSubscriptionsRepository.channels()), vm.uiState.value.channels)
     }
 
+    @Test fun pullToRefreshKeepsTheFeedOnScreenAndAfterAFailure() = runTest {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var loads = 0
+        var fail = false
+        val vm = SubscriptionsViewModel(dualRepository({ _, _ ->
+            if (++loads > 1) { gate.await(); if (fail) error("offline") }
+            SubscriptionsPage(FixtureSubscriptionsRepository.sampleVideos(), emptyList())
+        }, { FixtureSubscriptionsRepository.channels() }), SavedStateHandle(), SubscriptionsScenario.Content, true)
+        advanceUntilIdle()
+        val first = vm.uiState.value.content as SubscriptionsContent.Feed
+        vm.onAction(SubscriptionsAction.Retry)
+        advanceUntilIdle()
+        val pulling = vm.uiState.value.content as SubscriptionsContent.Feed
+        assertTrue(pulling.refreshing)
+        assertEquals(first.page, pulling.page)
+        fail = true
+        gate.complete(Unit)
+        advanceUntilIdle()
+        val after = vm.uiState.value.content as SubscriptionsContent.Feed
+        assertFalse(after.refreshing)
+        assertEquals(first.page, after.page)
+    }
+
     @Test fun failedChannelGuideDoesNotEraseTheFeedAndCanRetry() = runTest {
         var failChannels = true
         val vm = SubscriptionsViewModel(dualRepository({ _, _ ->
