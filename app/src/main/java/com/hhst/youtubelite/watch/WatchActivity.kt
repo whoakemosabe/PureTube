@@ -609,7 +609,7 @@ class WatchActivity : com.hhst.youtubelite.player.PlaybackActivity(), com.hhst.y
                     modifier = Modifier.then(if (panelsCover) Modifier.clearAndSetSemantics {} else Modifier),
                 ) {
                     WatchPlayer(Modifier.fillMaxSize(), { onBackPressedDispatcher.onBackPressed() }, pip, presentationState = miniHandoffState,
-                        chromeAlpha = { watchPageAlpha(pageProgress()) })
+                        chromeAlpha = { watchPageAlpha(pageProgress()) }, autoFullscreen = true)
                 }
                 if (state.searchOpen) Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()) {
                     val query = state.draftQuery.trim()

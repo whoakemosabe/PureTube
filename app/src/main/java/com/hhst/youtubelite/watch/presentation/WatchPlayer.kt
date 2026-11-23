@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hhst.youtubelite.player.PlayerViewModel
+import com.hhst.youtubelite.player.surface.PhysicalOrientationEffect
 import com.hhst.youtubelite.player.surface.PlayerCallbackBridge
 import com.hhst.youtubelite.player.surface.PlayerSurface
 import com.hhst.youtubelite.player.surface.PlayerWindowEffects
@@ -37,7 +38,8 @@ import org.koin.compose.koinInject
 internal fun WatchPlayer(modifier: Modifier, onBack: () -> Unit, pip: Boolean = false,
     presentationState: com.hhst.youtubelite.player.PlayerUiState? = null,
     chromeAlpha: () -> Float = { 1f },
-    showPipLoadingIndicator: Boolean = true) {
+    showPipLoadingIndicator: Boolean = true,
+    autoFullscreen: Boolean = false) {
     val playerViewModel: PlayerViewModel = koinInject()
     val livePlayerState by playerViewModel.uiState.collectAsStateWithLifecycle()
     val playerState = livePlayerState.withWatchPresentation(presentationState)
@@ -102,6 +104,8 @@ internal fun WatchPlayer(modifier: Modifier, onBack: () -> Unit, pip: Boolean = 
         keepOrientation = playerState.fullscreenKeepsOrientation && playerState.visible && !playerState.mini && !pip,
         restoreEntryOrientation = playerState.fullscreenRestoresEntryOrientation,
     )
+    // Only the watch page turns sideways into fullscreen; Shorts and the mini player share this player.
+    if (autoFullscreen) PhysicalOrientationEffect(activity, pip, playerViewModel::onPhysicalOrientation)
     LaunchedEffect(playerViewModel) { playerViewModel.initializeCast() }
     com.hhst.youtubelite.ui.theme.AppTheme {
         Box(modifier.background(Color.Black)) {
