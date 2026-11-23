@@ -281,7 +281,7 @@ private fun SubscriptionsFeed(content: SubscriptionsContent.Feed, width: Float, 
     val hidden = com.hhst.youtubelite.ui.design.LocalHideShorts.current
     val hideWatched = com.hhst.youtubelite.ui.design.LocalHideWatched.current
     val visibleItems = remember(content.page.items, hidden, hideWatched) {
-        content.page.items.filterNot { hidden && it.short || hideWatched && it.watched() }
+        content.page.items.filter(com.hhst.youtubelite.home.domain.FeedVisibility(hidden, hideWatched)::shows)
     }
     val nearEnd by remember(gridState, visibleItems.size) { derivedStateOf {
         (gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1) >= visibleItems.size - 2
@@ -289,8 +289,9 @@ private fun SubscriptionsFeed(content: SubscriptionsContent.Feed, width: Float, 
     androidx.compose.runtime.LaunchedEffect(nearEnd, content.page.nextKey, content.append) {
         // Scroll pages the feed only while it shows rows; an empty filtered feed is
         // continued by the view model within its bound, never by this effect alone.
-        if (nearEnd && visibleItems.isNotEmpty() && content.page.nextKey != null && content.append == AppendState.Idle) {
-            onAction(SubscriptionsAction.LoadNext)
+        if (nearEnd && visibleItems.isNotEmpty() && content.page.nextKey != null && content.append == AppendState.Idle &&
+            content.emptyAutoLoads < 3) {
+            onAction(SubscriptionsAction.AutomaticLoadNext)
         }
     }
     Column(Modifier.fillMaxSize()) {
@@ -348,7 +349,16 @@ private fun SubscriptionsFeed(content: SubscriptionsContent.Feed, width: Float, 
                 when (content.append) {
                     AppendState.Loading -> Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) { LoadingSpinner() }
                     AppendState.Failed -> RetryAppend { onAction(SubscriptionsAction.LoadNext) }
-                    AppendState.Idle -> Spacer(Modifier.height(1.dp))
+                    // Pages kept adding only hidden rows: hand paging back to the user.
+                    AppendState.Idle -> if (visibleItems.isNotEmpty() && content.page.nextKey != null && content.emptyAutoLoads >= 3) {
+                        Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+                            AppText(stringResource(R.string.load_more),
+                                Modifier.clip(RoundedCornerShape(8.dp))
+                                    .clickable { onAction(SubscriptionsAction.LoadNext) }.padding(12.dp)
+                                    .testTag("subscriptions-load-more-footer"),
+                                color = DesignTokens.Secondary)
+                        }
+                    } else Spacer(Modifier.height(1.dp))
                 }
             }
         }

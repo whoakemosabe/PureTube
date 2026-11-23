@@ -33,6 +33,8 @@ class SubscriptionsViewModel(
     private var signedIn: Boolean,
     saveRepository: com.hhst.youtubelite.saves.domain.SaveRepository? = null,
     private val clock: () -> Long = { System.nanoTime() / 1_000_000L },
+    /** Hide Shorts / Hide watched, read when a page lands; paging counts only what shows. */
+    private val visibility: () -> com.hhst.youtubelite.home.domain.FeedVisibility = { com.hhst.youtubelite.home.domain.FeedVisibility() },
 ) : ViewModel() {
     private val readChannels = savedState.get<ArrayList<String>>("readChannels").orEmpty().toMutableSet()
     private val _uiState = MutableStateFlow(
@@ -134,6 +136,7 @@ class SubscriptionsViewModel(
                 loadChannels(quiet = true)
             }
             SubscriptionsAction.LoadNext -> loadNext()
+            SubscriptionsAction.AutomaticLoadNext -> loadNext(automatic = true)
             SubscriptionsAction.DismissVerification -> _uiState.update { it.copy(verification = null) }
             is SubscriptionsAction.OpenVerification -> navigation.trySend(SubscriptionsNavigationRequest.OpenVerification(action.challengeUrl))
             SubscriptionsAction.OpenSearch -> showOverlay(SubscriptionsOverlay.Search)
@@ -334,7 +337,7 @@ class SubscriptionsViewModel(
                     feedContinuations.clear()
                     _uiState.update { it.copy(content = SubscriptionsContent.Feed(page)) }
                     // A filter can empty the first page while the server keeps going.
-                    continuePastEmptyPage(autoLoads = 0)
+                    continuePastEmptyPage()
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -359,10 +362,10 @@ class SubscriptionsViewModel(
         refresh(SubscriptionsFilter.from(_uiState.value.selectedChip))
     }
 
-    private fun loadNext(autoLoads: Int = MAX_EMPTY_AUTO_LOADS, automatic: Boolean = false) {
+    private fun loadNext(automatic: Boolean = false) {
         val current = _uiState.value.content as? SubscriptionsContent.Feed ?: return
         if (current.page.nextKey == null || current.append == AppendState.Loading || current.refreshing) return
-        if (automatic && autoLoads > MAX_EMPTY_AUTO_LOADS) return
+        if (automatic && current.emptyAutoLoads >= MAX_EMPTY_AUTO_LOADS) return
         val request = generation
         val filter = SubscriptionsFilter.from(_uiState.value.selectedChip)
         val channel = _uiState.value.selectedChannel
@@ -373,7 +376,7 @@ class SubscriptionsViewModel(
                     else repository.channelSubscriptions(channel, filter, current.page.nextKey)
                 if (request != generation) return@launch
                 val nextKey = feedContinuations.nextAfter(current.page.nextKey, page.nextKey)
-                var combinedEmpty = true
+                var nothingShows = false
                 _uiState.update { state ->
                     val existing = (state.content as? SubscriptionsContent.Feed)?.page ?: return@update state
                     val unique = linkedMapOf<String, com.hhst.youtubelite.home.domain.FeedItem.Video>()
@@ -381,13 +384,17 @@ class SubscriptionsViewModel(
                         unique[row.id] = unique[row.id]?.withMissingDisplayFrom(row) ?: row
                     }
                     val combined = unique.values.toList()
-                    combinedEmpty = combined.isEmpty()
+                    val shown = visibility()
+                    // A page whose new rows are all hidden adds nothing to look at.
+                    val gained = shown.count(combined) > shown.count(existing.items)
+                    nothingShows = shown.count(combined) == 0
+                    val previous = (state.content as? SubscriptionsContent.Feed)?.emptyAutoLoads ?: 0
                     state.copy(content = SubscriptionsContent.Feed(existing.copy(
                         items = combined,
                         nextKey = nextKey,
-                    ), emptyAutoLoads = if (combinedEmpty) autoLoads else 0))
+                    ), emptyAutoLoads = if (gained) 0 else previous + 1))
                 }
-                if (combinedEmpty) continuePastEmptyPage(autoLoads)
+                if (nothingShows) continuePastEmptyPage()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: com.hhst.youtubelite.data.media.MediaException) {
@@ -409,9 +416,9 @@ class SubscriptionsViewModel(
      * Keeps reading when a filter emptied the page. Automatic stops at [MAX_EMPTY_AUTO_LOADS];
      * past that the screen offers Load more; a manual load always fetches one page per tap.
      */
-    private fun continuePastEmptyPage(autoLoads: Int) {
+    private fun continuePastEmptyPage() {
         val feed = _uiState.value.content as? SubscriptionsContent.Feed ?: return
-        if (feed.page.items.isEmpty() && feed.page.nextKey != null) loadNext(autoLoads = autoLoads + 1, automatic = true)
+        if (visibility().count(feed.page.items) == 0 && feed.page.nextKey != null) loadNext(automatic = true)
     }
 
     private fun menuItem(videoId: String): com.hhst.youtubelite.home.domain.FeedItem.Video? =

@@ -128,4 +128,53 @@ class FeedDisplayCompletenessTest {
         assertEquals("cursor4", paused.page.nextKey)
         assertTrue(paused.automaticPagingPaused)
     }
+
+    // LiTube #272/#260: with Hide watched or Hide Shorts on, pages of only hidden cards
+    // grew the list without anything to see, so automatic paging never paused.
+    @Test fun homePagesOfOnlyHiddenCardsPauseAutomaticReads() = runTest {
+        var calls = 0
+        val repository = object : HomeRepository {
+            override suspend fun loadHome(filter: String, continuation: String?): HomePage {
+                calls++
+                return if (continuation == null) HomePage(listOf(initial), nextKey = "cursor0")
+                else HomePage(listOf(initial.copy(id = "watched$calls", progress = 1f)), nextKey = "cursor$calls")
+            }
+        }
+        val vm = HomeViewModel(repository, SavedStateHandle(), loadOnStart = true,
+            visibility = { FeedVisibility(hideWatched = true) })
+        advanceUntilIdle()
+        repeat(10) { vm.onAction(HomeAction.AutomaticLoadNext); advanceUntilIdle() }
+        assertEquals(4, calls)
+        assertTrue((vm.uiState.value.content as HomeContent.Feed).automaticPagingPaused)
+    }
+
+    @Test fun subscriptionPagesOfOnlyHiddenRowsPauseAutomaticReads() = runTest {
+        var calls = 0
+        val repository = object : SubscriptionsRepository {
+            override suspend fun subscriptions(filter: SubscriptionsFilter, continuation: String?): SubscriptionsPage {
+                calls++
+                return if (continuation == null) SubscriptionsPage(listOf(initial), emptyList(), nextKey = "cursor0")
+                else SubscriptionsPage(listOf(initial.copy(id = "short$calls", short = true)), emptyList(), nextKey = "cursor$calls")
+            }
+        }
+        val vm = SubscriptionsViewModel(repository, SavedStateHandle(), SubscriptionsScenario.Content, signedIn = true,
+            visibility = { FeedVisibility(hideShorts = true) })
+        advanceUntilIdle()
+        repeat(10) { vm.onAction(SubscriptionsAction.AutomaticLoadNext); advanceUntilIdle() }
+        assertEquals(4, calls)
+        val feed = vm.uiState.value.content as SubscriptionsContent.Feed
+        assertEquals(3, feed.emptyAutoLoads)
+        // A tap on Load more still reads one page.
+        vm.onAction(SubscriptionsAction.LoadNext)
+        advanceUntilIdle()
+        assertEquals(5, calls)
+    }
+
+    @Test fun visibilityMatchesTheFeedSettings() {
+        val short = initial.copy(id = "s", short = true)
+        val watched = initial.copy(id = "w", progress = 0.95f)
+        assertEquals(3, FeedVisibility().count(listOf(initial, short, watched)))
+        assertEquals(2, FeedVisibility(hideShorts = true).count(listOf(initial, short, watched)))
+        assertEquals(1, FeedVisibility(hideShorts = true, hideWatched = true).count(listOf(initial, short, watched)))
+    }
 }

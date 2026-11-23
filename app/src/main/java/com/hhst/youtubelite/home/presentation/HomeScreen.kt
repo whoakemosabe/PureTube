@@ -91,8 +91,7 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
             val feed = state.content as? HomeContent.Feed
             val hideWatched = com.hhst.youtubelite.ui.design.LocalHideWatched.current
             val visibleItems = remember(feed?.page?.items, hideShorts, hideWatched) {
-                feed?.page?.items.orEmpty().filterNot { hideShorts && (it is FeedItem.Shorts || it is FeedItem.Video && it.short) ||
-                    hideWatched && it is FeedItem.Video && it.watched() }
+                feed?.page?.items.orEmpty().filter(com.hhst.youtubelite.home.domain.FeedVisibility(hideShorts, hideWatched)::shows)
             }
             val warmCandidate by rememberUpdatedState(onWarmCandidate)
             val homeLifecycle = LocalLifecycleOwner.current.lifecycle

@@ -97,6 +97,8 @@ sealed interface SubscriptionsNavigationRequest {
 sealed interface SubscriptionsAction {
     data object Retry : SubscriptionsAction
     data object LoadNext : SubscriptionsAction
+    /** Scrolling near the end; bounded when pages add nothing that shows. */
+    data object AutomaticLoadNext : SubscriptionsAction
     data object OpenSearch : SubscriptionsAction
     data object CloseOverlay : SubscriptionsAction
     data class QueryChanged(val query: String) : SubscriptionsAction

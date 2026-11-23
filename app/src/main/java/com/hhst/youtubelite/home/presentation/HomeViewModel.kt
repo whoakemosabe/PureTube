@@ -53,6 +53,8 @@ class HomeViewModel(
     private val now: () -> Long = System::currentTimeMillis,
     /** Snapshot seeding IO runs here; tests inject the runTest scheduler. */
     private val seedDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
+    /** Hide Shorts / Hide watched, read when a page lands; paging counts only what shows. */
+    private val visibility: () -> com.hhst.youtubelite.home.domain.FeedVisibility = { com.hhst.youtubelite.home.domain.FeedVisibility() },
 ) : ViewModel() {
     private val _state = MutableStateFlow(HomeUiState(
         content = scenario.initialContent(), query = savedState["query"] ?: "",
@@ -755,7 +757,8 @@ class HomeViewModel(
                     content = if (combined.items.isEmpty() && combined.nextKey == null) HomeContent.Empty(
                     title = combined.messages.firstOrNull() ?: HomeContent.Empty().title,
                 ) else HomeContent.Feed(combined, append = if (combined.partialFailure) AppendState.Failed else AppendState.Idle,
-                    emptyAutoLoads = if (append && combined.items.size <= loadedItems.size) (currentFeed?.emptyAutoLoads ?: 0) + 1 else 0)) }
+                    emptyAutoLoads = if (append && visibility().let { it.count(combined.items) <= it.count(loadedItems) })
+                        (currentFeed?.emptyAutoLoads ?: 0) + 1 else 0)) }
                 val store = snapshots
                 if (store != null) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     store.write("home", requestAccount, filter,

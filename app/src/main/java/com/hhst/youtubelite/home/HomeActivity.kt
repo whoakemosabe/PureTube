@@ -127,6 +127,10 @@ class HomeActivity : com.hhst.youtubelite.ui.ContentActivity() {
                         { id ->
                             prewarmVideo(id)
                         }
+                    },
+                    visibility = {
+                        com.hhst.youtubelite.home.domain.FeedVisibility.fromPreferences(
+                            org.koin.java.KoinJavaComponent.getKoin().get<com.hhst.youtubelite.extension.ExtensionManager>())
                     }) as T
             }
         })[HomeViewModel::class.java]
