@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -250,6 +252,15 @@ private fun WatchMainBody(
     val related = (state.content as? WatchContent.Ready)?.page?.related.orEmpty()
     val relatedRows = remember(related, columns) { related.chunked(columns) }
     Box(modifier.fillMaxSize().clipToBounds()) {
+    val glowArtwork = (state.content as? WatchContent.Ready)?.page?.video?.artwork
+    if (glowArtwork != null && com.hhst.youtubelite.ui.design.rememberPlayerGlow() && PlayerGlow.available) {
+        val density = LocalDensity.current
+        PlayerGlow(glowArtwork, Modifier.fillMaxWidth().height((playerHeight + PlayerGlow.SPILL_DP).dp).offset {
+            // Scrolls away with the player it sits behind.
+            androidx.compose.ui.unit.IntOffset(0, if (scroll.firstVisibleItemIndex == 0)
+                -scroll.firstVisibleItemScrollOffset else -with(density) { (playerHeight + PlayerGlow.SPILL_DP).dp.roundToPx() })
+        })
+    }
     LazyColumn(Modifier.fillMaxSize().testTag("watch-scroll"), state = scroll) {
         item("player") { Spacer(Modifier.height(playerHeight.dp)) }
         when (val content = state.content) {
@@ -994,4 +1005,33 @@ private fun RelatedKebab(item: WatchRelated, onAction: (WatchAction) -> Unit) {
 @Composable
 private fun Artwork(asset: String, modifier: Modifier = Modifier) {
     com.hhst.youtubelite.ui.design.Artwork(asset, modifier)
+}
+
+/**
+ * Settings > Glow behind the player: the video's own thumbnail, heavily blurred, lights the
+ * page around and below the player in that video's colours, fading out downwards. Blur needs
+ * Android 12; older phones keep the plain page rather than a sharp copy of the picture.
+ */
+internal object PlayerGlow {
+    /** How far the light reaches below the player. */
+    const val SPILL_DP = 260f
+    const val DARK_ALPHA = 0.5f
+    const val LIGHT_ALPHA = 0.3f
+    val available: Boolean get() = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+}
+
+@Composable
+private fun PlayerGlow(artwork: String, modifier: Modifier) {
+    val alpha = if (com.hhst.youtubelite.ui.design.LocalAppColors.current.dark) PlayerGlow.DARK_ALPHA else PlayerGlow.LIGHT_ALPHA
+    Box(modifier.testTag("watch-player-glow").clearAndSetSemantics {}
+        .graphicsLayer { this.alpha = alpha; compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+        .drawWithContent {
+            drawContent()
+            // Full strength behind the player, gone by the bottom of the spill.
+            drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(
+                0f to Color.Black, 0.55f to Color.Black.copy(alpha = 0.6f), 1f to Color.Transparent),
+                blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+        }) {
+        Artwork(artwork, Modifier.fillMaxSize().blur(72.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded))
+    }
 }
