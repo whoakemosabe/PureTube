@@ -26,6 +26,7 @@ import com.hhst.youtubelite.ui.components.AppTopAppBar as TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -41,7 +42,7 @@ import com.hhst.youtubelite.ui.theme.settingsAppBarHeight
 @Composable
 fun AboutScreen(label: String, version: String, onClose: () -> Unit, busy: Boolean, status: String,
     onSource: () -> Unit, onUpdate: () -> Unit, onRelease: () -> Unit, onClear: () -> Unit, onExport: () -> Unit,
-    onSave: () -> Unit = {}) {
+    onSave: () -> Unit = {}, updateProgress: Float? = null) {
     BackHandler { onClose() }
     Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = {
         TopAppBar(title = { Text(stringResource(R.string.about), style = MaterialTheme.typography.titleLarge) },
@@ -61,6 +62,15 @@ fun AboutScreen(label: String, version: String, onClose: () -> Unit, busy: Boole
                 }
                 AboutRow(stringResource(R.string.about_source), onClick = onSource)
                 AboutRow(stringResource(R.string.about_check_update), !busy, onUpdate)
+                // The download's progress sits under its row, not only in the What's new window.
+                updateProgress?.let { p ->
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Downloading update… ${(p * 100).toInt()}%", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        androidx.compose.material3.LinearProgressIndicator(progress = { p },
+                            modifier = Modifier.fillMaxWidth().testTag("about-update-progress"))
+                    }
+                }
                 AboutRow(stringResource(R.string.about_releases), onClick = onRelease)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
                 AboutRow(stringResource(R.string.about_clear_cache), !busy, onClear)

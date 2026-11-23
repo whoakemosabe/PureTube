@@ -199,6 +199,10 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
                                     bottom = 24.dp + DesignTokens.BottomBarHeight + 1.dp),
                                 horizontalArrangement = Arrangement.spacedBy(DesignTokens.GridGap),
                             ) {
+                                // A newer PureTube shows at the top of the feed until it's installed or hidden.
+                                item(key = "update-banner", span = { GridItemSpan(maxLineSpan) }) {
+                                    com.hhst.youtubelite.ui.about.UpdateBanner()
+                                }
                                 homeCards(visibleItems, currentWidth, state.live, onAction, postInteractions)
                                 item(span = { GridItemSpan(maxLineSpan) }) {
                                     when (content.append) {
@@ -326,17 +330,10 @@ private fun HomeBottomBar(signedIn: Boolean, onAction: (HomeAction) -> Unit, ava
                         onAction(HomeAction.Navigate(HomeNavigationRequest.Destination(destination)))
                     }.testTag("nav-${destination.name}"),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    // Same rules as MainNavigationBar, so the bar looks identical on every tab:
-                    // the account picture only when there is one, never a placeholder.
-                    if (signedIn && destination == HomeDestination.You && !avatar.isNullOrBlank()) {
-                        com.hhst.youtubelite.ui.design.Artwork(avatar,
-                            modifier = Modifier.size(24.dp).clip(CircleShape), contentScale = ContentScale.Crop)
-                    } else AppIcon(when (destination) {
-                        HomeDestination.Home -> AppIcon.Home; HomeDestination.Shorts -> AppIcon.Shorts
+                    com.hhst.youtubelite.ui.design.NavigationTabContent(stringResource(destination.labelResource), when (destination) {
+                        HomeDestination.Home -> AppIcon.HomeOutline; HomeDestination.Shorts -> AppIcon.Shorts
                         HomeDestination.Subscriptions -> AppIcon.Subscriptions; HomeDestination.You -> AppIcon.You
-                    })
-                    AppText(stringResource(destination.labelResource), size = 11, line = 14, maxLines = 1,
-                        weight = if (destination == HomeDestination.Home) FontWeight.Medium else FontWeight.Normal)
+                    }, current = destination == HomeDestination.Home, avatar = avatar.takeIf { signedIn && destination == HomeDestination.You })
                 }
             }
         }

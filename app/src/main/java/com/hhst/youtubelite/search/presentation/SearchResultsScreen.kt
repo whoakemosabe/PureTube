@@ -355,16 +355,13 @@ private fun SearchNavigationBar(signedIn: Boolean, onAction: (SearchAction) -> U
                     .clickable(role = Role.Tab) { onAction(SearchAction.SelectDestination(destination)) }
                     .testTag("search-nav-${destination.name}"),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    if (signedIn && destination == SearchDestination.You) {
-                        Image(painterResource(R.drawable.sample_bunny), contentDescription = null,
-                            modifier = Modifier.size(24.dp).clip(CircleShape), contentScale = ContentScale.Crop)
-                    } else AppIcon(when (destination) {
+                    // Search sits outside the tabs: none is current, and it shows no sample picture (#392).
+                    com.hhst.youtubelite.ui.design.NavigationTabContent(stringResource(destination.labelResource), when (destination) {
                         SearchDestination.Home -> AppIcon.HomeOutline
                         SearchDestination.Shorts -> AppIcon.Shorts
                         SearchDestination.Subscriptions -> AppIcon.Subscriptions
                         SearchDestination.You -> AppIcon.You
-                    })
-                    AppText(stringResource(destination.labelResource), size = 11, line = 14, maxLines = 1)
+                    }, current = false)
                 }
             }
         }

@@ -77,32 +77,15 @@ fun MainNavigationBar(tag: String, signedIn: Boolean, avatarAsset: String?, sele
                     .testTag("$tag-nav-${tab.name}").semantics { this.selected = tab == selected },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center) {
-                    val current = tab == selected
-                    val tint = navigationTint(current)
-                    // A filled pill behind the current tab's icon, as in YouTube's own bar (#397).
-                    Box(Modifier.size(width = 56.dp, height = 30.dp)
-                        .clip(RoundedCornerShape(15.dp))
-                        .background(if (current) DesignTokens.Surface else androidx.compose.ui.graphics.Color.Transparent),
-                        contentAlignment = Alignment.Center) {
-                        if (signedIn && tab == MainTab.You && !avatarAsset.isNullOrBlank()) {
-                            com.hhst.youtubelite.ui.design.Artwork(avatarAsset, modifier = Modifier.size(24.dp).clip(CircleShape)
-                                .then(if (current) Modifier.border(1.5.dp, DesignTokens.Ink, CircleShape) else Modifier))
-                        } else AppIcon(when (tab) {
-                            MainTab.Home -> AppIcon.HomeOutline
-                            MainTab.Shorts -> AppIcon.Shorts
-                            MainTab.Subscriptions -> AppIcon.Subscriptions
-                            MainTab.You -> AppIcon.You
-                        }, color = tint)
-                    }
-                    AppText(stringResource(tab.labelResource), size = 11, line = 14, maxLines = 1, color = tint,
-                        weight = if (current) androidx.compose.ui.text.font.FontWeight.SemiBold
-                            else androidx.compose.ui.text.font.FontWeight.Normal)
+                    com.hhst.youtubelite.ui.design.NavigationTabContent(stringResource(tab.labelResource), when (tab) {
+                        MainTab.Home -> AppIcon.HomeOutline
+                        MainTab.Shorts -> AppIcon.Shorts
+                        MainTab.Subscriptions -> AppIcon.Subscriptions
+                        MainTab.You -> AppIcon.You
+                    }, current = tab == selected, avatar = avatarAsset.takeIf { signedIn && tab == MainTab.You })
                 }
             }
         }
     }
 }
 
-/** The current tab is drawn in full ink and the rest in the secondary colour. */
-@Composable
-private fun navigationTint(current: Boolean) = if (current) DesignTokens.Ink else DesignTokens.Secondary

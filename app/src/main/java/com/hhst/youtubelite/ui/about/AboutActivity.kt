@@ -91,7 +91,7 @@ class AboutActivity : ComponentActivity() {
             val updateStatus = when (update) {
                 UpdateUi.Checking -> "Checking for updates…"
                 is UpdateUi.UpToDate -> "PureTube is up to date (${update.version})"
-                is UpdateUi.Downloading -> "Downloading update… ${(UpdateWatch.progress * 100).toInt()}%"
+                is UpdateUi.Downloading -> null // shown with its bar under Check for updates
                 is UpdateUi.Ready -> "Update downloaded. Tap Install."
                 is UpdateUi.Error -> update.message
                 else -> null
@@ -104,6 +104,7 @@ class AboutActivity : ComponentActivity() {
                 onSource = { openUrl(SOURCE) },
                 onUpdate = { scope.launch { UpdateWatch.checkOnly(this@AboutActivity) } },
                 onRelease = { openUrl(Updater.RELEASES_URL) },
+                updateProgress = UpdateWatch.progress.takeIf { update is UpdateUi.Downloading },
                 onClear = { action("clear_cache") {
                     // clearCache removes HTTP cache only; cookies and WebStorage keep the account.
                     WebView(this@AboutActivity).let { it.clearCache(true); it.destroy() }

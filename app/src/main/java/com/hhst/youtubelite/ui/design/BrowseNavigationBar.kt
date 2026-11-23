@@ -28,13 +28,13 @@ fun BrowseNavigationBar(tag: String, signedIn: Boolean = false, onSelect: (Brows
                     .testTag("$tag-nav-${destination.name}"),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center) {
-                    AppIcon(when (destination) {
+                    // Browse pages sit outside the tabs, so none of them is current.
+                    NavigationTabContent(stringResource(destination.labelResource), when (destination) {
                         BrowseDestination.Home -> AppIcon.HomeOutline
                         BrowseDestination.Shorts -> AppIcon.Shorts
                         BrowseDestination.Subscriptions -> AppIcon.Subscriptions
                         BrowseDestination.You -> AppIcon.You
-                    })
-                    AppText(stringResource(destination.labelResource), size = 11, line = 14, maxLines = 1)
+                    }, current = false)
                 }
             }
         }

@@ -61,6 +61,12 @@ object UpdateWatch {
 
     var ui by mutableStateOf<UpdateUi>(UpdateUi.Idle)
     var progress by mutableFloatStateOf(0f)
+    /** The newer version a check found, for the banner at the top of Home (as in Dropi). */
+    var waitingVersion by mutableStateOf<String?>(null)
+        private set
+    /** The version whose banner the user closed with ×; it comes back for the next one. */
+    var bannerHidden by mutableStateOf<String?>(null)
+        private set
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences("puretube_updates", Context.MODE_PRIVATE)
@@ -68,6 +74,8 @@ object UpdateWatch {
     /** Called once per app start: schedules the background check and asks GitHub if due. */
     fun start(context: Context) {
         val app = context.applicationContext
+        waitingVersion = waiting(app)
+        bannerHidden = prefs(app).getString("banner_hidden", null)
         scope.launch {
             runCatching { schedule(app) }
             runCatching { checkAndNotify(app, background = false) }
@@ -82,6 +90,28 @@ object UpdateWatch {
 
     private fun remember(context: Context, release: Updater.Release?) {
         prefs(context).edit().putString("available", release?.version.orEmpty()).apply()
+        waitingVersion = release?.version?.takeIf { Updater.isNewer(it, Updater.installedVersion(context)) }
+    }
+
+    fun hideBanner(context: Context, version: String) {
+        bannerHidden = version
+        prefs(context).edit().putString("banner_hidden", version).apply()
+    }
+
+    /** Home's What's new window, opened from the banner. */
+    var whatsNewOpen by mutableStateOf(false)
+
+    /**
+     * A tap on the banner opens the What's new window with the changelog, Download and its
+     * progress bar. A background check only knew the version, so it asks GitHub first.
+     */
+    suspend fun bannerTap(context: Context) {
+        whatsNewOpen = true
+        if (ui !is UpdateUi.Available && ui !is UpdateUi.Downloading && ui !is UpdateUi.Ready) {
+            checkOnly(context)
+            // Up to date or offline: nothing to show; the banner carries the error line.
+            if (ui !is UpdateUi.Available) whatsNewOpen = false
+        }
     }
 
     /** Asks GitHub if it's been long enough (or [force]); returns the release waiting. */
@@ -126,6 +156,7 @@ object UpdateWatch {
 
     /** "Not now" in the What's new window: back to idle; the notification still offers it. */
     fun notNow() {
+        whatsNewOpen = false
         if (ui is UpdateUi.Available || ui is UpdateUi.Ready || ui is UpdateUi.Error) ui = UpdateUi.Idle
     }
 
