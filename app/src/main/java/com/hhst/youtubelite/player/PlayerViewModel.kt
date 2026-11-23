@@ -914,9 +914,45 @@ class PlayerViewModel(
      * be ignored here, and at the end of a video it stopped playback altogether.
      */
     private fun playlistForward(): QueueItem? =
-        if (_uiState.value.loopMode == LoopMode.QUEUE_RANDOM)
-            playlistItems.filter { it.videoId != playbackQueueId() }.randomOrNull()
+        if (_uiState.value.loopMode == LoopMode.QUEUE_RANDOM) shufflePick(playlistItems, playbackQueueId())
         else playlistNeighbor(1)
+
+    /**
+     * Shuffle without repeats: videos already played in this round are skipped until every
+     * other video has had its turn. A plain random pick could go A, B, A, B and never reach C.
+     */
+    private val shufflePlayed = LinkedHashSet<String>()
+
+    private fun shufflePick(items: List<QueueItem>, current: String?): QueueItem? {
+        val others = items.filter { it.videoId != current }
+        if (others.isEmpty()) return null
+        val fresh = others.filter { it.videoId !in shufflePlayed }
+        return fresh.ifEmpty { others }.random()
+    }
+
+    /** A shuffle pick is starting: count [current] as played and start a new round when all are. */
+    private fun recordShufflePick(items: List<QueueItem>, current: String?, target: QueueItem) {
+        if (_uiState.value.loopMode != LoopMode.QUEUE_RANDOM) return
+        val ids = items.mapTo(HashSet()) { it.videoId }
+        shufflePlayed.retainAll(ids)
+        current?.let { shufflePlayed += it }
+        if (ids.all { it in shufflePlayed || it == target.videoId }) shufflePlayed.clear()
+    }
+
+    /** The queue or playlist that Shuffle is moving through, or null outside one. */
+    private fun shuffleContext(id: String?): List<QueueItem>? = when {
+        id == null || _uiState.value.loopMode != LoopMode.QUEUE_RANDOM -> null
+        queueActive() && currentInQueue() -> queue.state.value.items
+        playlistActive && playlistItems.any { it.videoId == id } -> playlistItems
+        else -> null
+    }
+
+    /** Previous in Shuffle goes back to the video played before this one, not the one above it. */
+    private fun shuffleBack(id: String?): String? {
+        val items = shuffleContext(id) ?: return null
+        val last = sessionTrail.lastOrNull() ?: return null
+        return last.takeIf { trail -> items.any { it.videoId == trail } }
+    }
 
     /**
      * "Add to queue" while watching a video that is not itself queued: the video the user
@@ -962,7 +998,7 @@ class PlayerViewModel(
         if (id == null) return null
         return when {
             queueActive() && currentInQueue() -> when (_uiState.value.loopMode) {
-                LoopMode.QUEUE_RANDOM -> queue.random(id)
+                LoopMode.QUEUE_RANDOM -> shufflePick(queue.state.value.items, id)
                 else -> queue.nextStrict(id)
             }
             playlistActive && playlistItems.any { it.videoId == id } -> playlistForward()
@@ -972,6 +1008,7 @@ class PlayerViewModel(
 
     private fun previousTarget(id: String?): QueueItem? {
         if (id == null) return null
+        shuffleBack(id)?.let { back -> return shuffleContext(id)?.firstOrNull { it.videoId == back } }
         return when {
             queueActive() && currentInQueue() -> queue.previous(id)
             playlistActive && playlistItems.any { it.videoId == id } -> playlistNeighbor(-1)
@@ -987,6 +1024,9 @@ class PlayerViewModel(
         val resolved = relatedNext
         return resolved?.first != id || resolved.second != null
     }
+
+    private fun autoplayLoop(): Boolean =
+        _uiState.value.loopMode == LoopMode.QUEUE_NEXT || _uiState.value.loopMode == LoopMode.QUEUE_RANDOM
 
     private fun restartAvailable(): Boolean =
         engine.snapshot.value.positionMs > PREVIOUS_RESTART_MS
@@ -1004,7 +1044,10 @@ class PlayerViewModel(
     fun skipToNext() {
         val id = playbackQueueId()
         if (mediaKind == MediaKind.SHORTS || id == null) return
-        nextTarget(id)?.let { startPlayback(it.url, keepMini = true); return }
+        nextTarget(id)?.let { target ->
+            shuffleContext(id)?.let { recordShufflePick(it, id, target) }
+            startPlayback(target.url, keepMini = true); return
+        }
         if (relatedAvailable(id)) startRelatedNext(id)
     }
 
@@ -1015,6 +1058,11 @@ class PlayerViewModel(
         }
         val id = playbackQueueId()
         if (mediaKind == MediaKind.SHORTS || id == null) return
+        if (shuffleBack(id) != null) {
+            // Walk the trail back like plain watching does, so Previous twice goes two steps back.
+            sessionTrail.removeLastOrNull()?.let { startPlayback(VideoId.watchUrl(it), keepMini = true, recordHistory = false) }
+            return
+        }
         previousTarget(id)?.let { startPlayback(it.url, keepMini = true); return }
         // Plain watch without queue/playlist: walk back this session's trail.
         sessionTrail.removeLastOrNull()?.let { startPlayback(VideoId.watchUrl(it), keepMini = true, recordHistory = false) }
@@ -1027,9 +1075,7 @@ class PlayerViewModel(
      */
     private fun startRelatedNext(id: String, requireEnded: Boolean = false, honorAutoplay: Boolean = false) {
         val provider = nextVideo ?: return
-        if (honorAutoplay &&
-            (!prefs.isEnabled(PreferenceKeys.ENABLE_AUTOPLAY) || _uiState.value.loopMode != LoopMode.QUEUE_NEXT)
-        ) return
+        if (honorAutoplay && (!prefs.isEnabled(PreferenceKeys.ENABLE_AUTOPLAY) || !autoplayLoop())) return
         val resolved = relatedNext
         if (resolved?.first == id) {
             if (requireEnded && (!engine.snapshot.value.ended || !_uiState.value.visible)) return
@@ -1049,7 +1095,7 @@ class PlayerViewModel(
             if (request != autoplayRequestId.get() || token != playbackRequestSeq) return@launch
             if (queue.currentOwner() != owner) return@launch
             if (honorAutoplay && (!prefs.isEnabled(PreferenceKeys.ENABLE_AUTOPLAY) ||
-                _uiState.value.loopMode != LoopMode.QUEUE_NEXT || mediaKind != MediaKind.WATCH)) return@launch
+                !autoplayLoop() || mediaKind != MediaKind.WATCH)) return@launch
             if (relatedNext?.first != id) relatedNext = id to next
             if (requireEnded && (!engine.snapshot.value.ended || !_uiState.value.visible)) return@launch
             if (next != null && next != id) startPlayback(VideoId.watchUrl(next), keepMini = true)
@@ -1558,10 +1604,11 @@ class PlayerViewModel(
             LoopMode.QUEUE_NEXT ->
                 if (queueContext) queue.nextStrict(current) else handoffTarget(current)
             LoopMode.QUEUE_RANDOM ->
-                if (queueContext) queue.random(current) else handoffTarget(current)
+                if (queueContext) shufflePick(queue.state.value.items, current) else handoffTarget(current)
             LoopMode.LOOP_ONE, LoopMode.PAUSE_AT_END -> null
         }
         if (target != null) {
+            if (queueContext) recordShufflePick(queue.state.value.items, current, target)
             // Auto-advance keeps the current surface (stays mini while suspended).
             startPlayback(target.url, keepMini = true)
             return
@@ -1569,10 +1616,12 @@ class PlayerViewModel(
         val loop = _uiState.value.loopMode
         if (!queueContext && playlistItems.any { it.videoId == current } &&
             (loop == LoopMode.QUEUE_NEXT || loop == LoopMode.QUEUE_RANDOM)) {
-            playlistForward()?.let { startPlayback(it.url, keepMini = true) }
+            playlistForward()?.let { recordShufflePick(playlistItems, current, it); startPlayback(it.url, keepMini = true) }
             return
         }
-        if (!queueContext && !playlistActive && mediaKind == MediaKind.WATCH && _uiState.value.loopMode == LoopMode.QUEUE_NEXT) {
+        // Shuffle with nothing to shuffle (a lone video) autoplays like Play next would.
+        if (!queueContext && !playlistActive && mediaKind == MediaKind.WATCH &&
+            (loop == LoopMode.QUEUE_NEXT || loop == LoopMode.QUEUE_RANDOM)) {
             current?.let { startRelatedNext(it, requireEnded = true, honorAutoplay = true) }
         }
     }

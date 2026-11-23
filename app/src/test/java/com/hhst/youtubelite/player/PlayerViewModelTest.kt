@@ -237,6 +237,37 @@ class PlayerViewModelTest {
         assertTrue(skipped in ids && skipped != picked)
     }
 
+    @Test fun shuffleOnALoneVideoAutoplaysLikePlayNext() {
+        bindViewModel { "bbbbbbbbbbb" }
+        viewModel.openVideo(watchId)
+        engine.settle(watchId)
+        viewModel.onLoopMode(LoopMode.QUEUE_RANDOM)
+        engine.finish()
+        assertEquals(VideoId.watchUrl("bbbbbbbbbbb"), engine.playCalls.last())
+    }
+
+    @Test fun shufflePlaysEveryVideoBeforeRepeatingAndPreviousWalksBack() {
+        bindViewModel { "zzzzzzzzzzz" }
+        val ids = listOf(watchId, "bbbbbbbbbbb", "ccccccccccc", "ddddddddddd")
+        viewModel.startPlaylist(ids.map { QueueItem(it, title = it) })
+        engine.settle(watchId)
+        viewModel.onLoopMode(LoopMode.QUEUE_RANDOM)
+        val order = mutableListOf(watchId)
+        repeat(3) {
+            engine.finish()
+            val next = VideoId.parse(engine.playCalls.last())!!
+            order += next
+            engine.settle(next)
+        }
+        // Four videos, four different ones: no repeat until each had its turn.
+        assertEquals(ids.toSet(), order.toSet())
+        viewModel.skipToPrevious()
+        assertEquals(VideoId.watchUrl(order[2]), engine.playCalls.last())
+        engine.settle(order[2])
+        viewModel.skipToPrevious()
+        assertEquals(VideoId.watchUrl(order[1]), engine.playCalls.last())
+    }
+
     @Test fun endOfVideoSleepStopsInsteadOfPlayingTheNextVideo() {
         bindViewModel { "ddddddddddd" }
         viewModel.openVideo(watchId)
