@@ -16,7 +16,11 @@ object DownloadFileNames {
     fun sanitize(raw: String, extension: String, existing: Set<String> = emptySet()): String {
         val ext = extension.trim().trimStart('.').lowercase()
         val extSuffix = if (ext.isEmpty()) "" else ".$ext"
-        var base = raw.substringBeforeLast('.', raw)
+        // Strip only the extension we were given: a title such as "Mr. Beast reacts" or
+        // "Episode 1.5" has dots of its own, and cutting at the last one lost the rest.
+        val stem = if (extSuffix.isNotEmpty() && raw.trimEnd().endsWith(extSuffix, ignoreCase = true))
+            raw.trimEnd().dropLast(extSuffix.length) else raw
+        var base = stem
             .replace(ILLEGAL, "_")
             .trim()
             .trim('.')

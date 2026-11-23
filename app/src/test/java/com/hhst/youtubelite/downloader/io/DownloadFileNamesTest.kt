@@ -19,6 +19,16 @@ class DownloadFileNamesTest {
         val first = DownloadFileNames.sanitize("clip", "mp4", setOf("clip.mp4"))
         assertEquals("clip (1).mp4", first)
     }
+
+    @Test
+    fun dotsInsideATitleAreKept() {
+        // A bare title: cutting at the last dot saved "Mr. Beast reacts" as "Mr.mp4".
+        assertEquals("Mr. Beast reacts.mp4", DownloadFileNames.sanitize("Mr. Beast reacts", "mp4"))
+        assertEquals("Episode 1.5 finale.m4a", DownloadFileNames.sanitize("Episode 1.5 finale", "m4a"))
+        // A name that already carries the extension keeps it once.
+        assertEquals("Mr. Beast reacts.mp4", DownloadFileNames.sanitize("Mr. Beast reacts.MP4", "mp4"))
+        assertEquals("talk.en.vtt", DownloadFileNames.sanitize("talk.en.vtt", "vtt"))
+    }
 }
 
 class DownloadNetworkPolicyTest {
