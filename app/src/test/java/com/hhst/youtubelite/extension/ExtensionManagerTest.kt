@@ -152,4 +152,12 @@ class ExtensionManagerTest {
         manager.setThemeMode(com.hhst.youtubelite.ui.theme.ThemeMode.System)
         assertEquals(com.hhst.youtubelite.ui.theme.ThemeMode.System, manager.themeMode())
     }
+
+    // LiTube #338: the player title can be turned off; it stays on until someone does.
+    @Test
+    fun playerTitleShowsByDefaultAndCanBeTurnedOff() {
+        assertTrue(ExtensionManager(MemoryPrefStore()).isEnabled(PreferenceKeys.SHOW_PLAYER_TITLE))
+        manager.setEnabled(PreferenceKeys.SHOW_PLAYER_TITLE, false)
+        assertFalse(manager.isEnabled(PreferenceKeys.SHOW_PLAYER_TITLE))
+    }
 }

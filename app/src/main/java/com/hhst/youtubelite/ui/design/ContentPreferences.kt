@@ -25,6 +25,10 @@ internal fun rememberHideWatched(): Boolean = rememberFeedPreference(PreferenceK
 @Composable
 internal fun rememberHideRelated(): Boolean = rememberFeedPreference(PreferenceKeys.ENABLE_HIDE_RELATED)
 
+/** Player controls show the video title along the top (LiTube #338 asked to hide it). */
+@Composable
+internal fun rememberShowPlayerTitle(): Boolean = rememberFeedPreference(PreferenceKeys.SHOW_PLAYER_TITLE)
+
 @Composable
 private fun rememberFeedPreference(preference: String): Boolean {
     val manager = remember { GlobalContext.getOrNull()?.getOrNull<ExtensionManager>() }

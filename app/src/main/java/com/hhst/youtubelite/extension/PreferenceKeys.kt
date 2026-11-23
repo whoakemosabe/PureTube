@@ -9,6 +9,8 @@ object PreferenceKeys {
     const val ENABLE_HIDE_SHORTS = "enable_hide_shorts"
     const val ENABLE_HIDE_WATCHED = "enable_hide_watched"
     const val ENABLE_HIDE_RELATED = "enable_hide_related"
+    /** The video title across the top of the player controls (LiTube #338: some want it gone). */
+    const val SHOW_PLAYER_TITLE = "show_player_title"
     /** Mirrors the Shorts playback order: on = Play next, off = Loop (or Pause at end). */
     const val SHORTS_AUTO_ADVANCE = "shorts_auto_advance"
     const val PRIVATE_BROWSING = "private_browsing"
@@ -82,6 +84,7 @@ object PreferenceKeys {
         ENABLE_HIDE_SHORTS to false,
         ENABLE_HIDE_WATCHED to false,
         ENABLE_HIDE_RELATED to false,
+        SHOW_PLAYER_TITLE to true,
         SHORTS_AUTO_ADVANCE to false,
         PRIVATE_BROWSING to false,
         SKIP_SPONSORS to true,

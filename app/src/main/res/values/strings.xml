@@ -468,6 +468,8 @@
     <string name="settings_hide_watched_summary">Leave videos you finished out of Home and Subscriptions</string>
     <string name="settings_hide_related">Hide related videos</string>
     <string name="settings_hide_related_summary">Show only the video, its details and comments on the watch page</string>
+    <string name="settings_show_player_title">Show title on the player</string>
+    <string name="settings_show_player_title_summary">The video name across the top of the player controls</string>
     <string name="settings_private_browsing">Private browsing</string>
     <string name="settings_private_browsing_summary">Don\'t send watch progress or save local history</string>
     <string name="settings_data_saver">Data saver</string>

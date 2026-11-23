@@ -168,6 +168,7 @@ fun TopBar(
     onSubtitleStyle: () -> Unit = {},
     showAuthor: Boolean = true,
     sizing: PlayerUi.ChromeSizing = PlayerUi.CompactChromeSizing,
+    showTitle: Boolean = com.hhst.youtubelite.ui.design.rememberShowPlayerTitle(),
 ) {
     Row(
         modifier = modifier.fillMaxWidth().testTag("player-topbar")
@@ -186,7 +187,7 @@ fun TopBar(
                 .padding(horizontal = PlayerUi.TITLE_PADDING_DP.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-            Text(
+            if (showTitle) Text(
                 text = state.title,
                 style = PlayerUi.TitleStyle.copy(fontSize = (sizing.textSp + 2).sp,
                     lineHeight = (sizing.textSp + 8).sp),
@@ -194,7 +195,7 @@ fun TopBar(
                 overflow = TextOverflow.Clip,
                 modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
             )
-            state.author?.takeIf { showAuthor }?.let { author ->
+            state.author?.takeIf { showAuthor && showTitle }?.let { author ->
                 Text(
                     text = author,
                     style = PlayerUi.AuthorStyle.copy(fontSize = (sizing.textSp - 2).sp,

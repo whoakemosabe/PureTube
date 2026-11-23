@@ -204,6 +204,8 @@ private fun PlaybackSettings(preferences: Map<String, Boolean>, onToggle: (Strin
         PreferenceKeys.ENABLE_PIP, preferences, onToggle, AppIcon.PictureInPicture)
     SettingsToggle(stringResource(R.string.settings_remember_position), stringResource(R.string.settings_remember_position_summary),
         PreferenceKeys.REMEMBER_LAST_POSITION, preferences, onToggle, AppIcon.Clock)
+    SettingsToggle(stringResource(R.string.settings_show_player_title), stringResource(R.string.settings_show_player_title_summary),
+        PreferenceKeys.SHOW_PLAYER_TITLE, preferences, onToggle, AppIcon.VideoOutline)
     }
 }
 
