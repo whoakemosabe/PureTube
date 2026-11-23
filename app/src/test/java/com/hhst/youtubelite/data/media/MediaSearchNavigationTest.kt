@@ -130,6 +130,19 @@ class MediaSearchNavigationTest {
         assertNull(fallback.authorizations[1])
     }
 
+    @Test fun durationFeatureAndSortWalkFromTheColdSearchInOrder() = runBlocking {
+        val f = Fixture()
+        f.repository.search("q", SearchFilters())
+        val long4k = SearchFilters(uploaded = SearchUploadDate.Today, duration = SearchDuration.Long,
+            feature = SearchFeature.UltraHd, sort = SearchSort.Popularity)
+        f.repository.search("q", long4k)
+        assertEquals(listOf(null, null, "Today|", "Today|+Over 20 minutes", "Today|+Over 20 minutes+4K",
+            "Today|+Over 20 minutes+4K+Popularity"), f.params)
+        // Dropping one of them never reuses the panel: it walks again from the cold search.
+        f.repository.search("q", long4k.copy(sort = SearchSort.Relevance))
+        assertEquals(listOf(null, "Today|", "Today|+Over 20 minutes", "Today|+Over 20 minutes+4K"), f.params.takeLast(4))
+    }
+
     companion object {
         private fun document(params: String?, selectedDateMissing: Boolean, omitDateGroup: Boolean): String {
             val date = params?.substringBefore('|').orEmpty()
@@ -143,8 +156,14 @@ class MediaSearchNavigationTest {
             }
             val dateGroup = if (omitDateGroup) "" else """,
                 {"searchFilterGroupRenderer":{"title":{"simpleText":"Upload date"},"contents":[$dates]}}"""
+            // The live panel's other groups (LiTube #393); each option appends itself to the current params.
+            fun extra(title: String, labels: List<String>) = """,
+                {"searchFilterGroupRenderer":{"title":{"simpleText":"$title"},"contents":[${
+                    labels.joinToString(",") { option(it, "${params.orEmpty()}+$it", false) }}]}}"""
+            val extras = extra("Duration", listOf("Under 3 minutes", "3 - 20 minutes", "Over 20 minutes")) +
+                extra("Features", listOf("Live", "4K", "HD")) + extra("Prioritize", listOf("Popularity"))
             return """{"contents":[{"videoRenderer":{"videoId":"abcdefghijk","title":{"simpleText":"Result"}}},
-                {"searchFilterGroupRenderer":{"title":{"simpleText":"Type"},"contents":[$types]}}$dateGroup]}"""
+                {"searchFilterGroupRenderer":{"title":{"simpleText":"Type"},"contents":[$types]}}$dateGroup$extras]}"""
         }
     }
 }

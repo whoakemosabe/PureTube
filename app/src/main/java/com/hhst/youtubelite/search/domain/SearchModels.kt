@@ -50,10 +50,48 @@ enum class SearchUploadDate(val label: String, val maxAgeDays: Int?) {
     ThisYear("This year", 365),
 }
 
+/** The labels are YouTube's own filter titles (checked on the live WEB panel, 2026-11-23). */
+enum class SearchDuration(val label: String, val youtubeLabel: String?) {
+    Any("Any length", null),
+    Short("Under 3 minutes", "Under 3 minutes"),
+    Medium("3 - 20 minutes", "3 - 20 minutes"),
+    Long("Over 20 minutes", "Over 20 minutes"),
+}
+
+enum class SearchFeature(val label: String, val youtubeLabel: String?) {
+    Any("Any feature", null),
+    Live("Live", "Live"),
+    UltraHd("4K", "4K"),
+    Hd("HD", "HD"),
+    Subtitles("Subtitles/CC", "Subtitles/CC"),
+    CreativeCommons("Creative Commons", "Creative Commons"),
+    Spherical("360°", "360°"),
+    Vr180("VR180", "VR180"),
+    ThreeD("3D", "3D"),
+    Hdr("HDR", "HDR"),
+    Location("Location", "Location"),
+    Purchased("Purchased", "Purchased"),
+}
+
+enum class SearchSort(val label: String, val youtubeLabel: String?) {
+    Relevance("Relevance", null),
+    Popularity("Popularity", "Popularity"),
+}
+
 data class SearchFilters(
     val type: SearchResultType = SearchResultType.All,
     val uploaded: SearchUploadDate = SearchUploadDate.Anytime,
-)
+    val duration: SearchDuration = SearchDuration.Any,
+    val feature: SearchFeature = SearchFeature.Any,
+    val sort: SearchSort = SearchSort.Relevance,
+) {
+    /** Duration, feature and sort have no proven one-step transition; they always walk from cold. */
+    val hasExtendedFilters: Boolean get() =
+        duration != SearchDuration.Any || feature != SearchFeature.Any || sort != SearchSort.Relevance
+
+    /** YouTube's filter titles to apply in order, each from the panel the previous one returned. */
+    fun extendedLabels(): List<String> = listOfNotNull(duration.youtubeLabel, feature.youtubeLabel, sort.youtubeLabel)
+}
 
 /** Menu rows measured on the ordinary-video action sheet. Non-share rows stay typed requests. */
 enum class SearchVideoMenuAction(val label: String) {
@@ -162,6 +200,8 @@ sealed interface SearchAction {
     data object CloseFilters : SearchAction
     data class SelectResultType(val type: SearchResultType) : SearchAction
     data class SelectUploadDate(val date: SearchUploadDate) : SearchAction
+    /** Duration, feature and sort (LiTube #393). */
+    data class SelectFilters(val filters: SearchFilters) : SearchAction
     data object VoiceSearch : SearchAction
     data object OpenPageMenu : SearchAction
     data object DismissVerification : SearchAction
@@ -181,6 +221,7 @@ object SearchResultsLayout {
     const val FilterGroupHeight = 50f
     const val FilterTypeMinWidth = 104f
     const val FilterDateMinWidth = 117f
+    const val FilterExtraMinWidth = 132f
     const val FilterGroupGap = 4f
     const val FilterGroupRadius = 8f
     const val FilterGroupPadding = 10f

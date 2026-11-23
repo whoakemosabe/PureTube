@@ -39,6 +39,12 @@ class SearchResultsViewModel(
             .getOrDefault(SearchResultType.All),
         uploaded = runCatching { SearchUploadDate.valueOf(savedState.get<String>(KEY_DATE) ?: "") }
             .getOrDefault(SearchUploadDate.Anytime),
+        duration = runCatching { com.hhst.youtubelite.search.domain.SearchDuration.valueOf(savedState.get<String>(KEY_DURATION) ?: "") }
+            .getOrDefault(com.hhst.youtubelite.search.domain.SearchDuration.Any),
+        feature = runCatching { com.hhst.youtubelite.search.domain.SearchFeature.valueOf(savedState.get<String>(KEY_FEATURE) ?: "") }
+            .getOrDefault(com.hhst.youtubelite.search.domain.SearchFeature.Any),
+        sort = runCatching { com.hhst.youtubelite.search.domain.SearchSort.valueOf(savedState.get<String>(KEY_SORT) ?: "") }
+            .getOrDefault(com.hhst.youtubelite.search.domain.SearchSort.Relevance),
     )
     private val restoredOverlay = when (savedState.get<String>(KEY_OVERLAY)) {
         "search" -> SearchOverlay.Search
@@ -198,6 +204,7 @@ class SearchResultsViewModel(
             SearchAction.CloseFilters -> showFilters(false)
             is SearchAction.SelectResultType -> selectType(action.type)
             is SearchAction.SelectUploadDate -> selectDate(action.date)
+            is SearchAction.SelectFilters -> selectFilters(action.filters)
             SearchAction.VoiceSearch -> navigation.trySend(SearchNavigationRequest.VoiceSearch)
             SearchAction.OpenPageMenu -> navigation.trySend(SearchNavigationRequest.PageMenu)
             SearchAction.DismissVerification -> _state.update { it.copy(verification = null) }
@@ -329,6 +336,13 @@ class SearchResultsViewModel(
         load()
     }
 
+    private fun selectFilters(filters: SearchFilters) {
+        if (uiState.value.filters == filters) return
+        persistFilters(filters)
+        _state.update { it.copy(filters = filters) }
+        load()
+    }
+
     private fun editSearch(open: Boolean, draft: String) {
         savedState["draftQuery"] = draft
         overlay(if (open) SearchOverlay.Search else SearchOverlay.None)
@@ -373,6 +387,9 @@ class SearchResultsViewModel(
     private fun persistFilters(filters: SearchFilters) {
         savedState[KEY_TYPE] = filters.type.name
         savedState[KEY_DATE] = filters.uploaded.name
+        savedState[KEY_DURATION] = filters.duration.name
+        savedState[KEY_FEATURE] = filters.feature.name
+        savedState[KEY_SORT] = filters.sort.name
     }
 
     private fun load(keepContent: Boolean = false) {
@@ -575,6 +592,9 @@ class SearchResultsViewModel(
         const val KEY_MENU_VIDEO = "menuVideo"
         const val KEY_TYPE = "filterType"
         const val KEY_DATE = "filterUpload"
+        const val KEY_DURATION = "filterDuration"
+        const val KEY_FEATURE = "filterFeature"
+        const val KEY_SORT = "filterSort"
         const val KEY_FILTERS_OPEN = "filtersOpen"
     }
 }

@@ -274,6 +274,33 @@ private fun SearchFilterBar(filters: SearchFilters, onAction: (SearchAction) -> 
                         chipHeight = chipHeight,
                         onSelect = { onAction(SearchAction.SelectUploadDate(it)) },
                     )
+                    SelectField(
+                        tag = "search-filter-duration",
+                        selected = filters.duration,
+                        options = com.hhst.youtubelite.search.domain.SearchDuration.entries,
+                        labelOf = { it.label },
+                        minWidth = SearchResultsLayout.FilterExtraMinWidth,
+                        chipHeight = chipHeight,
+                        onSelect = { onAction(SearchAction.SelectFilters(filters.copy(duration = it))) },
+                    )
+                    SelectField(
+                        tag = "search-filter-feature",
+                        selected = filters.feature,
+                        options = com.hhst.youtubelite.search.domain.SearchFeature.entries,
+                        labelOf = { it.label },
+                        minWidth = SearchResultsLayout.FilterExtraMinWidth,
+                        chipHeight = chipHeight,
+                        onSelect = { onAction(SearchAction.SelectFilters(filters.copy(feature = it))) },
+                    )
+                    SelectField(
+                        tag = "search-filter-sort",
+                        selected = filters.sort,
+                        options = com.hhst.youtubelite.search.domain.SearchSort.entries,
+                        labelOf = { it.label },
+                        minWidth = SearchResultsLayout.FilterTypeMinWidth,
+                        chipHeight = chipHeight,
+                        onSelect = { onAction(SearchAction.SelectFilters(filters.copy(sort = it))) },
+                    )
                 }
                 Box(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp)

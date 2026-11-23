@@ -199,7 +199,7 @@ class MediaSearchRepository(private val client: MediaClient,
         var anonymousFallback = page.anonymousFallback
         if (direct == null) {
             // Cold search / reset / unproven transition: each response carries cumulative params for the next option.
-            for (label in listOfNotNull(filters.uploaded.label(), filters.type.label())) {
+            for (label in listOfNotNull(filters.uploaded.label(), filters.type.label()) + filters.extendedLabels()) {
                 val filter = page.filters.firstOrNull { it.matches(label) }
                     ?: throw MediaException(com.liskovsoft.youtubeapi.videoinfo.V2.RequestError(
                         com.liskovsoft.youtubeapi.videoinfo.V2.RequestFailure.UNSUPPORTED, "filter_unavailable"))
@@ -225,6 +225,7 @@ class MediaSearchRepository(private val client: MediaClient,
     }
 
     private fun FilterPanel.transition(target: SearchFilters): String? {
+        if (applied.hasExtendedFilters || target.hasExtendedFilters) return null
         val typeChanged = applied.type != target.type
         val dateChanged = applied.uploaded != target.uploaded
         if (typeChanged == dateChanged) return null
