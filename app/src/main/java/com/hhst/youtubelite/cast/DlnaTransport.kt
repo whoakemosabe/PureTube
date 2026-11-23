@@ -48,7 +48,7 @@ internal class DlnaTransport(private val client: OkHttpClient) {
         val metadata = "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" " +
             "xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\">" +
             "<item id=\"0\" parentID=\"-1\" restricted=\"1\"><dc:title>${xml(title)}</dc:title>" +
-            "<upnp:class>object.item.videoItem</upnp:class><res protocolInfo=\"http-get:*:${xml(mimeType)}:*\">" +
+            "<upnp:class>object.item.videoItem</upnp:class><res protocolInfo=\"${xml(DlnaProtocol.protocolInfo(mimeType))}\">" +
             "${xml(url)}</res></item></DIDL-Lite>"
         action("SetAVTransportURI", "<CurrentURI>${xml(url)}</CurrentURI><CurrentURIMetaData>${xml(metadata)}</CurrentURIMetaData>")
         return play()

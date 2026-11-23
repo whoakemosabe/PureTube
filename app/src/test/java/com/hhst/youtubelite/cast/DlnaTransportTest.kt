@@ -171,6 +171,9 @@ class DlnaTransportTest {
             val fields = DlnaDescription.values(set.body.readByteArray())
             assertEquals("http://phone/stream?x=1&y=2", fields["CurrentURI"])
             assertEquals("A & <B>", DlnaDescription.values(fields["CurrentURIMetaData"]!!.toByteArray())["title"])
+            // Strict renderers (LG webOS, LiTube #369) need the DLNA profile on the resource.
+            assertTrue(fields["CurrentURIMetaData"]!!.contains(
+                "protocolInfo=\"http-get:*:video/mp4:DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=0170"))
             assertTrue(server.takeRequest().getHeader("SOAPAction")!!.endsWith("#Play\""))
             assertEquals("00:01:05", DlnaDescription.values(server.takeRequest().body.readByteArray())["Target"])
         }

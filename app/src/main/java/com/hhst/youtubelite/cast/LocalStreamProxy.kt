@@ -540,6 +540,7 @@ class LocalStreamProxy(
             response = newFixedLengthResponse(Response.Status.OK, mime, input, bodyLength)
         }
         response.addHeader("Accept-Ranges", "bytes")
+        DlnaProtocol.streamHeaders.forEach(response::addHeader)
         addCors(response, ua)
         return response
     }
