@@ -37,13 +37,19 @@ class PlayerWindowHost(
     private val edgeSlider: (volume: Boolean, percent: Int) -> Unit = { _, _ -> },
 ) : PlayerWindowActions {
 
-    private var brightnessOrigin: Float? = null
-    /** Per-gesture brightness; avoids re-reading OEM-quantized window attributes. */
-    private var brightnessLevel: Float? = null
+    private val brightness = WindowBrightness(
+        read = { activity?.window?.attributes?.screenBrightness },
+        write = { value ->
+            activity?.window?.let { window ->
+                val lp = window.attributes
+                lp.screenBrightness = value
+                window.attributes = lp
+            }
+        },
+    )
     /** Per-gesture music volume in stream units; drives a smooth overlay percent. */
     private var volumeLevel: Float? = null
     private var lastVolumeSet: Int? = null
-    private var lastBrightnessSet: Float? = null
     private var orientationBeforeGesture: Int? = null
     private var wasFullscreen = false
     private var orientationBeforeFullscreenEntry: Int? = null
@@ -52,19 +58,7 @@ class PlayerWindowHost(
     override fun onBack() = back()
 
     override fun onBrightness(delta: Float) {
-        val window = activity?.window ?: return
-        val lp = window.attributes
-        if (brightnessOrigin == null) brightnessOrigin = lp.screenBrightness
-        val current = brightnessLevel
-            ?: if (lp.screenBrightness < 0f) 0.5f else lp.screenBrightness
-        val next = GestureMath.accumulateLevel(current, delta, 0.01f, 1f)
-        brightnessLevel = next
-        val snapped = (next * 100f).roundToInt() / 100f
-        if (lastBrightnessSet != snapped) {
-            lp.screenBrightness = snapped
-            window.attributes = lp
-            lastBrightnessSet = snapped
-        }
+        val next = brightness.adjust(delta) ?: return
         edgeSlider(false, GestureMath.levelPercent(next, 1f))
     }
 
@@ -110,8 +104,7 @@ class PlayerWindowHost(
     override fun onGestureEnd() {
         volumeLevel = null
         lastVolumeSet = null
-        brightnessLevel = null
-        lastBrightnessSet = null
+        brightness.endGesture()
     }
 
     private fun shareText(act: Activity, text: String, subject: String) {
@@ -125,14 +118,8 @@ class PlayerWindowHost(
         }
     }
 
-    fun restoreBrightness() {
-        val origin = brightnessOrigin ?: return
-        brightnessOrigin = null
-        val window = activity?.window ?: return
-        val lp = window.attributes
-        lp.screenBrightness = origin
-        window.attributes = lp
-    }
+    /** Hands brightness back to the system; called when the player leaves the screen. */
+    fun restoreBrightness() = brightness.restore()
 
     fun applyImmersive(fullscreen: Boolean, videoWidth: Int = 0, videoHeight: Int = 0,
         keepOrientation: Boolean = false, restoreEntryOrientation: Boolean = false) {
@@ -190,7 +177,7 @@ class PlayerWindowHost(
 /** Focus events, unlike player state, also change when a sheet or chooser closes. */
 @Composable
 internal fun PlayerWindowEffects(activity: Activity?, host: PlayerWindowHost, fullscreen: Boolean, width: Int, height: Int,
-    keepOrientation: Boolean = false, restoreEntryOrientation: Boolean = false) {
+    keepOrientation: Boolean = false, restoreEntryOrientation: Boolean = false, playerOnScreen: Boolean = true) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentFullscreen = rememberUpdatedState(fullscreen)
     DisposableEffect(activity, lifecycleOwner, host) {
@@ -200,14 +187,18 @@ internal fun PlayerWindowEffects(activity: Activity?, host: PlayerWindowHost, fu
         }
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) decor?.post { host.refreshSystemBars(currentFullscreen.value) }
+            // Leaving the app must hand brightness back, or the system slider stays dead.
+            if (event == Lifecycle.Event.ON_STOP) host.restoreBrightness()
         }
         decor?.viewTreeObserver?.addOnWindowFocusChangeListener(focus)
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             decor?.viewTreeObserver?.takeIf { it.isAlive }?.removeOnWindowFocusChangeListener(focus)
             lifecycleOwner.lifecycle.removeObserver(observer)
+            host.restoreBrightness()
         }
     }
+    LaunchedEffect(playerOnScreen, host) { if (!playerOnScreen) host.restoreBrightness() }
     val portraitFullscreen = fullscreen && height > width && height > 0
     LaunchedEffect(fullscreen, portraitFullscreen, keepOrientation, restoreEntryOrientation, host) {
         host.applyImmersive(fullscreen, width, height, keepOrientation, restoreEntryOrientation)

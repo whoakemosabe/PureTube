@@ -103,6 +103,7 @@ internal fun WatchPlayer(modifier: Modifier, onBack: () -> Unit, pip: Boolean = 
         activity, windowHost, immersive, playerState.videoWidth, playerState.videoHeight,
         keepOrientation = playerState.fullscreenKeepsOrientation && playerState.visible && !playerState.mini && !pip,
         restoreEntryOrientation = playerState.fullscreenRestoresEntryOrientation,
+        playerOnScreen = playerState.visible && !playerState.mini && !pip,
     )
     // Only the watch page turns sideways into fullscreen; Shorts and the mini player share this player.
     if (autoFullscreen) PhysicalOrientationEffect(activity, pip, playerViewModel::onPhysicalOrientation)
