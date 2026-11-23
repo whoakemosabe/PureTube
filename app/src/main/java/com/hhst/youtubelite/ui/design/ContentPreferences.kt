@@ -32,11 +32,14 @@ internal fun rememberShowPlayerTitle(): Boolean = rememberFeedPreference(Prefere
 @Composable
 private fun rememberFeedPreference(preference: String): Boolean {
     val manager = remember { GlobalContext.getOrNull()?.getOrNull<ExtensionManager>() }
-    var hidden by remember(manager) { mutableStateOf(manager?.isEnabled(preference) == true) }
+    // Without a manager (previews, plain Compose tests) fall back to the setting's default:
+    // reading false there hid the player title, which shows by default.
+    fun read() = preferenceOrDefault(manager?.isEnabled(preference), preference)
+    var hidden by remember(manager) { mutableStateOf(read()) }
     DisposableEffect(manager) {
         val listener: (String) -> Unit = { key ->
             if (key == preference || key == "*")
-                hidden = manager?.isEnabled(preference) == true
+                hidden = read()
         }
         manager?.addOnChangedListener(listener)
         listener("*")
@@ -44,3 +47,7 @@ private fun rememberFeedPreference(preference: String): Boolean {
     }
     return hidden
 }
+
+/** A stored value, or the setting's own default when no manager can be reached. */
+internal fun preferenceOrDefault(stored: Boolean?, preference: String): Boolean =
+    stored ?: (PreferenceKeys.DEFAULTS[preference] == true)
