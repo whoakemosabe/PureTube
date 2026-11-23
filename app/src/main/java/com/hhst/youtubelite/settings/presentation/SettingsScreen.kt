@@ -132,6 +132,7 @@ private fun GeneralSettings(
             ThemeMode.System -> R.string.settings_theme_system
             ThemeMode.Light -> R.string.settings_theme_light
             ThemeMode.Dark -> R.string.settings_theme_dark
+            ThemeMode.DarkGrey -> R.string.settings_theme_dark_grey
         }), tag = "settings-row-theme", onClick = { themeDialog = true })
     SettingsGroup(stringResource(R.string.settings_group_feed))
     SettingsToggle(stringResource(R.string.settings_hide_shorts), stringResource(R.string.settings_hide_shorts_summary),
@@ -148,6 +149,7 @@ private fun GeneralSettings(
                 ThemeMode.System -> R.string.settings_theme_system
                 ThemeMode.Light -> R.string.settings_theme_light
                 ThemeMode.Dark -> R.string.settings_theme_dark
+            ThemeMode.DarkGrey -> R.string.settings_theme_dark_grey
             }) to (mode == AppAppearance.mode)
         },
         tag = "theme-dialog",

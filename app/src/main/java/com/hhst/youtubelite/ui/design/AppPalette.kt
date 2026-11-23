@@ -51,4 +51,17 @@ val DarkAppPalette = AppPalette(
     link = Color(0xFF3EA6FF),
 )
 
+/** Dark grey pages (LiTube #383): the dark palette on YouTube's #0F0F0F, containers one step up. */
+val DarkGreyAppPalette = DarkAppPalette.copy(
+    background = Color(0xFF0F0F0F),
+    surface = Color(0xFF272727),
+    ghost = Color(0xFF3F3F3F),
+)
+
+fun appPalette(dark: Boolean, grey: Boolean): AppPalette = when {
+    dark && grey -> DarkGreyAppPalette
+    dark -> DarkAppPalette
+    else -> LightAppPalette
+}
+
 val LocalAppColors = staticCompositionLocalOf { LightAppPalette }

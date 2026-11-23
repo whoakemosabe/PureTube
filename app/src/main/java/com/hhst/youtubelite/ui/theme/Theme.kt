@@ -84,6 +84,21 @@ private val DarkColorScheme = darkColorScheme(
     error = YtRed,
 )
 
+private val DarkGreyColorScheme = DarkColorScheme.copy(
+    background = DarkGreyBackground,
+    surface = DarkGreyBackground,
+    inverseSurface = DarkGreyBackground,
+    surfaceDim = DarkGreyBackground,
+    surfaceContainerLowest = DarkGreyBackground,
+    surfaceContainerHigh = DarkGreyBackground,
+    surfaceVariant = DarkGreySurfaceVariant,
+    surfaceBright = DarkGreySurfaceVariant,
+    surfaceContainerHighest = DarkGreySurfaceVariant,
+    primaryContainer = DarkGreySurfaceVariant,
+    secondaryContainer = DarkGreySurfaceVariant,
+    tertiaryContainer = DarkGreySurfaceVariant,
+)
+
 /**
  * App [MaterialTheme]. [dynamicColor] (API 31+) uses wallpaper colors; default
  * is the fixed brand palette for consistent red accents.
@@ -91,6 +106,7 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun AppTheme(
     darkTheme: Boolean = AppAppearance.dark ?: isSystemInDarkTheme(),
+    grey: Boolean = AppAppearance.grey,
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
@@ -103,6 +119,7 @@ fun AppTheme(
                 dynamicLightColorScheme(context)
             }
         }
+        darkTheme && grey -> DarkGreyColorScheme
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }

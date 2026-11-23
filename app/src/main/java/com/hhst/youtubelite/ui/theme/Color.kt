@@ -27,3 +27,7 @@ val DarkOnSurface = Color(0xFFFFFFFF)
 val DarkSurfaceVariant = Color(0xFF272727)
 val DarkOnSurfaceVariant = Color(0xFFAAAAAA)
 val DarkOutline = Color(0xFF3A3A3A)
+
+// Dark grey (LiTube #383): YouTube's own dark page colour, with containers lifted one step.
+val DarkGreyBackground = Color(0xFF0F0F0F)
+val DarkGreySurfaceVariant = Color(0xFF303030)

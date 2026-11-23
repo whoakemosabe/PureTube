@@ -12,7 +12,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
-enum class ThemeMode(val label: String) { System("System"), Light("Light"), Dark("Dark") }
+/** Stored by position, so new modes go at the end. */
+enum class ThemeMode(val label: String) { System("System"), Light("Light"), Dark("Dark"), DarkGrey("Dark grey") }
 
 object AppAppearance {
     /** Resolved darkness for the Compose theme; null means "follow the system". */
@@ -20,12 +21,14 @@ object AppAppearance {
         private set
     var mode by mutableStateOf(ThemeMode.System)
         private set
+    /** Dark grey instead of black pages (LiTube #383); only read while [dark] resolves true. */
+    val grey: Boolean get() = mode == ThemeMode.DarkGrey
     private val listeners = mutableListOf<() -> Unit>()
 
     fun update(value: ThemeMode) {
         mode = value
         dark = when (value) {
-            ThemeMode.Dark -> true
+            ThemeMode.Dark, ThemeMode.DarkGrey -> true
             ThemeMode.Light -> false
             ThemeMode.System -> null
         }
