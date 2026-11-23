@@ -277,7 +277,11 @@ class MscPlayback(
             StreamClient.ANDROID_VR -> PlayerClient.ANDROID_VR
         }
 
-        /** Audio-track semantics from the `xtags` chain parameter, falling back to track flags. */
+        /**
+         * Audio-track semantics from the `xtags` chain parameter, falling back to MSC's track-id
+         * roles. `audioIsDefault` is never read as "original" while the id says otherwise: YouTube
+         * sets it on the track matching the viewer's language, which is often a dub (LiTube #337).
+         */
         fun audioTrackType(format: PlayerFormat): String? {
             format.url?.let { url ->
                 urlParameter("xtags", url)?.let { xtags ->
@@ -287,9 +291,11 @@ class MscPlayback(
                     }
                 }
             }
-            return when {
-                format.audioTrack?.isDefault == true -> "original"
-                format.audioTrack?.autoDubbed == true -> "dubbed"
+            return when (format.audioTrack?.let { com.liskovsoft.youtubeapi.videoinfo.V2.audioRole(it) }) {
+                com.liskovsoft.youtubeapi.videoinfo.V2.AudioRole.ORIGINAL -> "original"
+                com.liskovsoft.youtubeapi.videoinfo.V2.AudioRole.DESCRIPTIVE -> "descriptive"
+                com.liskovsoft.youtubeapi.videoinfo.V2.AudioRole.DUBBED,
+                com.liskovsoft.youtubeapi.videoinfo.V2.AudioRole.AUTO_DUBBED -> "dubbed"
                 else -> null
             }
         }

@@ -115,7 +115,7 @@ private fun PlayerFormat.toFormat(plan: MediaRequestPlan, muxed: Boolean): Forma
         audioTrackId = track?.id,
         audioTrackName = track?.name,
         audioTrackType = trackType,
-        audioTrackOriginal = trackType == "original" || track?.isDefault == true,
+        audioTrackOriginal = trackType == "original",
         formatKey = listOfNotNull(itag?.toString(), track?.id, codecs.firstOrNull()).joinToString("|"),
         resourceIdentity = resourceIdentity(url, itag, contentLength),
         expiresAtMillis = if (plan.expiresAtMillis == Long.MAX_VALUE) null else plan.expiresAtMillis,
