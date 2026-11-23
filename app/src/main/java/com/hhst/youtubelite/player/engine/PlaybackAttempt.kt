@@ -17,6 +17,11 @@ internal class PlaybackAttempt(val videoId: String) {
         private set
     var transportManifestAttempted = false
         private set
+    var adaptiveRestoreAttempted = false
+        private set
+
+    /** Played time still needed before a recovered source counts as healthy again. */
+    private var healthyNeededMs = 0L
 
     private val recoveryHistory = ArrayDeque<Map<String, Any?>>()
     val history: List<Map<String, Any?>> get() = recoveryHistory.toList()
@@ -25,12 +30,14 @@ internal class PlaybackAttempt(val videoId: String) {
     fun tryLightRefresh(): Boolean {
         if (lightRefreshes >= MAX_LIGHT_REFRESHES) return false
         lightRefreshes++
+        recovering()
         return true
     }
 
     fun tryFullRefresh(): Boolean {
         if (fullRefreshes >= MAX_FULL_REFRESHES) return false
         fullRefreshes++
+        recovering()
         return true
     }
 
@@ -38,12 +45,43 @@ internal class PlaybackAttempt(val videoId: String) {
     fun tryBackup(): Boolean {
         if (fullRefreshes == 0 || backupAttempted) return false
         backupAttempted = true
+        recovering()
         return true
     }
 
     fun tryTransportManifest(): Boolean {
         if (transportManifestAttempted) return false
         transportManifestAttempted = true
+        recovering()
+        return true
+    }
+
+    /** Muxed fallback is a stopgap: grant one return to adaptive quality per attempt. */
+    fun tryRestoreAdaptive(): Boolean {
+        if (adaptiveRestoreAttempted) return false
+        adaptiveRestoreAttempted = true
+        return true
+    }
+
+    /** Marks a muxed fallback as a recovery that must prove itself before budgets return. */
+    fun recovering() {
+        healthyNeededMs = HEALTHY_SPAN_MS
+    }
+
+    /**
+     * Feeds actually played time. Once a recovered source plays [HEALTHY_SPAN_MS], the
+     * failure is over: a later, unrelated 403 or stall (a long video, an expiring URL)
+     * gets the full recovery chain again instead of an error. Returns true on that reset.
+     */
+    fun played(ms: Long): Boolean {
+        if (healthyNeededMs <= 0L || ms <= 0L) return false
+        healthyNeededMs -= ms
+        if (healthyNeededMs > 0L) return false
+        healthyNeededMs = 0L
+        lightRefreshes = 0
+        fullRefreshes = 0
+        backupAttempted = false
+        transportManifestAttempted = false
         return true
     }
 
@@ -56,5 +94,6 @@ internal class PlaybackAttempt(val videoId: String) {
         const val MAX_LIGHT_REFRESHES = 1
         const val MAX_FULL_REFRESHES = 1
         const val MAX_HISTORY = 6
+        const val HEALTHY_SPAN_MS = 60_000L
     }
 }

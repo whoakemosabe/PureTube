@@ -618,11 +618,30 @@ class PlaybackEngine(
             }
             // Steady playback emits no listener events; without this poll the
             // time bar would freeze between buffering transitions.
+            notePlayedTime()
             publish()
             persistTick++
             if (persistTick % 4 == 0) persistPosition()
             handler.postDelayed(this, TICK_MS)
         }
+    }
+
+    /**
+     * Recovery budgets are for one failure, not for the whole video: once a recovered
+     * source has played a while they return, and a muxed (360p) stopgap goes back to
+     * adaptive quality once, so one transient stall does not pin the rest of the video.
+     */
+    private fun notePlayedTime() {
+        if (activePlayer() !== player || !player.isPlaying) return
+        val videoId = _snapshot.value.videoId ?: return
+        val attempt = playbackAttempt?.takeIf { it.videoId == videoId } ?: return
+        if (!attempt.played(TICK_MS)) return
+        playerLog("recovery_budget_restored", mapOf("muxed_fallback" to muxedFallbackActive))
+        if (!muxedFallbackActive || !attempt.tryRestoreAdaptive()) return
+        val stream = currentStream ?: return
+        val metadata = currentMetadata?.takeIf { it.id == videoId } ?: return
+        muxedFallbackActive = false
+        rebuildAtCurrentPosition(stream, metadata, forceMuxed = false, startMs = player.currentPosition, reloadCast = true)
     }
 
     override fun play(urlOrId: String) {
@@ -1162,6 +1181,9 @@ class PlaybackEngine(
             return
         }
         if (!rebuilding && switchQualityByTrack(label)) return
+        // An explicit pick is a request for that quality: a muxed stopgap left by an
+        // earlier stall must not keep forcing 360p onto the rebuild.
+        muxedFallbackActive = false
         val stream = currentStream ?: return
         val metadata = currentMetadata ?: return
         pinnedQuality = label
@@ -1978,6 +2000,7 @@ class PlaybackEngine(
             if (muxedViable) {
                 val position = player.currentPosition
                 muxedFallbackActive = true
+                attempt?.recovering()
                 rebuildAtCurrentPosition(stream, metadata, forceMuxed = true, startMs = position, reloadCast = true)
                 return
             }

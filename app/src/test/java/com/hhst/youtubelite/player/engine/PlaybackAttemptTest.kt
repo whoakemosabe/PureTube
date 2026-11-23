@@ -87,4 +87,40 @@ class PlaybackAttemptTest {
         assertEquals(listOf(mapOf("step" to 0)), earlier)
         assertEquals((2..7).toList(), attempt.history.map { it["step"] })
     }
+
+    @Test fun recoveredPlaybackThatPlaysAMinuteGetsItsBudgetsBack() {
+        val attempt = PlaybackAttempt("video-a")
+        assertTrue(attempt.tryLightRefresh())
+        assertTrue(attempt.tryFullRefresh())
+        assertTrue(attempt.tryBackup())
+        assertTrue(attempt.tryTransportManifest())
+
+        assertFalse(attempt.played(59_750))
+        assertFalse(attempt.tryLightRefresh())
+        assertTrue(attempt.played(250))
+
+        // A later, unrelated 403 deep into a long video gets the whole chain again.
+        assertTrue(attempt.tryLightRefresh())
+        assertTrue(attempt.tryFullRefresh())
+        assertTrue(attempt.tryBackup())
+        assertTrue(attempt.tryTransportManifest())
+    }
+
+    @Test fun playedTimeWithoutARecoveryChangesNothing() {
+        val attempt = PlaybackAttempt("video-a")
+        assertFalse(attempt.played(120_000))
+        assertTrue(attempt.tryLightRefresh())
+        assertFalse(attempt.tryLightRefresh())
+        assertFalse(attempt.played(0))
+    }
+
+    @Test fun adaptiveRestoreAfterAMuxedFallbackIsGrantedOnce() {
+        val attempt = PlaybackAttempt("video-a")
+        attempt.recovering()
+        assertTrue(attempt.played(60_000))
+        assertTrue(attempt.tryRestoreAdaptive())
+        attempt.recovering()
+        assertTrue(attempt.played(60_000))
+        assertFalse(attempt.tryRestoreAdaptive())
+    }
 }
