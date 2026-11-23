@@ -3,6 +3,7 @@ package com.hhst.youtubelite.ui.design
 import androidx.compose.ui.graphics.Color
 import com.hhst.youtubelite.ui.theme.AppAppearance
 import com.hhst.youtubelite.ui.theme.ThemeMode
+import com.hhst.youtubelite.ui.theme.AccentColor
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -36,6 +37,40 @@ class AppPaletteTest {
         for (palette in listOf(LightAppPalette, DarkAppPalette, DarkGreyAppPalette)) {
             assertTrue("${palette.heading} on ${palette.background}", contrast(palette.heading, palette.background) >= 4.5)
             assertTrue("${palette.heading} on ${palette.surface}", contrast(palette.heading, palette.surface) >= 4.5)
+        }
+    }
+
+    @Test fun storedAccentsKeepTheirPositions() = assertEquals(
+        listOf(AccentColor.Red, AccentColor.Blue, AccentColor.Green, AccentColor.Purple, AccentColor.Wallpaper), AccentColor.entries)
+
+    @Test fun redKeepsTodaysColoursAndTheBrandRedStaysForLive() {
+        assertEquals(DarkGreyAppPalette, DarkGreyAppPalette.withAccent(AccentColor.Red, dark = true))
+        val blue = DarkGreyAppPalette.withAccent(AccentColor.Blue, dark = true)
+        assertEquals(Color(0xFF3EA6FF), blue.accent)
+        assertEquals(Color(0xFFFF0033), blue.red)
+        assertEquals(DarkGreyAppPalette.background, blue.background)
+    }
+
+    // An accent copy is still a light or dark palette: glass and fields read darkness from it.
+    @Test fun accentCopiesKeepTheirDarkness() {
+        for (choice in AccentColor.entries) {
+            assertFalse(LightAppPalette.withAccent(choice, dark = false, wallpaper = Color(0xFF2E7D62)).dark)
+            assertTrue(DarkAppPalette.withAccent(choice, dark = true, wallpaper = Color(0xFF9EDCC5)).dark)
+        }
+    }
+
+    @Test fun wallpaperUsesTheSystemColourOrFallsBackToRed() {
+        assertEquals(Color(0xFF9EDCC5), DarkGreyAppPalette.withAccent(AccentColor.Wallpaper, true, Color(0xFF9EDCC5)).accent)
+        assertEquals(DarkGreyAppPalette.red, DarkGreyAppPalette.withAccent(AccentColor.Wallpaper, true, null).accent)
+    }
+
+    @Test fun accentHeadingsPassTextContrastOnTheirPages() {
+        for (choice in AccentColor.entries.filter { it != AccentColor.Wallpaper }) {
+            for ((palette, dark) in listOf(LightAppPalette to false, DarkAppPalette to true, DarkGreyAppPalette to true)) {
+                val tinted = palette.withAccent(choice, dark)
+                assertTrue("$choice heading on ${palette.background}", contrast(tinted.heading, palette.background) >= 4.5)
+                assertTrue("$choice heading on ${palette.surface}", contrast(tinted.heading, palette.surface) >= 4.5)
+            }
         }
     }
 

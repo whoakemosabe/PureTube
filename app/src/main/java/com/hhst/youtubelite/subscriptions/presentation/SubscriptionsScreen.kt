@@ -303,17 +303,30 @@ private fun SubscriptionsFeed(content: SubscriptionsContent.Feed, width: Float, 
                 onDismiss = { onAction(SubscriptionsAction.DismissVerification) },
                 modifier = Modifier.padding(start = SubscriptionsLayout.outerPadding(width).dp, end = SubscriptionsLayout.outerPadding(width).dp, top = 8.dp).testTag("subscriptions-verification-banner"))
         }
+        val layout = com.hhst.youtubelite.ui.design.LocalFeedLayout.current
+        val sidePadding = layout.outerPadding(SubscriptionsLayout.outerPadding(width)).dp
         LazyVerticalGrid(
-            columns = GridCells.Fixed(if (compact) 1 else SubscriptionsLayout.columns(width)), state = gridState,
+            columns = GridCells.Fixed(layout.columns(if (compact) 1 else SubscriptionsLayout.columns(width), width)), state = gridState,
             modifier = Modifier.fillMaxSize().testTag("subscriptions-feed"),
-            contentPadding = PaddingValues(start = SubscriptionsLayout.outerPadding(width).dp, end = SubscriptionsLayout.outerPadding(width).dp,
+            contentPadding = PaddingValues(start = sidePadding, end = sidePadding,
                 // The tab bar floats over the feed, so the last row can scroll clear of it.
                 bottom = 24.dp + DesignTokens.BottomBarHeight + 1.dp),
-            horizontalArrangement = Arrangement.spacedBy(DesignTokens.GridGap),
+            horizontalArrangement = Arrangement.spacedBy(layout.columnGap(DesignTokens.GridGap.value).dp),
         ) {
             items(visibleItems, key = { it.id }, contentType = { "video" }) { item ->
-                Box((if (LocalMotionScale.current > 0f) Modifier.animateItem() else Modifier).padding(top = if (compact) 8.dp else 12.dp, bottom = 12.dp)) {
-                    SubscriptionsVideoCard(item, compact = compact, onAction)
+                val open = {
+                    com.hhst.youtubelite.watch.domain.WatchProvisionalStore.put(item.toProvisional())
+                    onAction(SubscriptionsAction.OpenVideo(item.id))
+                }
+                Box((if (LocalMotionScale.current > 0f) Modifier.animateItem() else Modifier)
+                    .padding(top = if (compact || layout != com.hhst.youtubelite.home.domain.FeedLayout.Cards) 8.dp else 12.dp,
+                        bottom = if (layout == com.hhst.youtubelite.home.domain.FeedLayout.List) 6.dp else 12.dp)) {
+                    when (layout) {
+                        com.hhst.youtubelite.home.domain.FeedLayout.List -> com.hhst.youtubelite.home.presentation.FeedVideoRow(
+                            item, "subs-item-${item.id}", onOpen = open, onMenu = { onAction(SubscriptionsAction.OpenMenu(item.id)) })
+                        com.hhst.youtubelite.home.domain.FeedLayout.Grid -> SubscriptionsVideoCard(item, compact = false, onAction, small = true)
+                        com.hhst.youtubelite.home.domain.FeedLayout.Cards -> SubscriptionsVideoCard(item, compact = compact, onAction)
+                    }
                 }
             }
             if (visibleItems.isEmpty()) {
@@ -381,7 +394,7 @@ internal fun SubscriptionsArtwork(asset: String, modifier: Modifier = Modifier) 
 }
 
 @Composable
-internal fun SubscriptionsVideoCard(item: FeedItem.Video, compact: Boolean, onAction: (SubscriptionsAction) -> Unit) {
+internal fun SubscriptionsVideoCard(item: FeedItem.Video, compact: Boolean, onAction: (SubscriptionsAction) -> Unit, small: Boolean = false) {
     Column(Modifier.testTag("subs-item-${item.id}")) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9).clip(RoundedCornerShape(if (compact) 0.dp else 12.dp))
             .clickable(role = Role.Button) {
@@ -390,11 +403,8 @@ internal fun SubscriptionsVideoCard(item: FeedItem.Video, compact: Boolean, onAc
                 }
             .appDescription(R.string.a11y_title_duration, item.title, item.duration)) {
             VideoArtwork(item.id, item.artwork, Modifier.fillMaxSize())
-            Box(Modifier.align(Alignment.BottomEnd).padding(8.dp)
-                .background(if (item.live) DesignTokens.Red else Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
-                .padding(horizontal = 4.dp, vertical = 1.dp)) {
-                AppText(item.duration, size = 12, line = 16, weight = FontWeight.Medium, color = Color.White)
-            }
+            com.hhst.youtubelite.home.presentation.FeedDurationBadge(item, Modifier.align(Alignment.BottomEnd).padding(if (small) 6.dp else 8.dp))
+            com.hhst.youtubelite.home.presentation.FeedProgressBar(item.progress, Modifier.align(Alignment.BottomStart))
         }
         if (compact) {
             Row(Modifier.padding(start = 12.dp, top = 8.dp, end = 0.dp), verticalAlignment = Alignment.Top) {
@@ -422,18 +432,22 @@ internal fun SubscriptionsVideoCard(item: FeedItem.Video, compact: Boolean, onAc
             }
         } else {
             Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.Top) {
-                Box(Modifier.size(36.dp).clip(CircleShape).clickable(role = Role.Button) {
-                    onAction(SubscriptionsAction.OpenChannel(item.channelId))
-                }.testTag("subs-channel-${item.channelId}").appDescription(R.string.a11y_go_to_channel, item.author)) {
-                    SubscriptionsArtwork(item.avatar.orEmpty(), Modifier.fillMaxSize())
+                // Half-width grid cards leave the channel picture out to keep room for the title.
+                if (!small) {
+                    Box(Modifier.size(36.dp).clip(CircleShape).clickable(role = Role.Button) {
+                        onAction(SubscriptionsAction.OpenChannel(item.channelId))
+                    }.testTag("subs-channel-${item.channelId}").appDescription(R.string.a11y_go_to_channel, item.author)) {
+                        SubscriptionsArtwork(item.avatar.orEmpty(), Modifier.fillMaxSize())
+                    }
+                    Spacer(Modifier.width(8.dp))
                 }
-                Spacer(Modifier.width(8.dp))
                 Box(Modifier.weight(1f)) {
                     Column(Modifier.clickable(role = Role.Button) {
                     com.hhst.youtubelite.watch.domain.WatchProvisionalStore.put(item.toProvisional())
                     onAction(SubscriptionsAction.OpenVideo(item.id))
                 }) {
-                        AppText(rememberDeArrowTitle(item.id, item.title), Modifier.padding(end = 24.dp), size = 16, line = 22, weight = FontWeight.Medium, maxLines = 2)
+                        AppText(rememberDeArrowTitle(item.id, item.title), Modifier.padding(end = 24.dp), size = if (small) 14 else 16,
+                            line = if (small) 19 else 22, weight = FontWeight.Medium, maxLines = 2)
                         AppText(listOf(item.author, item.metadata).filter(String::isNotBlank).joinToString(" · "), Modifier.padding(top = 2.dp), size = 12, line = 18,
                             color = DesignTokens.Secondary, maxLines = 1)
                     }

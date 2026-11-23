@@ -4,6 +4,12 @@ package com.hhst.youtubelite.extension
 object PreferenceKeys {
     const val HAPTIC_STRENGTH = "haptic_strength"
     const val THEME_MODE = "theme_mode"
+    /** [com.hhst.youtubelite.ui.theme.AccentColor] by position. */
+    const val ACCENT_COLOR = "accent_color"
+    /** [com.hhst.youtubelite.home.domain.FeedLayout] by position. */
+    const val FEED_LAYOUT = "feed_layout"
+    /** A soft glow of the video's own colours behind the watch page player. */
+    const val PLAYER_GLOW = "player_glow"
     const val APP_LANGUAGE = "app_language"
     const val ENABLE_DISPLAY_DISLIKES = "enable_display_dislikes"
     const val ENABLE_HIDE_SHORTS = "enable_hide_shorts"
@@ -85,6 +91,7 @@ object PreferenceKeys {
         ENABLE_HIDE_WATCHED to false,
         ENABLE_HIDE_RELATED to false,
         SHOW_PLAYER_TITLE to true,
+        PLAYER_GLOW to true,
         SHORTS_AUTO_ADVANCE to false,
         PRIVATE_BROWSING to false,
         SKIP_SPONSORS to true,

@@ -457,7 +457,7 @@ private fun ResultThumbnail(
         VideoArtwork(result.id, result.artwork, Modifier.fillMaxSize())
         result.progress?.let { progress ->
             Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0xFF909090))) {
-                Box(Modifier.fillMaxHeight().fillMaxWidth(progress.coerceIn(0f, 1f)).background(DesignTokens.Red))
+                Box(Modifier.fillMaxHeight().fillMaxWidth(progress.coerceIn(0f, 1f)).background(DesignTokens.Accent))
             }
         }
         if (result.duration.isNotBlank()) Box(Modifier.align(Alignment.BottomEnd).padding(badgeInset).testTag("search-badge-${result.id}")

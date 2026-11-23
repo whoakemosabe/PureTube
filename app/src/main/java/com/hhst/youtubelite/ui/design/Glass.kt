@@ -41,7 +41,7 @@ val glassAvailable: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES
 
 /** The current palette's background, and whether it is the dark one. */
 private val glassBase: Color @Composable get() = DesignTokens.Background
-private val glassDark: Boolean @Composable get() = LocalAppColors.current != LightAppPalette
+private val glassDark: Boolean @Composable get() = LocalAppColors.current.dark
 
 /**
  * Frosted glass on any shape: the blurred, slightly more saturated page behind, under a tint

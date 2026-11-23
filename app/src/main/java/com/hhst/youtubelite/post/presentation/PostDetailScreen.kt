@@ -236,8 +236,8 @@ private fun PostFeedbackRow(
             modifier = Modifier.testTag("post-detail-like").semantics { selected = rating == com.hhst.youtubelite.watch.domain.VideoRating.Like },
             diameter = 40.dp, enabled = !pending,
             pending = pendingAction == PostDetailAction.Like,
-            background = if (rating == com.hhst.youtubelite.watch.domain.VideoRating.Like) DesignTokens.Red.copy(alpha = 0.12f) else Color.Transparent,
-            color = if (rating == com.hhst.youtubelite.watch.domain.VideoRating.Like) DesignTokens.Red else DesignTokens.Ink,
+            background = if (rating == com.hhst.youtubelite.watch.domain.VideoRating.Like) DesignTokens.Accent.copy(alpha = 0.12f) else Color.Transparent,
+            color = if (rating == com.hhst.youtubelite.watch.domain.VideoRating.Like) DesignTokens.Accent else DesignTokens.Ink,
         ) { onAction(PostDetailAction.Like) }
         AppText(likes, Modifier.widthIn(min = 40.dp), size = 14, line = 20)
         AppIconButton(
@@ -245,8 +245,8 @@ private fun PostFeedbackRow(
             modifier = Modifier.testTag("post-detail-dislike").semantics { selected = rating == com.hhst.youtubelite.watch.domain.VideoRating.Dislike },
             diameter = 40.dp, enabled = !pending,
             pending = pendingAction == PostDetailAction.Dislike,
-            background = if (rating == com.hhst.youtubelite.watch.domain.VideoRating.Dislike) DesignTokens.Red.copy(alpha = 0.12f) else Color.Transparent,
-            color = if (rating == com.hhst.youtubelite.watch.domain.VideoRating.Dislike) DesignTokens.Red else DesignTokens.Ink,
+            background = if (rating == com.hhst.youtubelite.watch.domain.VideoRating.Dislike) DesignTokens.Accent.copy(alpha = 0.12f) else Color.Transparent,
+            color = if (rating == com.hhst.youtubelite.watch.domain.VideoRating.Dislike) DesignTokens.Accent else DesignTokens.Ink,
         ) { onAction(PostDetailAction.Dislike) }
         Spacer(Modifier.weight(1f))
         Row(

@@ -55,6 +55,8 @@ fun PlayerTimeBar(
     var dragFraction by remember { mutableFloatStateOf(0f) }
     val timeBarDescription = stringResource(R.string.player_time_bar)
     val announcedFraction = PlayerUi.progressFraction(positionState.value, durationMs)
+    // The played part and the thumb follow the accent colour (Settings > Accent colour).
+    val played = com.hhst.youtubelite.ui.design.DesignTokens.Accent
 
     Canvas(
         modifier = modifier
@@ -107,7 +109,7 @@ fun PlayerTimeBar(
         // Snapshot reads here are draw-scoped: a position tick invalidates
         // only this draw, not the surrounding composition.
         val positionMs = positionState.value
-        val played = if (dragging) dragFraction else PlayerUi.progressFraction(positionMs, durationMs)
+        val fraction = if (dragging) dragFraction else PlayerUi.progressFraction(positionMs, durationMs)
         val buffered = PlayerUi.bufferedFraction(bufferedPositionState.value, durationMs)
 
         val thickness = PlayerUi.TIME_BAR_THICKNESS_DP.dp.toPx()
@@ -122,9 +124,9 @@ fun PlayerTimeBar(
             size = Size(size.width * buffered, thickness),
         )
         drawRect(
-            PlayerUi.YtRed,
+            played,
             topLeft = Offset(0f, y),
-            size = Size(size.width * played, thickness),
+            size = Size(size.width * fraction, thickness),
         )
         // Markers last so they stay visible over played and unplayed regions.
         segments.forEach { segment ->
@@ -147,9 +149,9 @@ fun PlayerTimeBar(
         }
         val thumbR = if (dragging) 7.dp.toPx() else 5.dp.toPx()
         drawCircle(
-            color = PlayerUi.YtRed,
+            color = played,
             radius = thumbR,
-            center = Offset(size.width * played, centerY),
+            center = Offset(size.width * fraction, centerY),
         )
     }
 }

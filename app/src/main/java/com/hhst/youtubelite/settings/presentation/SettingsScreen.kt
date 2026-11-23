@@ -44,6 +44,10 @@ import com.hhst.youtubelite.ui.design.AppText
 import com.hhst.youtubelite.ui.design.DesignTokens
 import com.hhst.youtubelite.ui.theme.AppAppearance
 import com.hhst.youtubelite.ui.theme.ThemeMode
+import com.hhst.youtubelite.ui.theme.AccentColor
+import com.hhst.youtubelite.ui.design.withAccent
+import androidx.compose.ui.graphics.luminance
+import com.hhst.youtubelite.home.domain.FeedLayout
 
 @Composable
 fun SettingsScreen(
@@ -58,6 +62,9 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onAdvanced: (() -> Unit)? = null,
     onSelectTheme: (ThemeMode) -> Unit = {},
+    onSelectAccent: (AccentColor) -> Unit = {},
+    feedLayout: FeedLayout = FeedLayout.Cards,
+    onSelectFeedLayout: (FeedLayout) -> Unit = {},
     onSelectLanguage: (String) -> Unit = {},
     youtubeLinks: Boolean? = null,
     onOpenLinkSettings: () -> Unit = {},
@@ -78,13 +85,14 @@ fun SettingsScreen(
                         AppText(stringResource(R.string.settings_title), Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp)
                             .semantics { heading() }, size = 34, line = 40, weight = FontWeight.Black)
                         // Everything on one page (Matt, 2026-11-23): no sub-page to open first.
-                        GeneralSettings(preferences, onToggle, onSelectTheme, onSelectLanguage,
+                        GeneralSettings(preferences, onToggle, onSelectTheme, onSelectAccent, feedLayout, onSelectFeedLayout, onSelectLanguage,
                             youtubeLinks, onOpenLinkSettings, onOpenYoutubeSettings)
                         PlaybackSettings(preferences, onToggle)
                         NotificationSettings(notificationsEnabled, onOpenNotificationSettings)
                         SettingsMore(onAbout, onAdvanced)
                     }
-                    SettingsPage.General -> GeneralSettings(preferences, onToggle, onSelectTheme, onSelectLanguage,
+                    SettingsPage.General -> GeneralSettings(preferences, onToggle, onSelectTheme, onSelectAccent, feedLayout,
+                        onSelectFeedLayout, onSelectLanguage,
                         youtubeLinks, onOpenLinkSettings, onOpenYoutubeSettings)
                     SettingsPage.Playback -> PlaybackSettings(preferences, onToggle)
                     SettingsPage.Notifications -> NotificationSettings(notificationsEnabled, onOpenNotificationSettings)
@@ -128,12 +136,17 @@ private fun GeneralSettings(
     preferences: Map<String, Boolean>,
     onToggle: (String, Boolean) -> Unit,
     onSelectTheme: (ThemeMode) -> Unit,
+    onSelectAccent: (AccentColor) -> Unit,
+    feedLayout: FeedLayout,
+    onSelectFeedLayout: (FeedLayout) -> Unit,
     onSelectLanguage: (String) -> Unit,
     youtubeLinks: Boolean?,
     onOpenLinkSettings: () -> Unit,
     onOpenYoutubeSettings: () -> Unit,
 ) {
     var themeDialog by remember { mutableStateOf(false) }
+    var accentDialog by remember { mutableStateOf(false) }
+    var layoutDialog by remember { mutableStateOf(false) }
     var languageDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     SettingsSection(stringResource(R.string.settings_group_appearance)) {
@@ -144,6 +157,12 @@ private fun GeneralSettings(
             ThemeMode.Dark -> R.string.settings_theme_dark
             ThemeMode.DarkGrey -> R.string.settings_theme_dark_grey
         }), tag = "settings-row-theme", icon = AppIcon.Moon, onClick = { themeDialog = true })
+    SettingsRow(stringResource(R.string.settings_accent), value = stringResource(AppAppearance.accent.labelRes),
+        tag = "settings-row-accent", icon = AppIcon.Palette, onClick = { accentDialog = true })
+    SettingsRow(stringResource(R.string.settings_feed_layout), value = stringResource(feedLayout.labelRes),
+        tag = "settings-row-feed-layout", icon = AppIcon.ChannelGrid, onClick = { layoutDialog = true })
+    SettingsToggle(stringResource(R.string.settings_player_glow), stringResource(R.string.settings_player_glow_summary),
+        PreferenceKeys.PLAYER_GLOW, preferences, onToggle, AppIcon.Sparkle)
     }
     SettingsSection(stringResource(R.string.settings_group_feed)) {
     SettingsToggle(stringResource(R.string.settings_hide_shorts), stringResource(R.string.settings_hide_shorts_summary),
@@ -183,6 +202,22 @@ private fun GeneralSettings(
         tag = "theme-dialog",
         onSelect = { index -> onSelectTheme(ThemeMode.entries[index]); themeDialog = false },
         onDismiss = { themeDialog = false })
+    if (accentDialog) RadioDialog(
+        title = stringResource(R.string.settings_accent),
+        options = AccentColor.entries.map { color ->
+            stringResource(if (color == AccentColor.Wallpaper && !wallpaperAvailable()) R.string.settings_accent_wallpaper_unavailable
+                else color.labelRes) to (color == AppAppearance.accent)
+        },
+        tag = "accent-dialog",
+        swatches = AccentColor.entries.map { accentSwatch(it) },
+        onSelect = { index -> onSelectAccent(AccentColor.entries[index]); accentDialog = false },
+        onDismiss = { accentDialog = false })
+    if (layoutDialog) RadioDialog(
+        title = stringResource(R.string.settings_feed_layout),
+        options = FeedLayout.entries.map { stringResource(it.labelRes) to (it == feedLayout) },
+        tag = "feed-layout-dialog",
+        onSelect = { index -> onSelectFeedLayout(FeedLayout.entries[index]); layoutDialog = false },
+        onDismiss = { layoutDialog = false })
     if (languageDialog) RadioDialog(
         title = stringResource(R.string.settings_language),
         options = AppLocale.OPTIONS.map { (tag, label) ->
@@ -223,7 +258,8 @@ private fun NotificationSettings(notificationsEnabled: Boolean, onOpen: () -> Un
 
 @Composable
 internal fun RadioDialog(title: String, options: List<Pair<String, Boolean>>, tag: String,
-                        onSelect: (Int) -> Unit, onDismiss: () -> Unit) {
+                        onSelect: (Int) -> Unit, onDismiss: () -> Unit,
+                        swatches: List<androidx.compose.ui.graphics.Color>? = null) {
     val haptic = com.hhst.youtubelite.ui.design.rememberHapticAction()
     com.hhst.youtubelite.ui.components.AppAlertDialog(
         onDismissRequest = onDismiss,
@@ -235,6 +271,10 @@ internal fun RadioDialog(title: String, options: List<Pair<String, Boolean>>, ta
                         .selectable(selected = selected, role = Role.RadioButton, onClick = { if (!selected) haptic(); onSelect(index) })
                         .testTag("$tag-option-$index").padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically) {
+                        swatches?.getOrNull(index)?.let { swatch ->
+                            Box(Modifier.padding(end = 12.dp).size(20.dp)
+                                .background(swatch, androidx.compose.foundation.shape.CircleShape))
+                        }
                         AppText(label, Modifier.weight(1f), size = 14, line = 20)
                         if (selected) AppIcon(AppIcon.Check, color = com.hhst.youtubelite.ui.theme.AppStyle.Action,
                             modifier = Modifier.size(18.dp))
@@ -248,4 +288,30 @@ internal fun RadioDialog(title: String, options: List<Pair<String, Boolean>>, ta
                 AppText(stringResource(R.string.cancel))
             }
         })
+}
+
+internal val AccentColor.labelRes: Int get() = when (this) {
+    AccentColor.Red -> R.string.settings_accent_red
+    AccentColor.Blue -> R.string.settings_accent_blue
+    AccentColor.Green -> R.string.settings_accent_green
+    AccentColor.Purple -> R.string.settings_accent_purple
+    AccentColor.Wallpaper -> R.string.settings_accent_wallpaper
+}
+
+internal val FeedLayout.labelRes: Int get() = when (this) {
+    FeedLayout.Cards -> R.string.settings_feed_layout_cards
+    FeedLayout.List -> R.string.settings_feed_layout_list
+    FeedLayout.Grid -> R.string.settings_feed_layout_grid
+}
+
+private fun wallpaperAvailable() = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+
+/** The colour each choice shows on this page, so the dialog previews the real shade. */
+@Composable
+private fun accentSwatch(color: AccentColor): androidx.compose.ui.graphics.Color {
+    val dark = com.hhst.youtubelite.ui.design.DesignTokens.Background.let {
+        it.luminance() < 0.5f }
+    val context = LocalContext.current
+    return com.hhst.youtubelite.ui.design.LightAppPalette.withAccent(color, dark,
+        com.hhst.youtubelite.ui.design.wallpaperAccent(context, dark)).accent
 }

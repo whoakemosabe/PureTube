@@ -146,6 +146,29 @@ data class HomeUiState(
     ).distinct()
 }
 
+/** How Home and Subscriptions lay out videos. Stored by position, so new layouts go at the end. */
+enum class FeedLayout {
+    /** Big thumbnails, one per row on a phone (YouTube's own look). */
+    Cards,
+    /** A small thumbnail beside the title, so about twice as many videos fit on screen. */
+    List,
+    /** Twice the card columns: 2 across on a phone. */
+    Grid;
+
+    /** Grid columns for this layout, given the card layout's [cardColumns] at this width. */
+    fun columns(cardColumns: Int, width: Float): Int = when (this) {
+        Cards -> cardColumns
+        List -> if (width < 528f) 1 else cardColumns
+        Grid -> cardColumns * 2
+    }
+
+    /** Cards run edge to edge on a phone; rows and the 2-column grid keep a side margin. */
+    fun outerPadding(cardPadding: Float): Float = if (this == Cards) cardPadding else maxOf(cardPadding, 12f)
+
+    /** Gap between columns, in dp: the grid's half-width cards sit closer together. */
+    fun columnGap(cardGap: Float): Float = if (this == Grid) 10f else cardGap
+}
+
 enum class HomeDestination(val label: String) { Home("Home"), Shorts("Shorts"), Subscriptions("Subscriptions"), You("You") }
 enum class FeedMenuAction(val label: String) {
     Queue("Add to queue"), Download("Download"),

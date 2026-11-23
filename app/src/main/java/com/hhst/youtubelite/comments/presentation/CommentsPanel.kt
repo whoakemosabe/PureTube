@@ -929,7 +929,7 @@ private fun CountedAction(icon: AppIcon, count: String, description: String, tag
     ) {
         Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
             if (pending) com.hhst.youtubelite.ui.design.ActionProgress()
-            else AppIcon(icon, Modifier.size(CommentsLayout.ActionIcon.dp), color = if (selected) DesignTokens.Red else DesignTokens.Ink)
+            else AppIcon(icon, Modifier.size(CommentsLayout.ActionIcon.dp), color = if (selected) DesignTokens.Accent else DesignTokens.Ink)
         }
         Spacer(Modifier.width(1.dp))
         AppText(count, size = CommentsLayout.ActionCountSize.toInt(), line = 13, color = DesignTokens.Secondary)
@@ -946,7 +946,7 @@ private fun PlainAction(icon: AppIcon, description: String, tag: String, onClick
     ) {
         Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
             if (pending) com.hhst.youtubelite.ui.design.ActionProgress()
-            else AppIcon(icon, Modifier.size(CommentsLayout.ActionIcon.dp), color = if (selected) DesignTokens.Red else DesignTokens.Ink)
+            else AppIcon(icon, Modifier.size(CommentsLayout.ActionIcon.dp), color = if (selected) DesignTokens.Accent else DesignTokens.Ink)
         }
     }
 }

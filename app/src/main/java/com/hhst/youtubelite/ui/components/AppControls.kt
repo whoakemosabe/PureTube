@@ -53,6 +53,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -180,9 +181,12 @@ fun AppSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?,
     val fraction by animateFloatAsState(if (checked) 1f else 0f,
         animationSpec = if (com.hhst.youtubelite.ui.design.LocalMotionScale.current > 0f) spring() else snap(), label = "switch")
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    val track = (if (checked) AppStyle.Action else MaterialTheme.colorScheme.onSurfaceVariant)
+    // An on switch takes the accent colour (Settings > Accent colour); its thumb picks
+    // white or near-black, whichever reads on that colour.
+    val accent = com.hhst.youtubelite.ui.design.DesignTokens.Accent
+    val track = (if (checked) accent else MaterialTheme.colorScheme.onSurfaceVariant)
         .copy(alpha = if (enabled) 1f else .38f)
-    val thumb = if (checked) AppStyle.OnAction else Color.White
+    val thumb = if (checked) switchThumbOn(accent) else Color.White
     Box(modifier.size(48.dp).then(if (onCheckedChange == null) Modifier else
         Modifier.toggleable(value = checked, enabled = enabled, role = Role.Switch,
             onValueChange = { haptic(); onCheckedChange(it) })), contentAlignment = Alignment.Center) {
@@ -194,6 +198,10 @@ fun AppSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?,
         }
     }
 }
+
+/** White on a dark accent, near-black on a light one (blue, green, purple and pale wallpaper shades on dark pages). */
+internal fun switchThumbOn(accent: Color): Color =
+    if (accent.luminance() > 0.4f) Color(0xFF0F0F0F) else Color.White
 
 /** Gestures and accessibility remain on the platform control. */
 @OptIn(ExperimentalMaterial3Api::class)

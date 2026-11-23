@@ -169,7 +169,7 @@ internal fun HistoryShelf(entries: List<HistoryEntry>, onOpen: (String) -> Unit)
                     VideoArtwork(entry.videoId, entry.artwork, Modifier.fillMaxSize())
                     entry.progress?.let { progress ->
                         Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.Black.copy(alpha = 0.5f))) {
-                            Box(Modifier.fillMaxHeight().fillMaxWidth(progress.coerceIn(0f, 1f)).background(DesignTokens.Red))
+                            Box(Modifier.fillMaxHeight().fillMaxWidth(progress.coerceIn(0f, 1f)).background(DesignTokens.Accent))
                         }
                     }
                 }

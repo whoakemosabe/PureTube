@@ -20,13 +20,13 @@ import androidx.compose.ui.unit.dp
 /**
  * One tab in a bottom bar. Every bar (Home, Subscriptions, You, Search and the browse pages)
  * draws its tabs through this, so spacing and the current tab look the same everywhere
- * (LiTube #397). The current tab is PureTube red with a soft red glow falling on it from
+ * (LiTube #397). The current tab is the accent colour with a soft glow of it falling from
  * above, like a light shining down; the others are the secondary colour. The account picture
  * replaces the icon only when there is one.
  */
 @Composable
 fun NavigationTabContent(label: String, icon: AppIcon, current: Boolean, avatar: String? = null) {
-    val red = DesignTokens.Red
+    val red = DesignTokens.Accent // The accent colour; red unless changed in Settings.
     val tint = if (current) red else DesignTokens.Secondary
     val glow by androidx.compose.animation.core.animateFloatAsState(if (current) 1f else 0f, label = "tab-glow")
     // Fixed size for every state, so the label never moves between bars or selections.

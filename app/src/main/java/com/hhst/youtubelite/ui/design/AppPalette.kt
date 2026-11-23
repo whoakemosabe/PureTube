@@ -21,7 +21,12 @@ data class AppPalette(
     val link: Color,
     /** Section headings (Settings, menus): brand red, shaded to pass 4.5:1 on the page. */
     val heading: Color = Color(0xFFCC0029),
-)
+    /** The chosen highlight colour ([com.hhst.youtubelite.ui.theme.AccentColor]); [red] stays for LIVE and destructive actions. */
+    val accent: Color = red,
+) {
+    /** Dark page palettes; compared by background so an accent copy keeps its darkness. */
+    val dark: Boolean get() = background != Color.White
+}
 
 val LightAppPalette = AppPalette(
     background = Color.White,
@@ -68,6 +73,25 @@ fun appPalette(dark: Boolean, grey: Boolean): AppPalette = when {
     dark && grey -> DarkGreyAppPalette
     dark -> DarkAppPalette
     else -> LightAppPalette
+}
+
+/**
+ * Applies an accent choice. Each colour has a light-page and a dark-page shade, picked so the
+ * heading text keeps 4.5:1 contrast on its page. [wallpaper] is the system's Material You
+ * colour for this darkness (Android 12 and later); without one, Wallpaper falls back to red.
+ */
+fun AppPalette.withAccent(choice: com.hhst.youtubelite.ui.theme.AccentColor, dark: Boolean, wallpaper: Color? = null): AppPalette {
+    val (accent, heading) = when (choice) {
+        com.hhst.youtubelite.ui.theme.AccentColor.Red -> return copy(accent = red)
+        com.hhst.youtubelite.ui.theme.AccentColor.Blue ->
+            if (dark) Color(0xFF3EA6FF) to Color(0xFF6CBBFF) else Color(0xFF065FD4) to Color(0xFF065FD4)
+        com.hhst.youtubelite.ui.theme.AccentColor.Green ->
+            if (dark) Color(0xFF2FBF5B) to Color(0xFF5FD383) else Color(0xFF1E8E3E) to Color(0xFF137333)
+        com.hhst.youtubelite.ui.theme.AccentColor.Purple ->
+            if (dark) Color(0xFFA47CFF) to Color(0xFFBFA2FF) else Color(0xFF6E3FD8) to Color(0xFF6E3FD8)
+        com.hhst.youtubelite.ui.theme.AccentColor.Wallpaper -> (wallpaper ?: return copy(accent = red)) to wallpaper
+    }
+    return copy(accent = accent, heading = heading)
 }
 
 val LocalAppColors = staticCompositionLocalOf { LightAppPalette }

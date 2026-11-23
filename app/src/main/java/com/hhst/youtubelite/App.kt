@@ -59,6 +59,7 @@ class App : Application(), Configuration.Provider {
         // Publish the persisted appearance before the first activity composes.
         get<com.hhst.youtubelite.extension.ExtensionManager>().let { prefs ->
             com.hhst.youtubelite.ui.theme.AppAppearance.update(prefs.themeMode())
+            com.hhst.youtubelite.ui.theme.AppAppearance.updateAccent(prefs.accentColor())
         }
         // Off the main thread: schedules the 6-hourly release check and asks GitHub if due.
         com.hhst.youtubelite.update.UpdateWatch.start(this)

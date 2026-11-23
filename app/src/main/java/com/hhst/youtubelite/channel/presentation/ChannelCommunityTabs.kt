@@ -459,8 +459,8 @@ private fun PostCard(
                 AppIcon.Like, stringResource(R.string.a11y_like_post), modifier = Modifier.testTag("channel-post-like-${post.identity.postId}").semantics { selected = rating == VideoRating.Like },
                 diameter = 40.dp,
                 enabled = pending == null, pending = pending == PostDetailAction.Like,
-                background = if (rating == VideoRating.Like) DesignTokens.Red.copy(alpha = 0.12f) else Color.Transparent,
-                color = if (rating == VideoRating.Like) DesignTokens.Red else DesignTokens.Ink,
+                background = if (rating == VideoRating.Like) DesignTokens.Accent.copy(alpha = 0.12f) else Color.Transparent,
+                color = if (rating == VideoRating.Like) DesignTokens.Accent else DesignTokens.Ink,
             ) { rate(true) }
             AppText(interaction?.post?.likes ?: post.likes, Modifier.widthIn(min = 40.dp), size = 14, line = 20)
             AppIconButton(
@@ -468,8 +468,8 @@ private fun PostCard(
                 modifier = Modifier.testTag("channel-post-dislike-${post.identity.postId}").semantics { selected = rating == VideoRating.Dislike },
                 diameter = 40.dp,
                 enabled = pending == null, pending = pending == PostDetailAction.Dislike,
-                background = if (rating == VideoRating.Dislike) DesignTokens.Red.copy(alpha = 0.12f) else Color.Transparent,
-                color = if (rating == VideoRating.Dislike) DesignTokens.Red else DesignTokens.Ink,
+                background = if (rating == VideoRating.Dislike) DesignTokens.Accent.copy(alpha = 0.12f) else Color.Transparent,
+                color = if (rating == VideoRating.Dislike) DesignTokens.Accent else DesignTokens.Ink,
             ) { rate(false) }
             Spacer(Modifier.weight(1f))
             Row(

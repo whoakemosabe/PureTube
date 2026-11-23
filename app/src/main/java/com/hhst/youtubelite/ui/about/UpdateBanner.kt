@@ -74,14 +74,14 @@ fun UpdateBanner(modifier: Modifier = Modifier) {
             .padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp)
             .testTag("update-banner")) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AppIcon(AppIcon.Download, color = DesignTokens.Red)
+                AppIcon(AppIcon.Download, color = DesignTokens.Accent)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     AppText("PureTube ${shown.version} is out", size = 15, line = 20, weight = FontWeight.SemiBold, maxLines = 1)
                     AppText(shown.detail, size = 13, line = 18, color = DesignTokens.Secondary, maxLines = 2)
                 }
                 shown.action?.let { label ->
-                    Box(Modifier.padding(start = 8.dp).clip(RoundedCornerShape(18.dp)).background(DesignTokens.Red)
+                    Box(Modifier.padding(start = 8.dp).clip(RoundedCornerShape(18.dp)).background(DesignTokens.Accent)
                         .clickable(role = Role.Button, onClick = act).padding(horizontal = 14.dp, vertical = 8.dp)
                         .testTag("update-banner-action")) {
                         AppText(label, size = 13, line = 18, weight = FontWeight.SemiBold, color = androidx.compose.ui.graphics.Color.White)
@@ -95,7 +95,7 @@ fun UpdateBanner(modifier: Modifier = Modifier) {
                 Spacer(Modifier.height(10.dp))
                 androidx.compose.material3.LinearProgressIndicator(progress = { p },
                     modifier = Modifier.fillMaxWidth().padding(end = 12.dp).testTag("update-banner-progress"),
-                    color = DesignTokens.Red, trackColor = DesignTokens.Red.copy(alpha = 0.2f))
+                    color = DesignTokens.Accent, trackColor = DesignTokens.Accent.copy(alpha = 0.2f))
             }
         }
     }

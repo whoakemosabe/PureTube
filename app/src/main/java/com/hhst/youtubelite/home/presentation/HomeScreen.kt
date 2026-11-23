@@ -191,19 +191,21 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
                             if (content.refreshFailed) Box(Modifier.graphicsLayer { translationY = (96f + chipExtraHeight.value - chromeTravel * chromeOffset) * density }) {
                                 RetryRow(stringResource(R.string.ui_couldn_t_refresh_try_again)) { onAction(HomeAction.Refresh) }
                             }
+                            val layout = com.hhst.youtubelite.ui.design.LocalFeedLayout.current
+                            val sidePadding = layout.outerPadding(HomeLayout.outerPadding(width)).dp
                             LazyVerticalGrid(
-                                columns = GridCells.Fixed(HomeLayout.columns(width)), state = grid,
+                                columns = GridCells.Fixed(layout.columns(HomeLayout.columns(width), width)), state = grid,
                                 modifier = Modifier.fillMaxSize().testTag("home-feed"),
-                                contentPadding = PaddingValues(start = HomeLayout.outerPadding(width).dp, end = HomeLayout.outerPadding(width).dp, top = feedTopInset,
+                                contentPadding = PaddingValues(start = sidePadding, end = sidePadding, top = feedTopInset,
                                     // The tab bar floats over the feed, so the last row can scroll clear of it.
                                     bottom = 24.dp + DesignTokens.BottomBarHeight + 1.dp),
-                                horizontalArrangement = Arrangement.spacedBy(DesignTokens.GridGap),
+                                horizontalArrangement = Arrangement.spacedBy(layout.columnGap(DesignTokens.GridGap.value).dp),
                             ) {
                                 // A newer PureTube shows at the top of the feed until it's installed or hidden.
                                 item(key = "update-banner", span = { GridItemSpan(maxLineSpan) }) {
                                     com.hhst.youtubelite.ui.about.UpdateBanner()
                                 }
-                                homeCards(visibleItems, currentWidth, state.live, onAction, postInteractions)
+                                homeCards(visibleItems, currentWidth, state.live, onAction, postInteractions, layout)
                                 item(span = { GridItemSpan(maxLineSpan) }) {
                                     when (content.append) {
                                         AppendState.Loading -> Box(Modifier.fillMaxWidth().padding(top = 80.dp, bottom = 12.dp), contentAlignment = Alignment.Center) { LoadingSpinner() }
@@ -293,12 +295,14 @@ private val homeSavePlaylists: List<SavePlaylist> =
         .map { SavePlaylist(it.id, it.title) }
 
 private fun LazyGridScope.homeCards(items: List<FeedItem>, width: Float, live: Boolean, onAction: (HomeAction) -> Unit,
-    postInteractions: com.hhst.youtubelite.post.presentation.PostCardInteractions?) {
+    postInteractions: com.hhst.youtubelite.post.presentation.PostCardInteractions?, layout: FeedLayout = FeedLayout.Cards) {
     items(items, key = { it.id }, span = {
         if (it is FeedItem.Shorts || it is FeedItem.Post) GridItemSpan(maxLineSpan) else GridItemSpan(1)
     }, contentType = { it.javaClass.simpleName }) { item ->
-        Box((if (LocalMotionScale.current > 0f) Modifier.animateItem() else Modifier).padding(bottom = if (item is FeedItem.Post) 16.dp else 24.dp)) {
-            FeedCard(item, compact = width < 528f, windowWidth = width, live, onAction, postInteractions)
+        val rows = layout == FeedLayout.List && item is FeedItem.Video
+        Box((if (LocalMotionScale.current > 0f) Modifier.animateItem() else Modifier)
+            .padding(bottom = if (item is FeedItem.Post) 16.dp else if (rows) 14.dp else if (layout == FeedLayout.Grid) 18.dp else 24.dp)) {
+            FeedCard(item, compact = width < 528f && layout == FeedLayout.Cards, windowWidth = width, live, onAction, postInteractions, layout)
         }
     }
 }

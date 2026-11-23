@@ -578,10 +578,10 @@ private fun WatchSlotButton(
         contentAlignment = Alignment.Center,
     ) {
         Row(Modifier.heightIn(min = surfaceHeight).clip(RoundedCornerShape(18.dp))
-            .background(if (selected) DesignTokens.Red.copy(alpha = 0.12f) else if (pressed) DesignTokens.Ghost else DesignTokens.Surface)
+            .background(if (selected) DesignTokens.Accent.copy(alpha = 0.12f) else if (pressed) DesignTokens.Ghost else DesignTokens.Surface)
             .testTag("$testTag-surface").padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             if (pending) com.hhst.youtubelite.ui.design.ActionProgress()
-            else AppIcon(icon, Modifier.testTag("$testTag-icon"), color = if (selected) DesignTokens.Red else DesignTokens.Ink)
+            else AppIcon(icon, Modifier.testTag("$testTag-icon"), color = if (selected) DesignTokens.Accent else DesignTokens.Ink)
             if (!label.isNullOrBlank()) {
                 Spacer(Modifier.width(8.dp))
                 AppText(label, Modifier.testTag("$testTag-count"), size = 14, line = 20, maxLines = 1)
@@ -908,7 +908,7 @@ private fun RelatedThumb(
         VideoArtwork(item.id, item.artwork, Modifier.fillMaxSize())
         item.progress?.let { progress ->
             Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0xFF909090))) {
-                Box(Modifier.fillMaxHeight().fillMaxWidth(progress.coerceIn(0f, 1f)).background(DesignTokens.Red))
+                Box(Modifier.fillMaxHeight().fillMaxWidth(progress.coerceIn(0f, 1f)).background(DesignTokens.Accent))
             }
         }
         Box(

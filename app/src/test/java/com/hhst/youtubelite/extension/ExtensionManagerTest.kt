@@ -160,4 +160,25 @@ class ExtensionManagerTest {
         manager.setEnabled(PreferenceKeys.SHOW_PLAYER_TITLE, false)
         assertFalse(manager.isEnabled(PreferenceKeys.SHOW_PLAYER_TITLE))
     }
+
+    @Test
+    fun accentAndFeedLayoutDefaultToRedCardsAndPersistAChoiceOnce() {
+        val store = MemoryPrefStore()
+        val prefs = ExtensionManager(store)
+        assertEquals(com.hhst.youtubelite.ui.theme.AccentColor.Red, prefs.accentColor())
+        assertEquals(com.hhst.youtubelite.home.domain.FeedLayout.Cards, prefs.feedLayout())
+        val heard = mutableListOf<String>()
+        prefs.addOnChangedListener { heard += it }
+        prefs.setAccentColor(com.hhst.youtubelite.ui.theme.AccentColor.Wallpaper)
+        prefs.setAccentColor(com.hhst.youtubelite.ui.theme.AccentColor.Wallpaper)
+        prefs.setFeedLayout(com.hhst.youtubelite.home.domain.FeedLayout.Grid)
+        assertEquals(listOf(PreferenceKeys.ACCENT_COLOR, PreferenceKeys.FEED_LAYOUT), heard)
+        val reopened = ExtensionManager(store)
+        assertEquals(com.hhst.youtubelite.ui.theme.AccentColor.Wallpaper, reopened.accentColor())
+        assertEquals(com.hhst.youtubelite.home.domain.FeedLayout.Grid, reopened.feedLayout())
+    }
+
+    @Test
+    fun playerGlowIsOnByDefault() =
+        assertTrue(ExtensionManager(MemoryPrefStore()).isEnabled(PreferenceKeys.PLAYER_GLOW))
 }

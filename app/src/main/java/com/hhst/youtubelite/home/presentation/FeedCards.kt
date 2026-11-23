@@ -38,9 +38,14 @@ import com.hhst.youtubelite.dearrow.VideoArtwork
 
 @Composable
 internal fun FeedCard(item: FeedItem, compact: Boolean, windowWidth: Float, live: Boolean = false, onAction: (HomeAction) -> Unit,
-    postInteractions: PostCardInteractions? = null) {
+    postInteractions: PostCardInteractions? = null, layout: FeedLayout = FeedLayout.Cards) {
     when (item) {
-        is FeedItem.Video -> VideoCard(item, compact, onAction)
+        is FeedItem.Video -> if (layout == FeedLayout.List) FeedVideoRow(item, "feed-item-${item.id}",
+            onOpen = {
+                com.hhst.youtubelite.watch.domain.WatchProvisionalStore.put(item.toProvisional())
+                onAction(HomeAction.Navigate(HomeNavigationRequest.Watch(item.id)))
+            }, onMenu = { onAction(HomeAction.OpenMenu(item.id)) })
+            else VideoCard(item, compact, onAction, small = layout == FeedLayout.Grid)
         is FeedItem.Mix -> MixCard(item, compact, live, onAction)
         is FeedItem.Playlist -> {
             val playlist = item.summary
@@ -82,7 +87,7 @@ private fun Avatar(asset: String, author: String, channelId: String, onAction: (
 private fun Modifier.semanticsLabel(label: String) = this.then(Modifier.semantics { contentDescription = label })
 
 @Composable
-private fun VideoCard(item: FeedItem.Video, compact: Boolean, onAction: (HomeAction) -> Unit) {
+private fun VideoCard(item: FeedItem.Video, compact: Boolean, onAction: (HomeAction) -> Unit, small: Boolean = false) {
     val openWatch = {
         com.hhst.youtubelite.watch.domain.WatchProvisionalStore.put(item.toProvisional())
         onAction(HomeAction.Navigate(HomeNavigationRequest.Watch(item.id)))
@@ -92,21 +97,19 @@ private fun VideoCard(item: FeedItem.Video, compact: Boolean, onAction: (HomeAct
             .clickable(role = Role.Button) { openWatch() }
             .semanticsLabel("${item.title}, ${item.duration}")) {
             VideoArtwork(item.id, item.artwork, Modifier.fillMaxSize())
-            Box(Modifier.align(Alignment.BottomEnd).padding(8.dp).background(if (item.live) DesignTokens.Red else Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 1.dp)) {
-                AppText(item.duration, size = 12, line = 16, weight = FontWeight.Medium, color = Color.White)
-            }
-            item.progress?.let { progress ->
-                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.Black.copy(alpha = 0.5f))) {
-                    Box(Modifier.fillMaxHeight().fillMaxWidth(progress.coerceIn(0f, 1f)).background(DesignTokens.Red))
-                }
-            }
+            FeedDurationBadge(item, Modifier.align(Alignment.BottomEnd).padding(if (small) 6.dp else 8.dp))
+            FeedProgressBar(item.progress, Modifier.align(Alignment.BottomStart))
         }
         Row(Modifier.padding(start = if (compact) 12.dp else 0.dp, top = 8.dp), verticalAlignment = Alignment.Top) {
-            Avatar(item.avatar.orEmpty(), item.author, item.channelId, onAction, size = 36.dp, videoId = item.id)
-            Spacer(Modifier.width(8.dp))
+            // Half-width grid cards leave the channel picture out to keep room for the title.
+            if (!small) {
+                Avatar(item.avatar.orEmpty(), item.author, item.channelId, onAction, size = 36.dp, videoId = item.id)
+                Spacer(Modifier.width(8.dp))
+            }
             Box(Modifier.weight(1f)) {
                 Column(Modifier.padding(end = if (compact) 12.dp else 0.dp).clickable(role = Role.Button) { openWatch() }) {
-                    AppText(rememberDeArrowTitle(item.id, item.title), Modifier.padding(end = 24.dp), size = 16, line = 22, weight = FontWeight.Medium, maxLines = 2)
+                    AppText(rememberDeArrowTitle(item.id, item.title), Modifier.padding(end = 24.dp),
+                        size = if (small) 14 else 16, line = if (small) 19 else 22, weight = FontWeight.Medium, maxLines = 2)
                     AppText(listOf(item.author, item.metadata).filter(String::isNotBlank).joinToString(" · "), Modifier.padding(top = 2.dp), size = 12, line = 18, color = DesignTokens.Secondary, maxLines = 1)
                 }
                 // Sampled menu anchors: phone right inset 2px, grid +10px overhang, top -6px.
@@ -232,14 +235,14 @@ private fun PostCard(item: FeedItem.Post, live: Boolean, onAction: (HomeAction) 
             AppIconButton(AppIcon.Like, stringResource(R.string.a11y_like_post), diameter = 40.dp,
                 modifier = Modifier.testTag("post-like-${item.postId}").semantics { selected = rating == VideoRating.Like },
                 enabled = pending == null, pending = pending == PostDetailAction.Like,
-                background = if (rating == VideoRating.Like) DesignTokens.Red.copy(alpha = 0.12f) else Color.Transparent,
-                color = if (rating == VideoRating.Like) DesignTokens.Red else DesignTokens.Ink) { rate(true) }
+                background = if (rating == VideoRating.Like) DesignTokens.Accent.copy(alpha = 0.12f) else Color.Transparent,
+                color = if (rating == VideoRating.Like) DesignTokens.Accent else DesignTokens.Ink) { rate(true) }
             AppText(interaction?.post?.likes ?: item.likes, Modifier.widthIn(min = 40.dp), size = 14, line = 20)
             AppIconButton(AppIcon.Dislike, stringResource(R.string.a11y_dislike_post), diameter = 40.dp,
                 modifier = Modifier.testTag("post-dislike-${item.postId}").semantics { selected = rating == VideoRating.Dislike },
                 enabled = pending == null, pending = pending == PostDetailAction.Dislike,
-                background = if (rating == VideoRating.Dislike) DesignTokens.Red.copy(alpha = 0.12f) else Color.Transparent,
-                color = if (rating == VideoRating.Dislike) DesignTokens.Red else DesignTokens.Ink) { rate(false) }
+                background = if (rating == VideoRating.Dislike) DesignTokens.Accent.copy(alpha = 0.12f) else Color.Transparent,
+                color = if (rating == VideoRating.Dislike) DesignTokens.Accent else DesignTokens.Ink) { rate(false) }
             Spacer(Modifier.weight(1f))
             Row(Modifier.clickable(role = Role.Button) { onAction(HomeAction.Navigate(HomeNavigationRequest.PostComments(item.postId, item.channelId))) }
                 .padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {

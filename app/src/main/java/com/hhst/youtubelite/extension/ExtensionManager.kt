@@ -113,6 +113,31 @@ class ExtensionManager(private val store: PrefStore) {
             store.getLong(prefKey(PreferenceKeys.THEME_MODE), com.hhst.youtubelite.ui.theme.ThemeMode.DarkGrey.ordinal.toLong()).toInt()) {
             com.hhst.youtubelite.ui.theme.ThemeMode.DarkGrey }
 
+    fun accentColor(): com.hhst.youtubelite.ui.theme.AccentColor =
+        com.hhst.youtubelite.ui.theme.AccentColor.entries.getOrElse(
+            store.getLong(prefKey(PreferenceKeys.ACCENT_COLOR), 0L).toInt()) { com.hhst.youtubelite.ui.theme.AccentColor.Red }
+
+    fun setAccentColor(color: com.hhst.youtubelite.ui.theme.AccentColor) {
+        setChoice(PreferenceKeys.ACCENT_COLOR, accentColor().name, color.name, color.ordinal)
+    }
+
+    /** Home and Subscriptions feed layout; Cards is the default. */
+    fun feedLayout(): com.hhst.youtubelite.home.domain.FeedLayout =
+        com.hhst.youtubelite.home.domain.FeedLayout.entries.getOrElse(
+            store.getLong(prefKey(PreferenceKeys.FEED_LAYOUT), 0L).toInt()) { com.hhst.youtubelite.home.domain.FeedLayout.Cards }
+
+    fun setFeedLayout(layout: com.hhst.youtubelite.home.domain.FeedLayout) {
+        setChoice(PreferenceKeys.FEED_LAYOUT, feedLayout().name, layout.name, layout.ordinal)
+    }
+
+    private fun setChoice(key: String, before: String, after: String, ordinal: Int) {
+        if (before == after) return
+        store.putLong(prefKey(key), ordinal.toLong())
+        AppLog.event(AppLog.Category.EXTENSION, "preference_changed", mapOf("key" to key, "before" to before, "after" to after))
+        bumpVersion()
+        notifyChanged(key)
+    }
+
     fun setThemeMode(mode: com.hhst.youtubelite.ui.theme.ThemeMode) {
         if (mode == themeMode()) return
         val previous = themeMode()

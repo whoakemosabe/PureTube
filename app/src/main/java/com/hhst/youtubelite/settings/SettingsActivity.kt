@@ -92,6 +92,12 @@ class SettingsActivity : com.hhst.youtubelite.ui.NativeActivity() {
                     extensionManager.setThemeMode(mode)
                     com.hhst.youtubelite.ui.theme.AppAppearance.update(mode)
                 },
+                onSelectAccent = { color ->
+                    extensionManager.setAccentColor(color)
+                    com.hhst.youtubelite.ui.theme.AppAppearance.updateAccent(color)
+                },
+                feedLayout = com.hhst.youtubelite.ui.design.LocalFeedLayout.current,
+                onSelectFeedLayout = { layout -> extensionManager.setFeedLayout(layout) },
                 onSelectLanguage = { tag ->
                     val handledBySystem = com.hhst.youtubelite.core.AppLocale.apply(this@SettingsActivity, tag)
                     if (!handledBySystem) recreate()

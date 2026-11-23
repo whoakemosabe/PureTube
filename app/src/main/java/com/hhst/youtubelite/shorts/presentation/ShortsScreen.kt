@@ -226,7 +226,7 @@ private fun RailAction(icon: AppIcon, description: String, label: String, onClic
         Box(Modifier.size(40.dp).clickable(enabled = !pending, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
             if (pending) com.hhst.youtubelite.ui.design.ActionProgress(color = Color.White)
-            else AppIcon(icon, color = if (tinted) DesignTokens.Red else Color.White)
+            else AppIcon(icon, color = if (tinted) DesignTokens.Accent else Color.White)
         }
         if (label.isNotEmpty()) {
             AppText(label, Modifier.testTag("rail-label-$description"), size = 12, line = 16,

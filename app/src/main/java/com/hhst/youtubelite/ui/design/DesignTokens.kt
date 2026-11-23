@@ -58,7 +58,10 @@ object DesignTokens {
     val Scrim: Color @Composable get() = LocalAppColors.current.scrim
     val MenuScrim: Color @Composable get() = LocalAppColors.current.menuScrim
     val StateLayer: Color @Composable get() = LocalAppColors.current.stateLayer
+    /** Brand red: LIVE badges, destructive actions and the logo. Highlights use [Accent]. */
     val Red: Color @Composable get() = LocalAppColors.current.red
+    /** The chosen accent colour (Settings > Accent colour). */
+    val Accent: Color @Composable get() = LocalAppColors.current.accent
     val Link: Color @Composable get() = LocalAppColors.current.link
     val Heading: Color @Composable get() = LocalAppColors.current.heading
     val Font = FontFamily(
@@ -88,11 +91,23 @@ fun AppTheme(content: @Composable () -> Unit) {
         motion.value = readMotionScale(context.contentResolver)
         onPauseOrDispose { }
     }
-    CompositionLocalProvider(LocalAppColors provides appPalette(darkTheme, com.hhst.youtubelite.ui.theme.AppAppearance.grey),
+    val accent = com.hhst.youtubelite.ui.theme.AppAppearance.accent
+    val wallpaper = remember(accent, darkTheme, context) { wallpaperAccent(context, darkTheme) }
+    CompositionLocalProvider(LocalAppColors provides appPalette(darkTheme, com.hhst.youtubelite.ui.theme.AppAppearance.grey)
+        .withAccent(accent, darkTheme, wallpaper),
         LocalMotionScale provides motion.value, LocalHideShorts provides rememberHideShorts(),
-        LocalHideWatched provides rememberHideWatched(), LocalWatchMarks provides rememberWatchMarks()) {
+        LocalHideWatched provides rememberHideWatched(), LocalWatchMarks provides rememberWatchMarks(),
+        LocalFeedLayout provides rememberFeedLayout()) {
         com.hhst.youtubelite.ui.theme.AppTheme(darkTheme = darkTheme) { content() }
     }
+}
+
+/** Material You's main colour on Android 12 and later, in the shade for this page darkness. */
+internal fun wallpaperAccent(context: android.content.Context, dark: Boolean): Color? {
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) return null
+    return runCatching {
+        Color(context.getColor(if (dark) android.R.color.system_accent1_200 else android.R.color.system_accent1_600))
+    }.getOrNull()
 }
 
 fun androidx.activity.ComponentActivity.setAppContent(content: @Composable () -> Unit) {

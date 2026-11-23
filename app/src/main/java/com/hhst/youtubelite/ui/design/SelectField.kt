@@ -49,7 +49,7 @@ fun <T> SelectField(
     var expanded by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val palette = LocalAppColors.current
-    val dark = palette != LightAppPalette
+    val dark = palette.dark
     val select by rememberUpdatedState(onSelect)
     Box {
         Row(

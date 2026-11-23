@@ -15,6 +15,13 @@ import androidx.compose.ui.unit.dp
 /** Stored by position, so new modes go at the end. */
 enum class ThemeMode(val label: String) { System("System"), Light("Light"), Dark("Dark"), DarkGrey("Dark grey") }
 
+/**
+ * The highlight colour for the current tab's glow, progress bars, switches, selected likes,
+ * headings and the seek bar. Wallpaper takes the system's Material You colour (LiTube #137).
+ * Stored by position, so new colours go at the end.
+ */
+enum class AccentColor { Red, Blue, Green, Purple, Wallpaper }
+
 object AppAppearance {
     /** Resolved darkness for the Compose theme; null means "follow the system". */
     var dark by mutableStateOf<Boolean?>(null)
@@ -23,6 +30,8 @@ object AppAppearance {
         private set
     /** Dark grey instead of black pages (LiTube #383); only read while [dark] resolves true. */
     val grey: Boolean get() = mode == ThemeMode.DarkGrey
+    var accent by mutableStateOf(AccentColor.Red)
+        private set
     private val listeners = mutableListOf<() -> Unit>()
 
     fun update(value: ThemeMode) {
@@ -33,6 +42,10 @@ object AppAppearance {
             ThemeMode.System -> null
         }
         synchronized(listeners) { listeners.toList() }.forEach { it() }
+    }
+
+    fun updateAccent(value: AccentColor) {
+        accent = value
     }
 
     /** Registers a non-Compose observer (system bars); returns the unsubscribe handle. */

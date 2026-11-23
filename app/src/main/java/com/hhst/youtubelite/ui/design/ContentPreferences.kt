@@ -18,6 +18,29 @@ val LocalHideWatched = staticCompositionLocalOf { false }
 /** Videos marked watched or unwatched from a menu; they override YouTube's progress. */
 val LocalWatchMarks = androidx.compose.runtime.compositionLocalOf { emptyMap<String, Boolean>() }
 
+/** Cards, List or 2 columns on Home and Subscriptions (Settings > Feed layout). */
+val LocalFeedLayout = staticCompositionLocalOf { com.hhst.youtubelite.home.domain.FeedLayout.Cards }
+
+@Composable
+internal fun rememberFeedLayout(): com.hhst.youtubelite.home.domain.FeedLayout {
+    val manager = remember { GlobalContext.getOrNull()?.getOrNull<ExtensionManager>() }
+        ?: return com.hhst.youtubelite.home.domain.FeedLayout.Cards
+    var layout by remember(manager) { mutableStateOf(manager.feedLayout()) }
+    DisposableEffect(manager) {
+        val listener: (String) -> Unit = { key ->
+            if (key == PreferenceKeys.FEED_LAYOUT || key == "*") layout = manager.feedLayout()
+        }
+        manager.addOnChangedListener(listener)
+        listener("*")
+        onDispose { manager.removeOnChangedListener(listener) }
+    }
+    return layout
+}
+
+/** The watch page glows with the video's colours behind the player. */
+@Composable
+internal fun rememberPlayerGlow(): Boolean = rememberFeedPreference(PreferenceKeys.PLAYER_GLOW)
+
 @Composable
 internal fun rememberWatchMarks(): Map<String, Boolean> {
     val marks = remember { GlobalContext.getOrNull()?.getOrNull<com.hhst.youtubelite.data.media.WatchMarks>() }
