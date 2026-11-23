@@ -219,6 +219,20 @@ class PlaybackWatchReportingTest {
         reporting.detach()
     }
 
+    @Test fun watchingToTheEndRecordsTheFullBar() {
+        // LiTube #400: records land every few seconds while playing, so the end needs its own.
+        anonymousVisitor()
+        val reporting = reporting()
+        reporting.publish(video("v1"))
+        reporting.tick(PlaybackSample("v1", 97_000, 100_000, playing = true))
+        awaitHistory(1)
+        reporting.tick(PlaybackSample("v1", 100_000, 100_000, playing = false))
+        val deadline = System.currentTimeMillis() + 5_000
+        while (library.history().entries.single().progress!! < 0.99f && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        assertEquals(1f, library.history().entries.single().progress!!, 0.001f)
+        reporting.detach()
+    }
+
     @Test fun signedInPlaybackReportsWatchTimeButLeavesLocalHistoryAlone() {
         MediaSession.completeSignIn(SignInClient("id", "secret", "device"),
             AccessToken("access", "refresh", 4_000_000_000_000),

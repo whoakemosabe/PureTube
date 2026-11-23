@@ -70,6 +70,8 @@ class PlaybackWatchReporting(
     @Volatile private var privacyEpoch = 0L
     private var localRecordKey: Triple<String, Long, Long>? = null
     private var localRecordPositionMs = -1L
+    /** Video whose last local sample was playing; its pause or end gets one final record. */
+    private var localPlayingVideoId: String? = null
 
     /** Monotonic refresh hint; page consumers separately validate their current identity. */
     private val _anonymousReportSignal = MutableStateFlow(0L)
@@ -210,12 +212,17 @@ class PlaybackWatchReporting(
 
     private fun recordLocal(sample: PlaybackSample) {
         val video = video ?: return
-        if (!sample.playing || video.id != sample.videoId) return
+        // Records land every few seconds while playing, so the stop (pause or the end) records
+        // once more; otherwise a fully watched video kept a bar a few seconds short (LiTube #400).
+        val stopped = !sample.playing && localPlayingVideoId == sample.videoId
+        localPlayingVideoId = sample.videoId.takeIf { sample.playing }
+        if (!sample.playing && !stopped || video.id != sample.videoId) return
         if (MediaSession.signedIn() || MediaSession.privateBrowsing()) return
         val generation = MediaSession.snapshot().generation
         if (video.sessionGeneration != generation) return
         val recordKey = Triple(video.id, generation, sample.discontinuityEpoch)
-        if (localRecordKey == recordKey && sample.positionMs - localRecordPositionMs in 0 until LOCAL_RECORD_EVERY_MS) return
+        if (!stopped && localRecordKey == recordKey &&
+            sample.positionMs - localRecordPositionMs in 0 until LOCAL_RECORD_EVERY_MS) return
         localRecordKey = recordKey
         localRecordPositionMs = sample.positionMs
         val requestPrivacy = privacyEpoch
