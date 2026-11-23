@@ -49,11 +49,16 @@ class HomeActivity : com.hhst.youtubelite.ui.ContentActivity() {
     private val homeReady = CompletableDeferred<HomeViewModel>()
     private var warmedCandidate: Pair<Long, String>? = null
 
+    private fun speculativeMediaAllowed(): Boolean = com.hhst.youtubelite.core.SpeculativeData.mediaAllowed(this,
+        org.koin.java.KoinJavaComponent.getKoin().get<com.hhst.youtubelite.extension.ExtensionManager>()
+            .isEnabled(com.hhst.youtubelite.extension.PreferenceKeys.DATA_SAVER))
+
     private fun prewarmVideo(id: String) {
         val candidate = com.hhst.youtubelite.data.media.MediaSession.snapshot().generation to id
         if (warmedCandidate == candidate) return
         warmedCandidate = candidate
         org.koin.java.KoinJavaComponent.getKoin().get<com.hhst.youtubelite.extractor.Extractor>().warm(id)
+        if (!speculativeMediaAllowed()) return
         org.koin.java.KoinJavaComponent.getKoin()
             .get<com.hhst.youtubelite.shorts.data.ShortsMediaPreloader>().preload(id)
     }
@@ -136,8 +141,7 @@ class HomeActivity : com.hhst.youtubelite.ui.ContentActivity() {
                         homeViewModel.uiState.map { it.content is HomeContent.Feed && it.overlay == HomeOverlay.None }
                             .distinctUntilChanged().collectLatest { ready ->
                                 if (!ready) return@collectLatest
-                                val prefs = org.koin.java.KoinJavaComponent.getKoin().get<com.hhst.youtubelite.extension.ExtensionManager>()
-                                if (prefs.isEnabled(com.hhst.youtubelite.extension.PreferenceKeys.DATA_SAVER)) return@collectLatest
+                                if (!speculativeMediaAllowed()) return@collectLatest
                                 try {
                                     // Prepare the list while home settles; media bytes still wait for the
                                     // idle window. Navigation can claim the same read.
