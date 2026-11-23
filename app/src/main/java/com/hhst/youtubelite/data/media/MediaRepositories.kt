@@ -300,8 +300,18 @@ class MediaChannelRepository(private val client: MediaClient, private val posts:
 class MediaVoteRepository(private val client: MediaClient) : VoteCountRepository {
     override suspend fun counts(videoId: String): VoteCounts = client.read { _, http ->
         val votes = loadDislikes(videoId, http).requireValue()
-        VoteCounts(votes.likes?.coerceAtLeast(0), votes.dislikes?.coerceAtLeast(0))
+        voteCounts(votes.likes, votes.dislikes)
     }
+}
+
+/**
+ * The dislike service reports 0 and 0 when the uploader hid the like count, so a pair of
+ * zeros is treated as "no count" and the buttons show no number instead of 👍0 👎0.
+ */
+internal fun voteCounts(likes: Long?, dislikes: Long?): VoteCounts {
+    val l = likes?.coerceAtLeast(0)
+    val d = dislikes?.coerceAtLeast(0)
+    return if (l == 0L && d == 0L) VoteCounts(null, null) else VoteCounts(l, d)
 }
 
 internal fun resolveChannel(id: String, context: RequestContext, http: HttpClient): String =
