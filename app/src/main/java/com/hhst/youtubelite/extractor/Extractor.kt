@@ -21,6 +21,8 @@ interface PlaybackHost {
     fun chapters(videoId: String, context: ExtractionContext): List<Chapter>
     /** Chapters and seek-bar previews from one watch-page read. */
     fun watchExtras(videoId: String, context: ExtractionContext): ChapterList = ChapterList(chapters(videoId, context))
+    /** Preview sheets from this video's /player reply, when one was read in this process. */
+    fun playerStoryboard(videoId: String): StoryboardSpec? = null
     /** Clients to try last for this video (recent media refusals). */
     fun deferredClients(videoId: String): Set<StreamClient>
     fun cache(inner: Cache, context: () -> ExtractionContext): Cache
@@ -303,7 +305,7 @@ private class Inflight(
                     }
                 },
                 chapters = Promise(ChapterList(), scope, autostart = false) {
-                    it.resolveChapters(id, scopedCache) { requireHost().watchExtras(id, context()) }
+                    it.resolveChapters(id, scopedCache, storyboard = { requireHost().playerStoryboard(id) }) { requireHost().watchExtras(id, context()) }
                 },
             )
             return Inflight(id, epoch, extraction, active, preparation, catalog,
@@ -344,14 +346,18 @@ internal fun Promise<Stream>.resolveStream(
 internal fun Promise<ChapterList>.resolveChapters(
     videoId: String,
     cache: Cache,
+    storyboard: () -> StoryboardSpec? = { null },
     loaded: () -> ChapterList,
 ) {
     cache.getChapters(videoId)?.let { cached ->
-        set { copyFrom(cached) }
+        // Entries saved before previews were read from /player have none; fill them in.
+        val filled = if (cached.storyboard == null) storyboard() else null
+        set { copyFrom(cached); if (filled != null) this.storyboard = filled }
+        if (filled != null) cache.putChapters(videoId, value)
         return
     }
     val read = loaded()
-    set { copyFrom(read) }
+    set { copyFrom(read); if (this.storyboard == null) this.storyboard = storyboard() }
     cache.putChapters(videoId, value)
 }
 

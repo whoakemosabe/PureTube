@@ -68,6 +68,7 @@ class YoutubeExtractionHost(
         playback.resolve(videoId, context, demand, fresh, deferredClients(videoId))
     override fun chapters(videoId: String, context: ExtractionContext): List<Chapter> = playback.chapters(videoId, context)
     override fun watchExtras(videoId: String, context: ExtractionContext): ChapterList = playback.watchExtras(videoId, context)
+    override fun playerStoryboard(videoId: String): StoryboardSpec? = playback.storyboardFor(videoId)
     override fun extractionDiagnostics(): String = diagnostics.export()
     override fun invalidateStream(videoId: String) = synchronized(streams) {
         streams.keys.removeAll { it.contains(":" + videoId + ":") }

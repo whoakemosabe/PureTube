@@ -46,6 +46,13 @@ class MscPlayback(
     private val active = ThreadLocal<Task?>()
     private val transport = HttpClientBridge()
 
+    /** Preview sheets seen in /player replies, by video; the watch page has none. */
+    private val playerStoryboards = object : LinkedHashMap<String, StoryboardSpec>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, StoryboardSpec>?) = size > 8
+    }
+
+    internal fun storyboardFor(videoId: String): StoryboardSpec? = synchronized(playerStoryboards) { playerStoryboards[videoId] }
+
     val session: PlaybackSession = PlaybackSession(
         http = transport,
         solver = SolverAdapter(),
@@ -139,13 +146,14 @@ class MscPlayback(
     fun watchExtras(videoId: String, context: ExtractionContext): ChapterList {
         withTask(Task(context, videoId)) {
             val requestContext = requestContext(context)
+            val fromPlayer = storyboardFor(videoId)
             val watched = sharedWatchReads?.read(videoId, requestContext, transport, fresh = false, load = { id, ctx, http -> loadWatch(id, ctx, http = http) })
                 ?: loadWatch(videoId, requestContext, http = transport)
-            if (!watched.ok) return ChapterList()
+            if (!watched.ok) return ChapterList(storyboard = fromPlayer)
             val page = watched.value!!
             return ChapterList(page.chapters.map {
                 Chapter(it.title.orEmpty(), (it.startMs / 1000).toInt(), it.thumbnail)
-            }, StoryboardSpec.from(page.storyboard))
+            }, StoryboardSpec.from(page.storyboard) ?: fromPlayer)
         }
     }
 
@@ -190,6 +198,11 @@ class MscPlayback(
             val response = if (request.method == "POST")
                 context.post(request.url, headers, request.body.toByteArray())
             else context.get(request.url, headers)
+            if (response.responseCode in 200..299 && PlayerStoryboard.isPlayerRequest(request.url)) {
+                PlayerStoryboard.from(response.responseBody)?.let { spec ->
+                    synchronized(playerStoryboards) { playerStoryboards[task.videoId] = spec }
+                }
+            }
             return HttpReply(response.responseCode, response.responseBody,
                 response.responseHeaders.mapValues { it.value.joinToString(", ") })
         }
