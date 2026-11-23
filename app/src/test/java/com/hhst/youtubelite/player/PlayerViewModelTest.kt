@@ -220,6 +220,18 @@ class PlayerViewModelTest {
         assertTrue(viewModel.uiState.value.playlistItems.isEmpty())
     }
 
+    @Test fun endOfVideoSleepStopsInsteadOfPlayingTheNextVideo() {
+        bindViewModel { "ddddddddddd" }
+        viewModel.openVideo(watchId)
+        engine.settle(watchId)
+        viewModel.onQueueAdd(QueueItem("bbbbbbbbbbb", title = "Queued"))
+        viewModel.onSleepTimer(SleepChoice.EndOfVideo)
+        val before = engine.playCalls.size
+        engine.finish()
+        assertEquals(before, engine.playCalls.size)
+        assertEquals(SleepChoice.Off, viewModel.uiState.value.sleepTimer)
+    }
+
     @Test fun addToQueueWhileWatchingPlaysTheQueuedVideoNextEvenWithAutoplayOff() {
         bindViewModel { "ddddddddddd" }
         preferences.setEnabled(PreferenceKeys.ENABLE_AUTOPLAY, false)

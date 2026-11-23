@@ -103,6 +103,7 @@ data class PlayerUiState(
     val queueItems: List<QueueItem> = emptyList(),
     /** The playlist being played through (from a playlist page), shown in place of the queue. */
     val playlistItems: List<QueueItem> = emptyList(),
+    val sleepTimer: SleepChoice = SleepChoice.Off,
     val queueEnabled: Boolean = false,
     /** Owner of the published queue; gesture commits carry it back for validation. */
     val queueOwner: QueueOwner = QueueOwner.DEVICE,
@@ -167,6 +168,12 @@ class PlayerViewModel(
 
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
+
+    private val sleepTimer = SleepTimer(viewModelScope,
+        onChange = { choice -> _uiState.update { it.copy(sleepTimer = choice) } },
+        onFire = { engine.pause() })
+
+    override fun onSleepTimer(choice: SleepChoice) = sleepTimer.set(choice)
 
     // Position lives outside [PlayerUiState] so the ~4 Hz snapshot tick
     // recomposes only the time readouts, not the whole surface tree.
@@ -1517,6 +1524,8 @@ class PlayerViewModel(
         if (mediaKind == MediaKind.SHORTS) return
         if (!engine.snapshot.value.ended || handledEndSeq == playbackRequestSeq) return
         handledEndSeq = playbackRequestSeq
+        // "End of video" sleep: this end is where playback stops, not where it advances.
+        if (sleepTimer.onVideoEnded()) return
         // Queue and playlist playback take priority over page autoplay; both
         // navigate strictly inside their own context (no stale-queue hijack).
         val queueContext = queueActive() && currentInQueue()

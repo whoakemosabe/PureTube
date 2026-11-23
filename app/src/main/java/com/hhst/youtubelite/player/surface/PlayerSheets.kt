@@ -68,6 +68,7 @@ sealed interface PlayerDialog {
     /** Caption track picker; same onSubtitle semantics as the chrome anchor menu. */
     data object Captions : PlayerDialog
     data object Info : PlayerDialog
+    data object SleepTimer : PlayerDialog
     data object Cast : PlayerDialog
 }
 
@@ -110,6 +111,8 @@ fun PlayerSheetHost(
                 loopMode = state.loopMode,
                 onSpeed = { onDismiss(); onOpenDialog(PlayerDialog.Speed) },
                 onQuality = { onDismiss(); onOpenDialog(PlayerDialog.Quality) },
+                sleepTimer = state.sleepTimer,
+                onSleepTimer = { onDismiss(); onOpenDialog(PlayerDialog.SleepTimer) },
                 showPip = state.pipAvailable,
                 onResize = { onDismiss(); onOpenDialog(PlayerDialog.Resize) },
                 onCast = {
@@ -256,6 +259,15 @@ fun PlayerDialogHost(
             fullscreen = state.fullscreen && !state.mini,
             tag = "player-dialog-quality",
         )
+        PlayerDialog.SleepTimer -> OptionDialog(
+            title = stringResource(R.string.sleep_timer),
+            rows = com.hhst.youtubelite.player.SleepChoice.choices.map { OptionRow(it, sleepLabel(it)) },
+            selected = state.sleepTimer,
+            onPick = { it?.let(callbacks::onSleepTimer); onDismiss() },
+            onDismiss = onDismiss,
+            fullscreen = state.fullscreen && !state.mini,
+            tag = "player-dialog-sleep-timer",
+        )
         PlayerDialog.Speed -> OptionDialog(
             title = stringResource(R.string.info_playback_speed),
             rows = PlayerUi.SpeedChoices.map { OptionRow(it, PlayerUi.speedLabel(it)) },
@@ -327,6 +339,8 @@ private fun MoreSheet(
     loopMode: LoopMode,
     onSpeed: (() -> Unit)?,
     onQuality: (() -> Unit)?,
+    sleepTimer: com.hhst.youtubelite.player.SleepChoice,
+    onSleepTimer: () -> Unit,
     showPip: Boolean,
     onResize: () -> Unit,
     onCast: () -> Unit,
@@ -345,6 +359,8 @@ private fun MoreSheet(
     ) {
         onQuality?.let { MoreRow(R.drawable.ic_quality, stringResource(R.string.player_info_quality), it) }
         onSpeed?.let { MoreRow(R.drawable.ic_playback_speed, stringResource(R.string.info_playback_speed), it) }
+        MoreRow(R.drawable.ic_sleep_timer, if (sleepTimer == com.hhst.youtubelite.player.SleepChoice.Off) stringResource(R.string.sleep_timer)
+            else stringResource(R.string.sleep_timer_set, sleepLabel(sleepTimer)), onSleepTimer)
         MoreRow(R.drawable.ic_track, stringResource(R.string.audio_track), onAudio)
         MoreRow(R.drawable.ic_subtitles_on, stringResource(R.string.subtitle_style), onSubtitleStyle)
         MoreRow(R.drawable.ic_resize, stringResource(R.string.resize_mode), onResize)
@@ -445,6 +461,13 @@ private fun <T> OptionSheet(
             }
         }
     }
+}
+
+@Composable
+private fun sleepLabel(choice: com.hhst.youtubelite.player.SleepChoice): String = when (choice) {
+    com.hhst.youtubelite.player.SleepChoice.Off -> stringResource(R.string.sleep_timer_off)
+    com.hhst.youtubelite.player.SleepChoice.EndOfVideo -> stringResource(R.string.sleep_timer_end_of_video)
+    is com.hhst.youtubelite.player.SleepChoice.Minutes -> stringResource(R.string.sleep_timer_minutes, choice.minutes)
 }
 
 @Composable

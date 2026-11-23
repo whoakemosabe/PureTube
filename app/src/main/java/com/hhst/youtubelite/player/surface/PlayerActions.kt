@@ -39,6 +39,7 @@ interface PlayerPlaybackActions {
     /** Applies live and persists. */
     fun onSubtitleStyle(style: SubtitleStyle)
     fun onQueueItem(url: String)
+    fun onSleepTimer(choice: com.hhst.youtubelite.player.SleepChoice) {}
     /** A pick from the playing playlist's list; stays in that playlist. */
     fun onPlaylistItem(url: String) = onQueueItem(url)
     fun onResize(mode: ResizeMode)

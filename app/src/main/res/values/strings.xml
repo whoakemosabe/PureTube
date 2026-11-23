@@ -67,6 +67,11 @@
     <string name="queue">Queue</string>
     <string name="queue_empty">Queue is empty</string>
     <string name="playlist">Playlist</string>
+    <string name="sleep_timer">Sleep timer</string>
+    <string name="sleep_timer_set">Sleep timer: %1$s</string>
+    <string name="sleep_timer_off">Off</string>
+    <string name="sleep_timer_minutes">%1$d minutes</string>
+    <string name="sleep_timer_end_of_video">End of video</string>
     <string name="playlist_position">%1$d of %2$d</string>
     <string name="queue_item_added">Added to queue</string>
     <string name="queue_item_already">Already in queue</string>
