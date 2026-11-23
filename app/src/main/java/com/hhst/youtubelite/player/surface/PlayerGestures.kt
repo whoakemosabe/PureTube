@@ -69,6 +69,8 @@ fun Modifier.playerGestures(
     /** Shorts (vertical feed): vertical drag switches video, not brightness/volume. */
     verticalFeed: Boolean = false,
     fullscreenEntry: Boolean = false,
+    /** Fullscreen: vertical swipes from the screen's top and bottom edges go to the system. */
+    systemEdges: Boolean = false,
 ): Modifier = composed {
     val tapGuard = remember { TapGuard() }
     val coordinates = remember { GestureCoordinates() }
@@ -95,9 +97,9 @@ fun Modifier.playerGestures(
                 },
             )
         }
-        .pointerInput(enabled, callbacks, zoomEnabled, restartKey, verticalFeed, fullscreenEntry) {
+        .pointerInput(enabled, callbacks, zoomEnabled, restartKey, verticalFeed, fullscreenEntry, systemEdges) {
             if (!enabled) return@pointerInput
-            awaitEachGesture { trackDrag(callbacks, zoneEnabled, tapGuard, zoomEnabled, verticalFeed, fullscreenEntry, density, coordinates::toWindow) }
+            awaitEachGesture { trackDrag(callbacks, zoneEnabled, tapGuard, zoomEnabled, verticalFeed, fullscreenEntry, systemEdges, density, coordinates::toWindow) }
         }
 }
 
@@ -115,6 +117,7 @@ private suspend fun AwaitPointerEventScope.trackDrag(
     zoomEnabled: Boolean,
     verticalFeed: Boolean,
     fullscreenEntry: Boolean,
+    systemEdges: Boolean,
     density: Float,
     toWindow: (Offset) -> Offset,
 ) {
@@ -133,6 +136,8 @@ private suspend fun AwaitPointerEventScope.trackDrag(
     var dragMode = GestureMath.DragMode.NONE
     /** Zone the slop-crossing drag actually started in, before pref gating. */
     var rawMode = GestureMath.DragMode.NONE
+    /** A vertical swipe from a screen edge in fullscreen: the system's, so the player ignores it. */
+    var systemEdge = false
     /** True once slop was crossed, even if the zone resolved to NONE. */
     var dragResolved = false
     var totalDx = 0f
@@ -237,6 +242,11 @@ private suspend fun AwaitPointerEventScope.trackDrag(
             if (max(abs(totalDx), abs(totalDy)) > slop) {
                 if (change.isConsumed) return // a child owns this drag
                 dragResolved = true
+                if (systemEdges && !verticalFeed &&
+                    GestureMath.startsAtSystemEdge(start.y, height, totalDx, totalDy, GestureMath.SYSTEM_EDGE_DP * density)) {
+                    systemEdge = true
+                    continue
+                }
                 rawMode = GestureMath.resolveDragMode(totalDx, totalDy, start.x, width, verticalFeed,
                     fullscreenEntry && zoneEnabled(GestureMath.GestureZone.FULLSCREEN_SWIPE))
                 dragMode = when (rawMode) {
@@ -262,7 +272,7 @@ private suspend fun AwaitPointerEventScope.trackDrag(
                 callbacks.onBrightness(GestureMath.brightnessDelta(stepDy, height))
             GestureMath.DragMode.VOLUME ->
                 callbacks.onVolume(GestureMath.volumeDelta(stepDy, height))
-            GestureMath.DragMode.NONE -> if (!verticalFeed && rawMode == GestureMath.DragMode.NONE &&
+            GestureMath.DragMode.NONE -> if (!verticalFeed && !systemEdge && rawMode == GestureMath.DragMode.NONE &&
                 zoneEnabled(GestureMath.GestureZone.FULLSCREEN_SWIPE)) callbacks.onWindowSwipeProgress(totalDx, totalDy)
         }
         change.consume()
@@ -280,7 +290,7 @@ private suspend fun AwaitPointerEventScope.trackDrag(
             callbacks.onSeekCommit(GestureMath.seekOffsetMs(totalDx, width))
         // Fullscreen swipe (or Shorts feed switch) for center-zone / feed vertical drags.
         // A disabled brightness/volume zone must not re-route into fullscreen; a feed still switches video.
-        dragMode == GestureMath.DragMode.NONE && rawMode == GestureMath.DragMode.NONE &&
+        dragMode == GestureMath.DragMode.NONE && rawMode == GestureMath.DragMode.NONE && !systemEdge &&
             (verticalFeed || zoneEnabled(GestureMath.GestureZone.FULLSCREEN_SWIPE)) &&
             abs(totalDy) > abs(totalDx) -> {
             if (verticalFeed) {

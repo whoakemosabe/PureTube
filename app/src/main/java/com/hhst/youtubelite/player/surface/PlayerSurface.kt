@@ -384,6 +384,7 @@ fun PlayerSurface(
                             !state.mini && !state.casting && !pip,
                         restartKey = state.casting,
                         fullscreenEntry = !state.fullscreen && !state.mini,
+                        systemEdges = state.fullscreen && !state.mini,
                     ),
             ) {
                 val showChrome = (state.controlsVisible || seekGestureActive) && !state.locked && !pip

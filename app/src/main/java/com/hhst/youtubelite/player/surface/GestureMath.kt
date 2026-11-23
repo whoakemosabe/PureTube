@@ -93,6 +93,17 @@ object GestureMath {
         return -dy / height * VOLUME_FACTOR
     }
 
+    /**
+     * Fullscreen hides the system bars, so a swipe from the top edge (notification shade) or
+     * the bottom edge (home / back) reaches the player as well as the system. Those vertical
+     * swipes belong to the system: they must not change brightness or volume, or leave
+     * fullscreen (LiTube #259, #273).
+     */
+    const val SYSTEM_EDGE_DP = 32f
+
+    fun startsAtSystemEdge(startY: Float, height: Float, dx: Float, dy: Float, edgePx: Float): Boolean =
+        abs(dy) >= abs(dx) && (startY < edgePx || startY > height - edgePx)
+
     /** Chooses drag mode once touch slop is exceeded. */
     fun resolveDragMode(
         dx: Float,

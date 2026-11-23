@@ -141,4 +141,15 @@ class VelocityTrackerTest {
         tracker.reset()
         assertEquals(0f, tracker.velocityY(), 0.001f)
     }
+
+    // LiTube #259/#273: pulling the notification shade or the home bar in fullscreen.
+    @Test fun verticalSwipesFromTheScreenEdgesBelongToTheSystem() {
+        val edge = 32f
+        org.junit.Assert.assertTrue(GestureMath.startsAtSystemEdge(startY = 10f, height = 1000f, dx = 2f, dy = 80f, edgePx = edge))
+        org.junit.Assert.assertTrue(GestureMath.startsAtSystemEdge(startY = 990f, height = 1000f, dx = 2f, dy = -80f, edgePx = edge))
+        // The middle of the screen still controls brightness and volume.
+        org.junit.Assert.assertFalse(GestureMath.startsAtSystemEdge(startY = 500f, height = 1000f, dx = 2f, dy = 80f, edgePx = edge))
+        // A sideways seek that starts at the edge is still a seek.
+        org.junit.Assert.assertFalse(GestureMath.startsAtSystemEdge(startY = 10f, height = 1000f, dx = 120f, dy = 4f, edgePx = edge))
+    }
 }
