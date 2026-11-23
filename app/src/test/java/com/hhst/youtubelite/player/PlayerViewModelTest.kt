@@ -203,6 +203,23 @@ class PlayerViewModelTest {
         assertEquals(VideoId.watchUrl("bbbbbbbbbbb"), engine.playCalls.last())
     }
 
+    @Test fun theWatchedPlaylistIsShownAndAPickStaysInsideIt() {
+        bindViewModel()
+        val items = listOf(watchId, "bbbbbbbbbbb", "ccccccccccc").map { QueueItem(it, title = it) }
+        viewModel.startPlaylist(items)
+        engine.settle(watchId)
+        assertEquals(items.map { it.videoId }, viewModel.uiState.value.playlistItems.map { it.videoId })
+        viewModel.onPlaylistItem(VideoId.watchUrl("bbbbbbbbbbb"))
+        engine.settle("bbbbbbbbbbb")
+        assertEquals(VideoId.watchUrl("bbbbbbbbbbb"), engine.playCalls.last())
+        assertEquals(3, viewModel.uiState.value.playlistItems.size)
+        viewModel.skipToNext()
+        assertEquals(VideoId.watchUrl("ccccccccccc"), engine.playCalls.last())
+        // Leaving the playlist for a queued pick drops the panel.
+        viewModel.onQueueItem(VideoId.watchUrl("ddddddddddd"))
+        assertTrue(viewModel.uiState.value.playlistItems.isEmpty())
+    }
+
     @Test fun addToQueueWhileWatchingPlaysTheQueuedVideoNextEvenWithAutoplayOff() {
         bindViewModel { "ddddddddddd" }
         preferences.setEnabled(PreferenceKeys.ENABLE_AUTOPLAY, false)

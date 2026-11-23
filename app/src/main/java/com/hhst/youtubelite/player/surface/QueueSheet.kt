@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -239,6 +240,60 @@ internal fun QueueSheet(
     }
 }
 
+/**
+ * The playlist being played through, shown while watching one of its videos: where you
+ * are in it, what comes next, and a tap to jump. It is the playlist's own order, so it
+ * has no reorder, remove or clear (those belong to the queue).
+ */
+@Composable
+internal fun PlaylistSheet(
+    items: List<QueueItem>,
+    currentId: String?,
+    onItem: (String) -> Unit,
+    onClose: () -> Unit,
+) {
+    val listState = rememberLazyListState()
+    val index = items.indexOfFirst { it.videoId == currentId }
+    LaunchedEffect(Unit) { if (index >= 0) listState.scrollToItem(index) }
+    Column(Modifier.padding(bottom = 24.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.playlist),
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (index >= 0) Text(
+                    stringResource(R.string.playlist_position, index + 1, items.size),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            PlayerIconButton(R.drawable.ic_close, stringResource(R.string.close), onClose,
+                tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(48.dp))
+        }
+        LazyColumn(state = listState, modifier = Modifier.weight(1f, fill = false).testTag("playlist-list")) {
+            // A playlist can hold the same video twice; keys must stay unique.
+            itemsIndexed(items, key = { i, item -> "$i:${item.videoId}" }) { i, item ->
+                QueueRow(
+                    item = item,
+                    current = i == index,
+                    dragging = false,
+                    modifier = Modifier.testTag("playlist-row-${item.videoId}"),
+                    onItem = { if (i == index) onClose() else onItem(item.url) },
+                    onRemove = null,
+                    onDownload = null,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun QueueRow(
     item: QueueItem,
@@ -246,8 +301,8 @@ private fun QueueRow(
     dragging: Boolean,
     modifier: Modifier,
     onItem: () -> Unit,
-    onRemove: () -> Unit,
-    onDownload: () -> Unit,
+    onRemove: (() -> Unit)?,
+    onDownload: (() -> Unit)?,
 ) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val thumbnailWidth = (maxWidth * .24f).coerceIn(72.dp, 112.dp)
@@ -264,7 +319,7 @@ private fun QueueRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            QueueThumbnail(item.thumbnailUrl, thumbnailWidth)
+            QueueThumbnail(item.thumbnailUrl ?: com.hhst.youtubelite.extractor.VideoId.thumbnailUrl(item.videoId), thumbnailWidth)
             Column(Modifier.weight(1f)) {
                 if (current) {
                     Text(
@@ -291,7 +346,7 @@ private fun QueueRow(
                     )
                 }
             }
-            Icon(
+            if (onDownload != null) Icon(
                 painter = painterResource(R.drawable.ic_download),
                 contentDescription = stringResource(R.string.download),
                 tint = MaterialTheme.colorScheme.onSurface,
@@ -301,7 +356,7 @@ private fun QueueRow(
                     .clickable(onClick = onDownload)
                     .padding(8.dp),
             )
-            Icon(
+            if (onRemove != null) Icon(
                 painter = painterResource(R.drawable.ic_close),
                 contentDescription = stringResource(R.string.queue_remove),
                 tint = MaterialTheme.colorScheme.onSurface,

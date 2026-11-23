@@ -66,6 +66,8 @@
     <string name="more_options">More</string>
     <string name="queue">Queue</string>
     <string name="queue_empty">Queue is empty</string>
+    <string name="playlist">Playlist</string>
+    <string name="playlist_position">%1$d of %2$d</string>
     <string name="queue_item_added">Added to queue</string>
     <string name="queue_item_already">Already in queue</string>
     <string name="queue_item_unavailable">Could not add to queue</string>

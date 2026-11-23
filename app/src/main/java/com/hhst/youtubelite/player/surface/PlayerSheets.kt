@@ -105,6 +105,7 @@ fun PlayerSheetHost(
         when (sheet) {
             PlayerSheet.More -> MoreSheet(
                 onQueue = onOpenQueue,
+                queueLabel = if (state.playlistItems.any { it.videoId == state.videoId }) R.string.playlist else R.string.queue,
                 onLoop = onOpenQueue?.let { { onDismiss(); onOpenDialog(PlayerDialog.EndBehavior) } },
                 loopMode = state.loopMode,
                 onSpeed = { onDismiss(); onOpenDialog(PlayerDialog.Speed) },
@@ -147,7 +148,12 @@ fun PlayerSheetHost(
                 onBack = { onNavigate(PlayerSheet.More) },
                 onDismiss = onDismiss,
             )
-            PlayerSheet.Queue -> QueueSheet(
+            PlayerSheet.Queue -> if (state.playlistItems.any { it.videoId == state.videoId }) PlaylistSheet(
+                items = state.playlistItems,
+                currentId = state.videoId,
+                onItem = { callbacks.onPlaylistItem(it); onDismiss() },
+                onClose = onDismiss,
+            ) else QueueSheet(
                 items = state.queueItems,
                 currentId = state.videoId,
                 loopMode = state.loopMode,
@@ -316,6 +322,7 @@ fun PlayerDialogHost(
 @Composable
 private fun MoreSheet(
     onQueue: (() -> Unit)?,
+    queueLabel: Int,
     onLoop: (() -> Unit)?,
     loopMode: LoopMode,
     onSpeed: (() -> Unit)?,
@@ -342,7 +349,7 @@ private fun MoreSheet(
         MoreRow(R.drawable.ic_subtitles_on, stringResource(R.string.subtitle_style), onSubtitleStyle)
         MoreRow(R.drawable.ic_resize, stringResource(R.string.resize_mode), onResize)
         MoreDivider()
-        onQueue?.let { MoreRow(R.drawable.ic_queue, stringResource(R.string.queue), it) }
+        onQueue?.let { MoreRow(R.drawable.ic_queue, stringResource(queueLabel), it) }
         MoreRow(R.drawable.ic_queue_add, stringResource(R.string.add_to_queue), onQueueAdd)
         onLoop?.let { MoreRow(PlayerUi.loopIcon(loopMode), stringResource(PlayerUi.loopLabelRes(loopMode)), it) }
         MoreDivider()

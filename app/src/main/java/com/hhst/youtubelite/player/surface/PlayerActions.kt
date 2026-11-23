@@ -39,6 +39,8 @@ interface PlayerPlaybackActions {
     /** Applies live and persists. */
     fun onSubtitleStyle(style: SubtitleStyle)
     fun onQueueItem(url: String)
+    /** A pick from the playing playlist's list; stays in that playlist. */
+    fun onPlaylistItem(url: String) = onQueueItem(url)
     fun onResize(mode: ResizeMode)
     fun onQueueEnabled(enabled: Boolean)
     fun onQueueClear()

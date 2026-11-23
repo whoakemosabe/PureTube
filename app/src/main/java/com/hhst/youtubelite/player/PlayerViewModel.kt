@@ -101,6 +101,8 @@ data class PlayerUiState(
     val hasPrevious: Boolean = false,
     val locked: Boolean = false,
     val queueItems: List<QueueItem> = emptyList(),
+    /** The playlist being played through (from a playlist page), shown in place of the queue. */
+    val playlistItems: List<QueueItem> = emptyList(),
     val queueEnabled: Boolean = false,
     /** Owner of the published queue; gesture commits carry it back for validation. */
     val queueOwner: QueueOwner = QueueOwner.DEVICE,
@@ -242,6 +244,10 @@ class PlayerViewModel(
         prefs.isEnabled(gesturePrefKey(zone, _uiState.value.fullscreen))
 
     private var playlistItems: List<QueueItem> = emptyList()
+        set(value) {
+            field = value
+            _uiState.update { it.copy(playlistItems = value) }
+        }
     private var playlistActive = false
     /** The first notification establishes the startup identity, rather than switching it. */
     private var identityGeneration: Long? = null
@@ -1050,6 +1056,14 @@ class PlayerViewModel(
     override fun onNext() = skipToNext()
 
     override fun onPrevious() = skipToPrevious()
+
+    /** A pick inside the playing playlist stays in that playlist (Next keeps walking it). */
+    override fun onPlaylistItem(url: String) {
+        val id = VideoId.parse(url) ?: return
+        if (!playlistActive || playlistItems.none { it.videoId == id }) return onQueueItem(url)
+        if (id == playbackQueueId()) return
+        startPlayback(VideoId.watchUrl(id), keepMini = true)
+    }
 
     override fun onQueueItem(url: String) {
         playlistActive = false
