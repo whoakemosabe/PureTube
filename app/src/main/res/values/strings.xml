@@ -470,7 +470,7 @@
     <string name="settings_feed_layout_list">List</string>
     <string name="settings_feed_layout_grid">2 columns</string>
     <string name="settings_player_glow">Glow behind the player</string>
-    <string name="settings_player_glow_summary">A soft light in the video\'s own colours around the player</string>
+    <string name="settings_player_glow_summary">A soft light in your accent colour around the player</string>
     <string name="settings_language">Language</string>
     <string name="settings_language_system">System default</string>
     <string name="settings_hide_shorts">Hide Shorts</string>

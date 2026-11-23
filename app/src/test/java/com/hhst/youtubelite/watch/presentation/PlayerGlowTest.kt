@@ -1,13 +1,15 @@
 package com.hhst.youtubelite.watch.presentation
 
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Settings > Glow behind the player. */
 class PlayerGlowTest {
-    // Below Android 12 Modifier.blur does nothing: the "glow" would be a sharp copy of the thumbnail.
-    @Test fun phonesWithoutBlurGetNoGlow() = assertFalse(PlayerGlow.available)
+    // The accent glow is a gradient, so it needs no blur and shows on every Android version.
+    @Test fun theAccentGlowShowsWithoutBlur() {
+        assertTrue(PlayerGlow.FOLLOWS_ACCENT)
+        assertTrue(PlayerGlow.available)
+    }
 
     @Test fun theGlowIsSofterOnLightPages() {
         assertTrue(PlayerGlow.LIGHT_ALPHA < PlayerGlow.DARK_ALPHA)

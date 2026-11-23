@@ -118,6 +118,9 @@ object GestureMath {
         // the page video; brightness/volume must not eat the swipe.
         if (verticalFeed) return DragMode.NONE
         if (fullscreenEntry && dy < 0f && startX >= width * .2f && startX <= width * .8f) return DragMode.NONE
+        // On the page's own player, pulling down anywhere shrinks it into the mini player, as
+        // people expect (Matt, 2026-11-23). Brightness and volume there start with an upward drag.
+        if (fullscreenEntry && dy > 0f) return DragMode.NONE
         return when {
             startX < width * BRIGHTNESS_ZONE_END -> DragMode.BRIGHTNESS
             startX > width * VOLUME_ZONE_START -> DragMode.VOLUME

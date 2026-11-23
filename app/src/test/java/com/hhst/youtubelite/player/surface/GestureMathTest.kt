@@ -80,10 +80,19 @@ class GestureMathTest {
             GestureMath.resolveDragMode(10f, -50f, 900f, 1000f, fullscreenEntry = true))
         assertEquals(GestureMath.DragMode.BRIGHTNESS,
             GestureMath.resolveDragMode(10f, -50f, 250f, 1000f))
-        assertEquals(GestureMath.DragMode.VOLUME,
-            GestureMath.resolveDragMode(10f, 50f, 750f, 1000f, fullscreenEntry = true))
         assertEquals(GestureMath.DragMode.SEEK,
             GestureMath.resolveDragMode(100f, -50f, 500f, 1000f, fullscreenEntry = true))
+    }
+
+    // A pull down on the page's player minimizes it wherever it starts, not only in the middle third.
+    @Test fun embeddedDownwardDragAnywhereGoesToTheMiniPlayer() {
+        for (x in listOf(50f, 250f, 500f, 750f, 950f)) {
+            assertEquals(GestureMath.DragMode.NONE,
+                GestureMath.resolveDragMode(10f, 50f, x, 1000f, fullscreenEntry = true))
+        }
+        // Fullscreen keeps its edge sliders in both directions.
+        assertEquals(GestureMath.DragMode.VOLUME, GestureMath.resolveDragMode(10f, 50f, 750f, 1000f))
+        assertEquals(GestureMath.DragMode.BRIGHTNESS, GestureMath.resolveDragMode(10f, 50f, 250f, 1000f))
     }
 
     @Test

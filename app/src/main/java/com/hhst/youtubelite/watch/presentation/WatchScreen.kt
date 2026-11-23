@@ -1008,16 +1008,19 @@ private fun Artwork(asset: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * Settings > Glow behind the player: the video's own thumbnail, heavily blurred, lights the
- * page around and below the player in that video's colours, fading out downwards. Blur needs
- * Android 12; older phones keep the plain page rather than a sharp copy of the picture.
+ * Settings > Glow behind the player: a soft light in the accent colour spreads from behind the
+ * player and fades out downwards. With [PlayerGlow.FOLLOWS_ACCENT] off it is instead the video's
+ * thumbnail, heavily blurred; that needs Android 12, so older phones then keep the plain page.
  */
 internal object PlayerGlow {
     /** How far the light reaches below the player. */
     const val SPILL_DP = 260f
     const val DARK_ALPHA = 0.5f
     const val LIGHT_ALPHA = 0.3f
-    val available: Boolean get() = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+    /** The glow is the accent colour (Matt, 2026-11-23), not the video's own picture. */
+    const val FOLLOWS_ACCENT = true
+    /** The accent glow is a plain gradient; only the picture glow needs Android 12's blur. */
+    val available: Boolean get() = FOLLOWS_ACCENT || android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
 }
 
 @Composable
@@ -1032,6 +1035,15 @@ private fun PlayerGlow(artwork: String, modifier: Modifier) {
                 0f to Color.Black, 0.55f to Color.Black.copy(alpha = 0.6f), 1f to Color.Transparent),
                 blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
         }) {
-        Artwork(artwork, Modifier.fillMaxSize().blur(72.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded))
+        if (PlayerGlow.FOLLOWS_ACCENT) {
+            val accent = DesignTokens.Accent
+            // A pool of the accent colour, brightest just under the player, spreading sideways.
+            Box(Modifier.fillMaxSize().drawWithContent {
+                drawRect(androidx.compose.ui.graphics.Brush.radialGradient(
+                    0f to accent, 0.45f to accent.copy(alpha = 0.55f), 1f to Color.Transparent,
+                    center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height * 0.35f),
+                    radius = size.width * 0.95f))
+            })
+        } else Artwork(artwork, Modifier.fillMaxSize().blur(72.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded))
     }
 }
