@@ -421,12 +421,19 @@ class PlaybackService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // Playing: genuine background play, keep the session across the
-        // recents swipe. Paused/idle: the swipe is a done signal — tear
-        // down (official-app behavior).
+        // Playing: genuine background play keeps going across the recents swipe, unless the
+        // user chose "Stop when swiped away".
+        // Paused/idle: the swipe is a done signal — tear down (official-app behavior).
         if (session != null) {
             val p = routingPlayer ?: player
-            if (p?.isPlaying == true) return
+            val stopOnSwipe = runCatching {
+                org.koin.java.KoinJavaComponent.getKoin()
+                    .get<com.hhst.youtubelite.extension.ExtensionManager>()
+                    .isEnabled(com.hhst.youtubelite.extension.PreferenceKeys.STOP_ON_SWIPE_AWAY)
+            }.getOrDefault(false)
+            if (keepPlayingAfterSwipe(p?.isPlaying == true, stopOnSwipe)) return
+            // "Stop when swiped away" (LiTube #371) ends playing videos the same way.
+            if (p?.isPlaying == true) PlaybackCommandRouter.stop()
             hide()
             return
         }
@@ -474,3 +481,6 @@ class PlaybackService : Service() {
         }
     }
 }
+
+/** Whether playback survives a swipe from recents (LiTube #371). */
+internal fun keepPlayingAfterSwipe(playing: Boolean, stopOnSwipe: Boolean): Boolean = playing && !stopOnSwipe

@@ -180,6 +180,8 @@ private fun PlaybackSettings(preferences: Map<String, Boolean>, onToggle: (Strin
     SettingsGroup(stringResource(R.string.settings_playback))
     SettingsToggle(stringResource(R.string.settings_background_play), stringResource(R.string.settings_background_play_summary),
         PreferenceKeys.ENABLE_BACKGROUND_PLAY, preferences, onToggle)
+    SettingsToggle(stringResource(R.string.settings_stop_on_swipe), stringResource(R.string.settings_stop_on_swipe_summary),
+        PreferenceKeys.STOP_ON_SWIPE_AWAY, preferences, onToggle)
     SettingsToggle(stringResource(R.string.settings_pip), stringResource(R.string.settings_pip_summary),
         PreferenceKeys.ENABLE_PIP, preferences, onToggle)
     SettingsToggle(stringResource(R.string.settings_remember_position), stringResource(R.string.settings_remember_position_summary),

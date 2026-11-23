@@ -16,6 +16,7 @@ object PreferenceKeys {
 
     const val ENABLE_AUTOPLAY = "enable_autoplay"
     const val ENABLE_BACKGROUND_PLAY = "enable_background_play"
+    const val STOP_ON_SWIPE_AWAY = "stop_on_swipe_away"
     const val ENABLE_PIP = "enable_pip"
     const val ENABLE_IN_APP_MINI_PLAYER = "enable_in_app_mini_player"
     const val DATA_SAVER = "data_saver"
@@ -91,6 +92,7 @@ object PreferenceKeys {
         REMEMBER_LAST_POSITION to true,
         REMEMBER_QUALITY to true,
         ENABLE_BACKGROUND_PLAY to true,
+        STOP_ON_SWIPE_AWAY to false,
         ENABLE_AUTOPLAY to true,
         ENABLE_PIP to true,
         ENABLE_IN_APP_MINI_PLAYER to true,

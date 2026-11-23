@@ -459,6 +459,8 @@
     <string name="settings_data_saver_summary">Skip prefetching the next Short\'s media</string>
     <string name="settings_background_play">Background play</string>
     <string name="settings_background_play_summary">Keep audio playing after leaving the app</string>
+    <string name="settings_stop_on_swipe">Stop when swiped away</string>
+    <string name="settings_stop_on_swipe_summary">Swiping PureTube out of recent apps stops the video</string>
     <string name="settings_pip">Picture-in-picture</string>
     <string name="settings_pip_summary">Continue in a floating window</string>
     <string name="settings_remember_position">Remember last position</string>
