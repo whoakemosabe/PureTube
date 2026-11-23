@@ -212,6 +212,8 @@ sealed interface HomeAction {
     data object SubmitNewPlaylist : HomeAction
     data class FeedbackReason(val reason: String) : HomeAction
     data class Navigate(val request: HomeNavigationRequest) : HomeAction
+    /** A channel picture on a video card; the feed may not have told us the channel yet. */
+    data class OpenChannelOf(val videoId: String) : HomeAction
     data object Refresh : HomeAction
     data object LoadNext : HomeAction
     data object AutomaticLoadNext : HomeAction

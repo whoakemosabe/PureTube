@@ -225,6 +225,7 @@ class HomeActivity : com.hhst.youtubelite.ui.ContentActivity() {
             initializeHome(null)
         }
         refreshHomeSession()
+        homeViewModel.applyCachedAvatars()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

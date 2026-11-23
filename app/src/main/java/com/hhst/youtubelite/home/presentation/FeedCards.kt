@@ -68,9 +68,12 @@ private fun Artwork(asset: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun Avatar(asset: String, author: String, channelId: String, onAction: (HomeAction) -> Unit, size: Dp = 36.dp, modifier: Modifier = Modifier) {
+private fun Avatar(asset: String, author: String, channelId: String, onAction: (HomeAction) -> Unit, size: Dp = 36.dp,
+    modifier: Modifier = Modifier, videoId: String? = null) {
     Box(modifier.size(size).clip(CircleShape).clickable(role = Role.Button) {
-        onAction(HomeAction.Navigate(HomeNavigationRequest.Channel(channelId)))
+        // Feeds can leave out a video's channel; the view model looks it up instead of opening a blank channel.
+        onAction(if (videoId != null) HomeAction.OpenChannelOf(videoId)
+            else HomeAction.Navigate(HomeNavigationRequest.Channel(channelId)))
     }.testTag("channel-$channelId").semanticsLabel(stringResource(R.string.a11y_go_to_channel , author))) {
         Artwork(asset, Modifier.fillMaxSize())
     }
@@ -99,7 +102,7 @@ private fun VideoCard(item: FeedItem.Video, compact: Boolean, onAction: (HomeAct
             }
         }
         Row(Modifier.padding(start = if (compact) 12.dp else 0.dp, top = 8.dp), verticalAlignment = Alignment.Top) {
-            Avatar(item.avatar.orEmpty(), item.author, item.channelId, onAction, size = 36.dp)
+            Avatar(item.avatar.orEmpty(), item.author, item.channelId, onAction, size = 36.dp, videoId = item.id)
             Spacer(Modifier.width(8.dp))
             Box(Modifier.weight(1f)) {
                 Column(Modifier.padding(end = if (compact) 12.dp else 0.dp).clickable(role = Role.Button) { openWatch() }) {

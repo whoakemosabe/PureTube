@@ -359,6 +359,7 @@ class HomeViewModel(
                 navigation.trySend(HomeNavigationRequest.Feedback(feedback.itemId, feedback.kind, action.reason))
             }
             is HomeAction.Navigate -> navigation.trySend(action.request)
+            is HomeAction.OpenChannelOf -> openChannelOf(action.videoId)
             HomeAction.Refresh -> if (!refreshInFlight()) load(append = false, keepEmpty = true, userInitiated = true)
             HomeAction.LoadNext -> load(append = true)
             HomeAction.AutomaticLoadNext -> load(append = true, automatic = true)
@@ -600,6 +601,48 @@ class HomeViewModel(
             unique[item.id] = if (old is FeedItem.Video && item is FeedItem.Video) old.withMissingDisplayFrom(item) else old ?: item
         }
         return unique.values.toList()
+    }
+
+    private fun feedVideo(videoId: String): FeedItem.Video? = (_state.value.content as? HomeContent.Feed)
+        ?.page?.items?.filterIsInstance<FeedItem.Video>()?.firstOrNull { it.id == videoId }
+
+    /**
+     * Opens the channel of a video card. When the feed left the channel out, it is looked up
+     * through the video's menu; if that fails too, the video opens, where the channel is shown.
+     */
+    private fun openChannelOf(videoId: String) {
+        val item = feedVideo(videoId) ?: return
+        if (item.channelId.isNotBlank()) {
+            navigation.trySend(HomeNavigationRequest.Channel(item.channelId))
+            return
+        }
+        val endpoint = item.menuEndpoint
+        val directory = avatars
+        viewModelScope.launch {
+            val channelId = if (endpoint != null && directory != null) try {
+                directory.channel(item.id, com.liskovsoft.youtubeapi.videoinfo.V2.MenuEndpoint(endpoint.panelId, endpoint.params))
+            } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null } else null
+            navigation.trySend(if (!channelId.isNullOrBlank()) HomeNavigationRequest.Channel(channelId)
+                else HomeNavigationRequest.Watch(item.id))
+        }
+    }
+
+    /**
+     * Avatars another screen resolved (opening a video loads its channel picture) are applied
+     * when Home is shown again, instead of the card staying grey until the next feed load.
+     */
+    fun applyCachedAvatars() {
+        val directory = avatars ?: return
+        _state.update { state ->
+            val feed = state.content as? HomeContent.Feed ?: return@update state
+            var changed = false
+            val items = feed.page.items.map { item ->
+                if (item is FeedItem.Video && item.avatar.isNullOrBlank() && item.channelId.isNotBlank()) {
+                    directory.cached(item.channelId)?.takeIf(String::isNotBlank)?.let { changed = true; item.copy(avatar = it) } ?: item
+                } else item
+            }
+            if (changed) state.copy(content = feed.copy(page = feed.page.copy(items = items))) else state
+        }
     }
 
     /**
