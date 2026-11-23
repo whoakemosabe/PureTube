@@ -176,7 +176,8 @@ class SubscriptionsViewModel(
                 val videoId = (_uiState.value.overlay as? SubscriptionsOverlay.Menu)?.videoId
                 showOverlay(SubscriptionsOverlay.None)
                 if (videoId != null) when {
-                    action.action in setOf(FeedMenuAction.Share, FeedMenuAction.Queue, FeedMenuAction.Download) ->
+                    action.action in setOf(FeedMenuAction.Share, FeedMenuAction.Queue, FeedMenuAction.Download,
+                        FeedMenuAction.MarkWatched, FeedMenuAction.MarkUnwatched) ->
                         navigation.trySend(SubscriptionsNavigationRequest.MenuAction(videoId, action.action))
                     action.action in setOf(FeedMenuAction.NotInterested, FeedMenuAction.DontRecommend) && saveSheet != null ->
                         sendFeedback(videoId, action.action)

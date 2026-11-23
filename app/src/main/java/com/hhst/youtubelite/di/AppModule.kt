@@ -128,6 +128,7 @@ val appModule = module {
     single<PrefStore> { PreferenceStore.app(androidContext()) }
     single<DownloadPrefs> { PreferenceDownloadPrefs(get()) }
     single { ExtensionManager(get()) }
+    single { com.hhst.youtubelite.data.media.WatchMarks(PreferenceStore.of(androidContext(), "watch-marks")) }
     single { HapticsController(androidContext(), get()) }
 
     single { WebViewTimerOccupancy(AndroidWebViewTimerClock()) }

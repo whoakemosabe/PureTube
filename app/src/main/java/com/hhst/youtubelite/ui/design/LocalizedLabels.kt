@@ -144,6 +144,8 @@ val FeedMenuAction.labelResource: Int
         FeedMenuAction.ShowFewerShorts -> R.string.ui_show_fewer_shorts
         FeedMenuAction.Report -> R.string.ui_report
         FeedMenuAction.SaveToLibrary -> R.string.ui_save_to_library
+        FeedMenuAction.MarkWatched -> R.string.ui_mark_as_watched
+        FeedMenuAction.MarkUnwatched -> R.string.ui_mark_as_unwatched
     }
 
 @get:StringRes

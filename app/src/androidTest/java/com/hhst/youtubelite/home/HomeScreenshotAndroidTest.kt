@@ -479,7 +479,7 @@ class HomeScreenshotAndroidTest {
         val phone = compose.onNodeWithTag("video-menu").fetchSemanticsNode().boundsInRoot
         assertEquals(0f, phone.left, 0.5f)
         assertEquals(390f, phone.width, 0.5f)
-        assertEquals(13f + FeedMenuKind.Video.actions.size * 48f, phone.height, 0.5f)
+        assertEquals(13f + FeedMenuKind.Video.visibleActions(false).size * 48f, phone.height, 0.5f)
         assertEquals(820f, phone.bottom, 0.5f)
         assertEquals(64f, compose.onNodeWithText("Save to Watch later", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.left, 0.5f)
         compose.runOnIdle { width = 1280; height = 800 }

@@ -72,6 +72,8 @@ private fun FeedMenuAction.icon(): AppIcon = when (this) {
     FeedMenuAction.SendFeedback -> AppIcon.Feedback
     FeedMenuAction.Report -> AppIcon.Report
     FeedMenuAction.SaveToLibrary -> AppIcon.Bookmark
+    FeedMenuAction.MarkWatched -> AppIcon.Check
+    FeedMenuAction.MarkUnwatched -> AppIcon.Dismiss
 }
 
 @Composable

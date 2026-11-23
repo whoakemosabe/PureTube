@@ -152,10 +152,18 @@ enum class FeedMenuAction(val label: String) {
     WatchLater("Save to Watch later"), SaveToPlaylist("Save to playlist"), Share("Share"),
     NotInterested("Not interested"), DontRecommend("Don't recommend channel"),
     SendFeedback("Send feedback"), ShowFewerShorts("Show fewer Shorts"), Report("Report"), SaveToLibrary("Save to Library"),
+    MarkWatched("Mark as watched"), MarkUnwatched("Mark as unwatched"),
 }
 
+/** Mark as watched for a video that isn't, Mark as unwatched for one that is (LiTube #164, #165). */
+fun FeedItem.Video?.watchMarkAction(): FeedMenuAction =
+    if (this?.watched() == true) FeedMenuAction.MarkUnwatched else FeedMenuAction.MarkWatched
+
+private val watchMarkActions = setOf(FeedMenuAction.MarkWatched, FeedMenuAction.MarkUnwatched)
+
 enum class FeedMenuKind(val actions: List<FeedMenuAction>) {
-    Video(listOf(FeedMenuAction.Queue, FeedMenuAction.Download, FeedMenuAction.WatchLater, FeedMenuAction.SaveToPlaylist, FeedMenuAction.Share, FeedMenuAction.NotInterested, FeedMenuAction.DontRecommend)),
+    Video(listOf(FeedMenuAction.Queue, FeedMenuAction.Download, FeedMenuAction.WatchLater, FeedMenuAction.SaveToPlaylist, FeedMenuAction.Share,
+        FeedMenuAction.MarkWatched, FeedMenuAction.MarkUnwatched, FeedMenuAction.NotInterested, FeedMenuAction.DontRecommend)),
     Short(listOf(FeedMenuAction.NotInterested, FeedMenuAction.SendFeedback)),
     Shorts(listOf(FeedMenuAction.ShowFewerShorts)),
     Post(listOf(FeedMenuAction.Report)),
@@ -165,6 +173,7 @@ enum class FeedMenuKind(val actions: List<FeedMenuAction>) {
 fun FeedMenuKind.productionActions(signedIn: Boolean = false, video: FeedItem.Video? = null): List<FeedMenuAction> = when (this) {
     FeedMenuKind.Video -> buildList {
         addAll(listOf(FeedMenuAction.Queue, FeedMenuAction.Download, FeedMenuAction.WatchLater, FeedMenuAction.SaveToPlaylist, FeedMenuAction.Share))
+        add(video.watchMarkAction())
         if (signedIn && !video?.notInterestedToken.isNullOrBlank()) add(FeedMenuAction.NotInterested)
         if (signedIn && !video?.dontRecommendToken.isNullOrBlank()) add(FeedMenuAction.DontRecommend)
     }
@@ -173,7 +182,8 @@ fun FeedMenuKind.productionActions(signedIn: Boolean = false, video: FeedItem.Vi
 }
 
 fun FeedMenuKind.visibleActions(live: Boolean, signedIn: Boolean = false, video: FeedItem.Video? = null): List<FeedMenuAction> =
-    if (live) productionActions(signedIn, video) else actions
+    if (live) productionActions(signedIn, video)
+    else actions.filter { it !in watchMarkActions || this != FeedMenuKind.Video || it == video.watchMarkAction() }
 
 sealed interface HomeNavigationRequest {
     data class Search(val query: String) : HomeNavigationRequest
@@ -243,3 +253,17 @@ object HomeLayout {
 /** Watched to the end, or within the last tenth (credits, end screens). */
 const val WATCHED_FRACTION = 0.9f
 fun FeedItem.Video.watched(): Boolean = (progress ?: 0f) >= WATCHED_FRACTION
+
+/** A watched mark fills the bar and an unwatched mark clears it; unmarked videos keep YouTube's progress. */
+fun FeedItem.Video.withWatchMark(marks: Map<String, Boolean>): FeedItem.Video =
+    when (marks[id]) {
+        true -> if (progress == 1f) this else copy(progress = 1f)
+        false -> if (progress == null) this else copy(progress = null)
+        null -> this
+    }
+
+fun <T : FeedItem> List<T>.withWatchMarks(marks: Map<String, Boolean>): List<T> =
+    if (marks.isEmpty()) this else map {
+        @Suppress("UNCHECKED_CAST")
+        if (it is FeedItem.Video) it.withWatchMark(marks) as T else it
+    }

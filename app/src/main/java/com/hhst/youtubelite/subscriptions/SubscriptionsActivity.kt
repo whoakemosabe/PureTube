@@ -40,6 +40,9 @@ import com.hhst.youtubelite.BuildConfig
 import com.hhst.youtubelite.channel.ChannelActivity
 import com.hhst.youtubelite.home.domain.FeedMenuAction
 import com.hhst.youtubelite.home.domain.FeedMenuKind
+import com.hhst.youtubelite.home.domain.visibleActions
+import com.hhst.youtubelite.home.domain.watchMarkAction
+import com.hhst.youtubelite.home.domain.withWatchMark
 import com.hhst.youtubelite.search.SearchResultsActivity
 import com.hhst.youtubelite.subscriptions.data.FixtureSubscriptionsRepository
 import com.hhst.youtubelite.subscriptions.data.SubscriptionsScenario
@@ -102,6 +105,10 @@ class SubscriptionsActivity : com.hhst.youtubelite.ui.ContentActivity() {
                     when (request) {
                         is SubscriptionsNavigationRequest.MenuAction -> if (request.action == com.hhst.youtubelite.home.domain.FeedMenuAction.Share) {
                             shareGateway.share(request.videoId)
+                        } else if (request.action == com.hhst.youtubelite.home.domain.FeedMenuAction.MarkWatched ||
+                            request.action == com.hhst.youtubelite.home.domain.FeedMenuAction.MarkUnwatched) {
+                            org.koin.core.context.GlobalContext.get().get<com.hhst.youtubelite.data.media.WatchMarks>()
+                                .mark(request.videoId, request.action == com.hhst.youtubelite.home.domain.FeedMenuAction.MarkWatched)
                         } else if (!fixtures && request.action in setOf(com.hhst.youtubelite.home.domain.FeedMenuAction.Queue, com.hhst.youtubelite.home.domain.FeedMenuAction.Download)) {
                             val video = (subscriptionsViewModel.uiState.value.content as? com.hhst.youtubelite.subscriptions.domain.SubscriptionsContent.Feed)?.page?.items?.firstOrNull { it.id == request.videoId }
                             com.hhst.youtubelite.ui.ActivityMediaActionExecutor(this@SubscriptionsActivity).execute(
@@ -197,12 +204,14 @@ class SubscriptionsActivity : com.hhst.youtubelite.ui.ContentActivity() {
                 // menus keep the full typed row set.
                 val target = (state.content as? com.hhst.youtubelite.subscriptions.domain.SubscriptionsContent.Feed)
                     ?.page?.items?.firstOrNull { it.id == menu.videoId }
+                    ?.withWatchMark(com.hhst.youtubelite.ui.design.LocalWatchMarks.current)
                 val menuActions = if (state.live) buildList {
                     addAll(listOf(FeedMenuAction.Queue, FeedMenuAction.Download, FeedMenuAction.WatchLater,
                         FeedMenuAction.SaveToPlaylist, FeedMenuAction.Share))
+                    add(target.watchMarkAction())
                     if (!target?.notInterestedToken.isNullOrBlank()) add(FeedMenuAction.NotInterested)
                     if (!target?.dontRecommendToken.isNullOrBlank()) add(FeedMenuAction.DontRecommend)
-                } else FeedMenuKind.Video.actions
+                } else FeedMenuKind.Video.visibleActions(live = false, video = target)
                 MenuBottomSheet(
                     items = menuActions.map { action ->
                         MenuSheetItem(action.icon(), stringResource(action.labelResource))
@@ -239,6 +248,8 @@ class SubscriptionsActivity : com.hhst.youtubelite.ui.ContentActivity() {
         FeedMenuAction.Share -> AppIcon.Share
         FeedMenuAction.NotInterested -> AppIcon.Block
         FeedMenuAction.DontRecommend -> AppIcon.Close
+        FeedMenuAction.MarkWatched -> AppIcon.Check
+        FeedMenuAction.MarkUnwatched -> AppIcon.Dismiss
         else -> AppIcon.Info
     }
 

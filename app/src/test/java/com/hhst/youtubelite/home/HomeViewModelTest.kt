@@ -323,6 +323,15 @@ class HomeViewModelTest {
         assertEquals(AppNotice.SignIn, withTimeoutOrNull(500) { vm.actionNotices.first() })
     }
 
+    @Test fun markAsWatchedFromTheMenuGoesToTheActivity() = runTest {
+        val vm = liveSaveViewModel(FakeSaveRepository())
+        vm.onAction(HomeAction.OpenMenu("bunny"))
+        vm.onAction(HomeAction.MenuSelected(FeedMenuAction.MarkWatched))
+        assertEquals(HomeNavigationRequest.MenuAction("bunny", FeedMenuAction.MarkWatched),
+            withTimeoutOrNull(500) { vm.navigationRequests.first() })
+        assertEquals(HomeOverlay.None, vm.uiState.value.overlay)
+    }
+
     @Test fun watchLaterMenuRowWritesThroughTheRepositoryInLiveMode() = runTest {
         val saves = FakeSaveRepository()
         val vm = liveSaveViewModel(saves)
@@ -416,12 +425,12 @@ class HomeViewModelTest {
     }
 
     @Test fun productionMenusOfferOnlyRowsWithARealRoute() {
-        assertEquals(listOf(FeedMenuAction.Queue, FeedMenuAction.Download, FeedMenuAction.WatchLater, FeedMenuAction.SaveToPlaylist, FeedMenuAction.Share), FeedMenuKind.Video.productionActions())
+        assertEquals(listOf(FeedMenuAction.Queue, FeedMenuAction.Download, FeedMenuAction.WatchLater, FeedMenuAction.SaveToPlaylist, FeedMenuAction.Share, FeedMenuAction.MarkWatched), FeedMenuKind.Video.productionActions())
         assertEquals(listOf(FeedMenuAction.Share), FeedMenuKind.Mix.productionActions())
         assertTrue(FeedMenuKind.Short.productionActions().isEmpty())
         assertTrue(FeedMenuKind.Shorts.productionActions().isEmpty())
         assertTrue(FeedMenuKind.Post.productionActions().isEmpty())
-        assertEquals(FeedMenuKind.Video.actions, FeedMenuKind.Video.visibleActions(false))
+        assertEquals(FeedMenuKind.Video.actions - FeedMenuAction.MarkUnwatched, FeedMenuKind.Video.visibleActions(false))
         assertEquals(FeedMenuKind.Video.productionActions(), FeedMenuKind.Video.visibleActions(true))
     }
 

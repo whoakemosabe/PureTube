@@ -605,6 +605,18 @@ class SubscriptionsViewModelTest {
         override suspend fun savePlaylistToLibrary(playlistId: String) = Unit
     }
 
+    @Test fun liveMarkAsWatchedIsNotSwallowedByTheSaveSheet() = runTest {
+        val vm = SubscriptionsViewModel(FixtureSubscriptionsRepository(), SavedStateHandle(), SubscriptionsScenario.Content, true,
+            saveRepository = FakeSaveRepository())
+        advanceUntilIdle()
+        val requests = mutableListOf<SubscriptionsNavigationRequest>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.navigationRequests.collect { requests += it } }
+        vm.onAction(SubscriptionsAction.OpenMenu("harbour"))
+        vm.onAction(SubscriptionsAction.MenuSelected(FeedMenuAction.MarkUnwatched))
+        advanceUntilIdle()
+        assertEquals(listOf(SubscriptionsNavigationRequest.MenuAction("harbour", FeedMenuAction.MarkUnwatched)), requests)
+    }
+
     @Test fun liveMenuWritesThroughTheSaveSheetAndDropsFeedbackRows() = runTest {
         val saves = FakeSaveRepository()
         val vm = SubscriptionsViewModel(FixtureSubscriptionsRepository(), SavedStateHandle(), SubscriptionsScenario.Content, true,

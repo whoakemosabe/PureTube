@@ -2,6 +2,7 @@ package com.hhst.youtubelite.ui.design
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -14,6 +15,15 @@ import org.koin.core.context.GlobalContext
 val LocalHideShorts = staticCompositionLocalOf { false }
 /** Feeds drop videos watched to the end (LiTube #277). */
 val LocalHideWatched = staticCompositionLocalOf { false }
+/** Videos marked watched or unwatched from a menu; they override YouTube's progress. */
+val LocalWatchMarks = androidx.compose.runtime.compositionLocalOf { emptyMap<String, Boolean>() }
+
+@Composable
+internal fun rememberWatchMarks(): Map<String, Boolean> {
+    val marks = remember { GlobalContext.getOrNull()?.getOrNull<com.hhst.youtubelite.data.media.WatchMarks>() }
+        ?: return emptyMap()
+    return marks.marks.collectAsState().value
+}
 
 @Composable
 internal fun rememberHideShorts(): Boolean = rememberFeedPreference(PreferenceKeys.ENABLE_HIDE_SHORTS)

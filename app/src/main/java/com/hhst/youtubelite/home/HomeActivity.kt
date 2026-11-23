@@ -200,6 +200,9 @@ class HomeActivity : com.hhst.youtubelite.ui.ContentActivity() {
             is HomeNavigationRequest.OpenPost -> launchNavigation(PostDetailActivity.intent(this, request.channelId, request.postId))
             is HomeNavigationRequest.MenuAction -> if (request.action == FeedMenuAction.Share) {
                 shareGateway.share(request.itemId)
+            } else if (request.action == FeedMenuAction.MarkWatched || request.action == FeedMenuAction.MarkUnwatched) {
+                org.koin.core.context.GlobalContext.get().get<com.hhst.youtubelite.data.media.WatchMarks>()
+                    .mark(request.itemId, request.action == FeedMenuAction.MarkWatched)
             } else if (!fixtures && request.action in setOf(FeedMenuAction.Queue, FeedMenuAction.Download)) {
                 val feed = (homeViewModel.uiState.value.content as? HomeContent.Feed)?.page
                 val video = feed?.items?.filterIsInstance<FeedItem.Video>()?.firstOrNull { it.id == request.itemId }
