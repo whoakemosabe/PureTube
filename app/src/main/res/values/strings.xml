@@ -457,6 +457,8 @@
     <string name="settings_language_system">System default</string>
     <string name="settings_hide_shorts">Hide Shorts</string>
     <string name="settings_hide_shorts_summary">Remove Shorts shelves from the feed</string>
+    <string name="settings_shorts_auto_advance">Play next Short automatically</string>
+    <string name="settings_shorts_auto_advance_summary">When a Short ends, go to the next one instead of replaying it</string>
     <string name="settings_hide_watched">Hide watched videos</string>
     <string name="settings_hide_watched_summary">Leave videos you finished out of Home and Subscriptions</string>
     <string name="settings_hide_related">Hide related videos</string>

@@ -460,6 +460,11 @@ class PlaybackEngine(
     }
 
     init {
+        // An order picked in a Short before the switch existed shows on the switch too.
+        storedShortsLoopMode()?.let { prefs.setEnabled(PreferenceKeys.SHORTS_AUTO_ADVANCE, ShortsAdvance.switchFor(it)) }
+        prefs.addOnChangedListener { key ->
+            if (key == PreferenceKeys.SHORTS_AUTO_ADVANCE || key == "*") handler.post { applyShortsAdvanceSwitch() }
+        }
         val telemetry = PlaybackTelemetry()
         player.addAnalyticsListener(telemetry)
         player.addAnalyticsListener(object : AnalyticsListener {
@@ -1139,6 +1144,20 @@ class PlaybackEngine(
         castPlayer?.repeatMode = mode.repeatMode
         _snapshot.value = _snapshot.value.copy(loopMode = mode)
         cache.put(if (shortsMode) KEY_SHORTS_LOOP_MODE else KEY_LOOP_MODE, mode.persistedValue.toString(), PREF_TTL_MS)
+        if (shortsMode) prefs.setEnabled(PreferenceKeys.SHORTS_AUTO_ADVANCE, ShortsAdvance.switchFor(mode))
+    }
+
+    private fun storedShortsLoopMode(): LoopMode? =
+        cache.get(KEY_SHORTS_LOOP_MODE, String::class.java)?.toIntOrNull()?.let(LoopMode::fromPersisted)
+
+    /** The Settings switch moved: store the matching Shorts order, live if a Short is playing. */
+    private fun applyShortsAdvanceSwitch() {
+        val mode = ShortsAdvance.modeForSwitch(prefs.isEnabled(PreferenceKeys.SHORTS_AUTO_ADVANCE), storedShortsLoopMode()) ?: return
+        cache.put(KEY_SHORTS_LOOP_MODE, mode.persistedValue.toString(), PREF_TTL_MS)
+        if (!shortsMode) return
+        player.repeatMode = mode.repeatMode
+        castPlayer?.repeatMode = mode.repeatMode
+        _snapshot.value = _snapshot.value.copy(loopMode = mode)
     }
 
     override fun setShortsMode(enabled: Boolean) {

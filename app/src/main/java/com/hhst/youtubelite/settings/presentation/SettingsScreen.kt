@@ -152,6 +152,8 @@ private fun GeneralSettings(
     SettingsGroup(stringResource(R.string.settings_group_feed))
     SettingsToggle(stringResource(R.string.settings_hide_shorts), stringResource(R.string.settings_hide_shorts_summary),
         PreferenceKeys.ENABLE_HIDE_SHORTS, preferences, onToggle)
+    SettingsToggle(stringResource(R.string.settings_shorts_auto_advance), stringResource(R.string.settings_shorts_auto_advance_summary),
+        PreferenceKeys.SHORTS_AUTO_ADVANCE, preferences, onToggle)
     SettingsToggle(stringResource(R.string.settings_hide_watched), stringResource(R.string.settings_hide_watched_summary),
         PreferenceKeys.ENABLE_HIDE_WATCHED, preferences, onToggle)
     SettingsToggle(stringResource(R.string.settings_hide_related), stringResource(R.string.settings_hide_related_summary),

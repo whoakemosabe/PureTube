@@ -9,6 +9,8 @@ object PreferenceKeys {
     const val ENABLE_HIDE_SHORTS = "enable_hide_shorts"
     const val ENABLE_HIDE_WATCHED = "enable_hide_watched"
     const val ENABLE_HIDE_RELATED = "enable_hide_related"
+    /** Mirrors the Shorts playback order: on = Play next, off = Loop (or Pause at end). */
+    const val SHORTS_AUTO_ADVANCE = "shorts_auto_advance"
     const val PRIVATE_BROWSING = "private_browsing"
     const val REMEMBER_QUALITY = "remember_quality"
     const val REMEMBER_PLAYBACK_SPEED = "remember_playback_speed"
@@ -80,6 +82,7 @@ object PreferenceKeys {
         ENABLE_HIDE_SHORTS to false,
         ENABLE_HIDE_WATCHED to false,
         ENABLE_HIDE_RELATED to false,
+        SHORTS_AUTO_ADVANCE to false,
         PRIVATE_BROWSING to false,
         SKIP_SPONSORS to true,
         SKIP_SELF_PROMO to true,
