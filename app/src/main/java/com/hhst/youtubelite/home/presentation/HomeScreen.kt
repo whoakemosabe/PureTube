@@ -312,6 +312,8 @@ private fun HomeTopBar(onAction: (HomeAction) -> Unit) {
         }
         Spacer(Modifier.weight(1f))
         AppIconButton(AppIcon.Search, stringResource(R.string.a11y_search_youtube)) { onAction(HomeAction.OpenSearch) }
+        AppIconButton(AppIcon.Settings, stringResource(R.string.settings_title),
+            Modifier.testTag("home-settings")) { onAction(HomeAction.Navigate(HomeNavigationRequest.Settings)) }
     }
 }
 

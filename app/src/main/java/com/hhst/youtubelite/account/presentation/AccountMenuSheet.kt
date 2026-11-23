@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import com.hhst.youtubelite.R
 import com.hhst.youtubelite.account.domain.AccountItem
 import com.hhst.youtubelite.account.domain.AccountMenuAction
+import com.hhst.youtubelite.account.domain.icon
 import com.hhst.youtubelite.library.domain.AccountProfile
 import com.hhst.youtubelite.ui.design.AppIcon
 import com.hhst.youtubelite.ui.design.AppText
@@ -46,8 +47,9 @@ import com.hhst.youtubelite.ui.design.MenuSheetLayout
 import com.hhst.youtubelite.ui.design.MenuSheetItem
 import com.hhst.youtubelite.ui.design.appDescription
 
-val accountMenuActions = AccountMenuAction.entries.filter { it != AccountMenuAction.ViewChannel }
-val accountMenuItems = accountMenuActions.map { MenuSheetItem(null, it.label, tag = "account-action-${it.tag}") }
+// Settings left the account menu: the gear on Home and the Me tab opens it in one tap.
+val accountMenuActions = AccountMenuAction.entries.filter { it != AccountMenuAction.ViewChannel && it != AccountMenuAction.Settings }
+val accountMenuItems = accountMenuActions.map { MenuSheetItem(it.icon, it.label, tag = "account-action-${it.tag}") }
 
 @Composable
 fun AccountMenuHeader(account: AccountProfile, onOpenChannel: () -> Unit) {

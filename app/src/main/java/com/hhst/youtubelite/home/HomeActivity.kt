@@ -213,6 +213,7 @@ class HomeActivity : com.hhst.youtubelite.ui.ContentActivity() {
                 Intent(this, com.hhst.youtubelite.core.TrafficVerificationActivity::class.java)
                     .putExtra(com.hhst.youtubelite.core.TrafficVerificationActivity.EXTRA_CHALLENGE, request.challengeUrl))
             is HomeNavigationRequest.Explore -> launchNavigation(com.hhst.youtubelite.explore.ExploreActivity.intent(this))
+            is HomeNavigationRequest.Settings -> launchNavigation(com.hhst.youtubelite.settings.SettingsActivity.intent(this))
             is HomeNavigationRequest.Destination -> if (request.destination != HomeDestination.Home) {
                 com.hhst.youtubelite.ui.components.MainTabs.intent(this,
                     com.hhst.youtubelite.ui.components.MainTab.valueOf(request.destination.name),

@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -64,7 +65,8 @@ object MenuSheetLayout {
     const val WidthWideShort = 400f
     const val BottomInset = 24f
     const val Corner = 12f
-    const val RowHeight = 48f
+    /** Taller rows with 18 sp labels (Matt, 2026-11-23): easier to read and to hit. */
+    const val RowHeight = 56f
     const val RowStart = 22f
     const val RowVertical = 2f
     const val IconGap = 18f
@@ -208,7 +210,7 @@ fun MenuBottomSheet(
                                 contentDescription = null, modifier = Modifier.size(24.dp), tint = DesignTokens.Ink)
                             Spacer(Modifier.width(iconGap))
                         }
-                        AppText(item.label, size = 16, line = 22)
+                        AppText(item.label, size = 18, line = 24, weight = FontWeight.Medium)
                     }
                 }
             }

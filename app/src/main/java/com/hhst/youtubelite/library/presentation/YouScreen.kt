@@ -104,6 +104,9 @@ private fun YouTopBar(signedIn: Boolean, onAction: (LibraryAction) -> Unit) {
         }
         Spacer(Modifier.weight(1f))
         AppIconButton(AppIcon.Search, stringResource(R.string.a11y_search_youtube)) { onAction(LibraryAction.OpenSearch) }
+        AppIconButton(AppIcon.Settings, stringResource(R.string.settings_title), Modifier.testTag("you-settings")) {
+            onAction(LibraryAction.AccountSelected(com.hhst.youtubelite.account.domain.AccountMenuAction.Settings))
+        }
         if (!signedIn) AppIconButton(AppIcon.More, stringResource(R.string.a11y_more)) { onAction(LibraryAction.OpenAccountMenu) }
     }
 }

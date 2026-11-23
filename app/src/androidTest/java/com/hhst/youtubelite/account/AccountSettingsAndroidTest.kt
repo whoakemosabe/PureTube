@@ -134,14 +134,13 @@ class AccountSettingsAndroidTest {
         assertTrue("the verification URL must stay inside the allowlisted login boundary", UrlPolicy.isLoginUrl(url))
     }
 
-    @Test fun settingsRowOpensTheNativeSettingsHost() {
+    @Test fun settingsGearOpensTheNativeSettingsHost() {
         val host = launchYou()
-        openAccountMenu(host)
-        compose.onNodeWithTag("account-action-settings").performClick()
+        compose.onNodeWithTag("you-settings").performClick()
         ActivityTestSupport.waitForResumed(compose, SettingsActivity::class.java)
         host.onActivity { assertEquals(LibraryNavigationRequest.Settings, it.lastNavigationRequest) }
         compose.onNodeWithTag("settings-screen").assertIsDisplayed()
-        compose.onNodeWithTag("settings-row-general").assertIsDisplayed()
+        compose.onNodeWithTag("settings-row-theme").assertIsDisplayed()
     }
 
     @Test fun anonymousUsersCanOpenSettingsWithoutSigningIn() {
@@ -186,21 +185,19 @@ class SettingsActivityAndroidTest {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 
-    @Test fun homeRowsOpenSubpagesAndSurviveRecreation() {
+    // One page (2026-11-23): every setting is on Settings home, with no sub-page to open first.
+    @Test fun homeShowsEverySettingAndSurvivesRecreation() {
         launch()
-        compose.onNodeWithTag("settings-row-general").assertIsDisplayed()
-        compose.onNodeWithTag("settings-row-playback").assertIsDisplayed()
-        compose.onNodeWithTag("settings-row-notifications").assertIsDisplayed()
-        compose.onNodeWithTag("settings-row-about").assertIsDisplayed()
-        compose.onNodeWithTag("settings-row-general").performClick()
-        compose.onNodeWithTag("settings-page-general").assertIsDisplayed()
         compose.onNodeWithTag("settings-row-theme").assertIsDisplayed()
+        for (tag in listOf("settings-toggle-${com.hhst.youtubelite.extension.PreferenceKeys.ENABLE_BACKGROUND_PLAY}",
+            "settings-notifications-state", "settings-row-about")) {
+            compose.onNodeWithTag("settings-page-home").performScrollToNode(androidx.compose.ui.test.hasTestTag(tag))
+            compose.onNodeWithTag(tag).assertIsDisplayed()
+        }
         scenario?.recreate()
         compose.waitUntil(15_000) {
-            runCatching { compose.onAllNodesWithTag("settings-page-general").fetchSemanticsNodes() }.getOrDefault(emptyList()).isNotEmpty()
+            runCatching { compose.onAllNodesWithTag("settings-page-home").fetchSemanticsNodes() }.getOrDefault(emptyList()).isNotEmpty()
         }
-        compose.onNodeWithContentDescription("Back").performClick()
-        compose.onNodeWithTag("settings-page-home").assertIsDisplayed()
     }
 
     @Test fun playbackToggleWritesTheRealPreferenceAndUpdatesItsState() {

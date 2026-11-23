@@ -60,6 +60,7 @@ object DesignTokens {
     val StateLayer: Color @Composable get() = LocalAppColors.current.stateLayer
     val Red: Color @Composable get() = LocalAppColors.current.red
     val Link: Color @Composable get() = LocalAppColors.current.link
+    val Heading: Color @Composable get() = LocalAppColors.current.heading
     val Font = FontFamily(
         Font(R.font.roboto_regular, FontWeight.Normal), Font(R.font.roboto_medium, FontWeight.Medium),
         Font(R.font.roboto_bold, FontWeight.Bold),

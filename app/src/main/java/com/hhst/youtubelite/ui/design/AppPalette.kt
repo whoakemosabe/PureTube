@@ -19,6 +19,8 @@ data class AppPalette(
     val stateLayer: Color,
     val red: Color,
     val link: Color,
+    /** Section headings (Settings, menus): brand red, shaded to pass 4.5:1 on the page. */
+    val heading: Color = Color(0xFFCC0029),
 )
 
 val LightAppPalette = AppPalette(
@@ -49,6 +51,7 @@ val DarkAppPalette = AppPalette(
     stateLayer = Color.White.copy(alpha = 0.08f),
     red = Color(0xFFFF0033),
     link = Color(0xFF3EA6FF),
+    heading = Color(0xFFFF6B81),
 )
 
 /**

@@ -30,6 +30,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hhst.youtubelite.R
@@ -62,7 +64,7 @@ fun SettingsScreen(
     onOpenYoutubeSettings: () -> Unit = {},
 ) {
     Column(modifier.fillMaxSize().background(DesignTokens.Background).testTag("settings-screen")) {
-        SettingsTopBar(stringResource(when (page) {
+        SettingsTopBar(if (page == SettingsPage.Home) "" else stringResource(when (page) {
             SettingsPage.Home -> R.string.settings_title
             SettingsPage.General -> R.string.settings_general
             SettingsPage.Playback -> R.string.settings_playback
@@ -72,7 +74,16 @@ fun SettingsScreen(
             Column(Modifier.align(Alignment.TopCenter).widthIn(max = 720.dp).fillMaxWidth().fillMaxHeight()
                 .verticalScroll(rememberScrollState()).testTag("settings-page-${page.argument}")) {
                 when (page) {
-                    SettingsPage.Home -> SettingsHome(onNavigate, onAbout, onAdvanced)
+                    SettingsPage.Home -> {
+                        AppText(stringResource(R.string.settings_title), Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp)
+                            .semantics { heading() }, size = 34, line = 40, weight = FontWeight.Black)
+                        // Everything on one page (Matt, 2026-11-23): no sub-page to open first.
+                        GeneralSettings(preferences, onToggle, onSelectTheme, onSelectLanguage,
+                            youtubeLinks, onOpenLinkSettings, onOpenYoutubeSettings)
+                        PlaybackSettings(preferences, onToggle)
+                        NotificationSettings(notificationsEnabled, onOpenNotificationSettings)
+                        SettingsMore(onAbout, onAdvanced)
+                    }
                     SettingsPage.General -> GeneralSettings(preferences, onToggle, onSelectTheme, onSelectLanguage,
                         youtubeLinks, onOpenLinkSettings, onOpenYoutubeSettings)
                     SettingsPage.Playback -> PlaybackSettings(preferences, onToggle)
@@ -102,22 +113,14 @@ private fun SettingsTopBar(title: String, onBack: () -> Unit) {
 }
 
 @Composable
-private fun SettingsHome(onNavigate: (SettingsPage) -> Unit, onAbout: () -> Unit, onAdvanced: (() -> Unit)?) {
-    SettingsGroup(stringResource(R.string.settings_group_preferences))
-    SettingsRow(stringResource(R.string.settings_general), stringResource(R.string.settings_general_summary), tag = "settings-row-general") {
-        onNavigate(SettingsPage.General)
+private fun SettingsMore(onAbout: () -> Unit, onAdvanced: (() -> Unit)?) {
+    SettingsSection(stringResource(R.string.settings_group_about)) {
+        if (onAdvanced != null) SettingsRow(stringResource(R.string.settings_advanced),
+            stringResource(R.string.settings_advanced_summary), tag = "settings-row-advanced",
+            icon = AppIcon.Settings, onClick = onAdvanced)
+        SettingsRow(stringResource(R.string.settings_about_title), stringResource(R.string.settings_about_summary),
+            tag = "settings-row-about", icon = AppIcon.Info, onClick = onAbout)
     }
-    SettingsRow(stringResource(R.string.settings_playback), stringResource(R.string.settings_playback_summary), tag = "settings-row-playback") {
-        onNavigate(SettingsPage.Playback)
-    }
-    SettingsRow(stringResource(R.string.settings_notifications), stringResource(R.string.settings_notifications_summary), tag = "settings-row-notifications") {
-        onNavigate(SettingsPage.Notifications)
-    }
-    if (onAdvanced != null) SettingsRow(stringResource(R.string.settings_advanced),
-        stringResource(R.string.settings_advanced_summary), tag = "settings-row-advanced", onClick = onAdvanced)
-    SettingsGroup(stringResource(R.string.settings_group_about))
-    SettingsRow(stringResource(R.string.settings_about_title), stringResource(R.string.settings_about_summary),
-        tag = "settings-row-about", onClick = onAbout)
 }
 
 @Composable
@@ -130,39 +133,43 @@ private fun GeneralSettings(
     onOpenLinkSettings: () -> Unit,
     onOpenYoutubeSettings: () -> Unit,
 ) {
-    SettingsGroup(stringResource(R.string.settings_group_appearance))
     var themeDialog by remember { mutableStateOf(false) }
     var languageDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    SettingsSection(stringResource(R.string.settings_group_appearance)) {
     SettingsRow(stringResource(R.string.settings_theme),
         value = stringResource(when (AppAppearance.mode) {
             ThemeMode.System -> R.string.settings_theme_system
             ThemeMode.Light -> R.string.settings_theme_light
             ThemeMode.Dark -> R.string.settings_theme_dark
             ThemeMode.DarkGrey -> R.string.settings_theme_dark_grey
-        }), tag = "settings-row-theme", onClick = { themeDialog = true })
-    SettingsGroup(stringResource(R.string.settings_group_links))
+        }), tag = "settings-row-theme", icon = AppIcon.Moon, onClick = { themeDialog = true })
+    }
+    SettingsSection(stringResource(R.string.settings_group_feed)) {
+    SettingsToggle(stringResource(R.string.settings_hide_shorts), stringResource(R.string.settings_hide_shorts_summary),
+        PreferenceKeys.ENABLE_HIDE_SHORTS, preferences, onToggle, AppIcon.Shorts)
+    SettingsToggle(stringResource(R.string.settings_shorts_auto_advance), stringResource(R.string.settings_shorts_auto_advance_summary),
+        PreferenceKeys.SHORTS_AUTO_ADVANCE, preferences, onToggle, AppIcon.ShortsPlay)
+    SettingsToggle(stringResource(R.string.settings_hide_watched), stringResource(R.string.settings_hide_watched_summary),
+        PreferenceKeys.ENABLE_HIDE_WATCHED, preferences, onToggle, AppIcon.Check)
+    SettingsToggle(stringResource(R.string.settings_hide_related), stringResource(R.string.settings_hide_related_summary),
+        PreferenceKeys.ENABLE_HIDE_RELATED, preferences, onToggle, AppIcon.Playlist)
+    }
+    SettingsSection(stringResource(R.string.settings_group_privacy)) {
+    SettingsToggle(stringResource(R.string.settings_private_browsing), stringResource(R.string.settings_private_browsing_summary),
+        PreferenceKeys.PRIVATE_BROWSING, preferences, onToggle, AppIcon.Lock)
+    SettingsToggle(stringResource(R.string.settings_data_saver), stringResource(R.string.settings_data_saver_summary),
+        PreferenceKeys.DATA_SAVER, preferences, onToggle, AppIcon.DataSaver)
+    }
+    SettingsSection(stringResource(R.string.settings_group_links)) {
     // LiTube #65: Android 12+ only sends YouTube links here once they're on in the app's settings.
     SettingsRow(stringResource(R.string.settings_open_links), stringResource(R.string.settings_open_links_summary),
         value = youtubeLinks?.let { stringResource(if (it) R.string.settings_notifications_state_on else R.string.settings_notifications_state_off) },
-        tag = "settings-row-open-links", onClick = onOpenLinkSettings)
+        tag = "settings-row-open-links", icon = AppIcon.Globe, onClick = onOpenLinkSettings)
     // LiTube #389: Restricted Mode and the other account settings live on YouTube's own site.
     SettingsRow(stringResource(R.string.settings_youtube_account), stringResource(R.string.settings_youtube_account_summary),
-        tag = "settings-row-youtube-account", onClick = onOpenYoutubeSettings)
-    SettingsGroup(stringResource(R.string.settings_group_feed))
-    SettingsToggle(stringResource(R.string.settings_hide_shorts), stringResource(R.string.settings_hide_shorts_summary),
-        PreferenceKeys.ENABLE_HIDE_SHORTS, preferences, onToggle)
-    SettingsToggle(stringResource(R.string.settings_shorts_auto_advance), stringResource(R.string.settings_shorts_auto_advance_summary),
-        PreferenceKeys.SHORTS_AUTO_ADVANCE, preferences, onToggle)
-    SettingsToggle(stringResource(R.string.settings_hide_watched), stringResource(R.string.settings_hide_watched_summary),
-        PreferenceKeys.ENABLE_HIDE_WATCHED, preferences, onToggle)
-    SettingsToggle(stringResource(R.string.settings_hide_related), stringResource(R.string.settings_hide_related_summary),
-        PreferenceKeys.ENABLE_HIDE_RELATED, preferences, onToggle)
-    SettingsGroup(stringResource(R.string.settings_group_privacy))
-    SettingsToggle(stringResource(R.string.settings_private_browsing), stringResource(R.string.settings_private_browsing_summary),
-        PreferenceKeys.PRIVATE_BROWSING, preferences, onToggle)
-    SettingsToggle(stringResource(R.string.settings_data_saver), stringResource(R.string.settings_data_saver_summary),
-        PreferenceKeys.DATA_SAVER, preferences, onToggle)
+        tag = "settings-row-youtube-account", icon = AppIcon.You, onClick = onOpenYoutubeSettings)
+    }
     if (themeDialog) RadioDialog(
         title = stringResource(R.string.settings_theme),
         options = ThemeMode.entries.map { mode ->
@@ -188,26 +195,28 @@ private fun GeneralSettings(
 
 @Composable
 private fun PlaybackSettings(preferences: Map<String, Boolean>, onToggle: (String, Boolean) -> Unit) {
-    SettingsGroup(stringResource(R.string.settings_playback))
+    SettingsSection(stringResource(R.string.settings_playback)) {
     SettingsToggle(stringResource(R.string.settings_background_play), stringResource(R.string.settings_background_play_summary),
-        PreferenceKeys.ENABLE_BACKGROUND_PLAY, preferences, onToggle)
+        PreferenceKeys.ENABLE_BACKGROUND_PLAY, preferences, onToggle, AppIcon.Play)
     SettingsToggle(stringResource(R.string.settings_stop_on_swipe), stringResource(R.string.settings_stop_on_swipe_summary),
-        PreferenceKeys.STOP_ON_SWIPE_AWAY, preferences, onToggle)
+        PreferenceKeys.STOP_ON_SWIPE_AWAY, preferences, onToggle, AppIcon.Close)
     SettingsToggle(stringResource(R.string.settings_pip), stringResource(R.string.settings_pip_summary),
-        PreferenceKeys.ENABLE_PIP, preferences, onToggle)
+        PreferenceKeys.ENABLE_PIP, preferences, onToggle, AppIcon.PictureInPicture)
     SettingsToggle(stringResource(R.string.settings_remember_position), stringResource(R.string.settings_remember_position_summary),
-        PreferenceKeys.REMEMBER_LAST_POSITION, preferences, onToggle)
+        PreferenceKeys.REMEMBER_LAST_POSITION, preferences, onToggle, AppIcon.Clock)
+    }
 }
 
 @Composable
 private fun NotificationSettings(notificationsEnabled: Boolean, onOpen: () -> Unit) {
-    SettingsGroup(stringResource(R.string.settings_group_system))
+    SettingsSection(stringResource(R.string.settings_notifications)) {
     SettingsRow(stringResource(R.string.settings_notifications),
         value = stringResource(if (notificationsEnabled) R.string.settings_notifications_state_on
         else R.string.settings_notifications_state_off),
-        tag = "settings-notifications-state")
+        tag = "settings-notifications-state", icon = AppIcon.Bell)
     SettingsRow(stringResource(R.string.settings_open_system_settings), stringResource(R.string.settings_open_system_settings_summary),
-        tag = "settings-open-notification-settings", onClick = onOpen)
+        tag = "settings-open-notification-settings", icon = AppIcon.OpenWith, onClick = onOpen)
+    }
 }
 
 @Composable

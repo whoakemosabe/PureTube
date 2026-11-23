@@ -108,15 +108,15 @@ class AccountSettingsScreenshotAndroidTest {
             capture("settings-home-$w", "settings", output, record, goldens)
         }
         compose.runOnIdle { width = 390; height = 844; page = SettingsPage.Home }
-        val row = compose.onNodeWithTag("settings-row-general").fetchSemanticsNode().boundsInRoot
-        assertEquals(0f, row.left, 0.5f)
-        assertEquals(390f, row.width, 0.5f)
-        assertEquals(88f, row.top, 0.5f)
-        assertEquals(52f, row.height, 0.5f)
+        // Rows sit in a 12 dp inset card, capped at 720 dp wide on large screens.
+        val row = compose.onNodeWithTag("settings-row-theme").fetchSemanticsNode().boundsInRoot
+        assertEquals(12f, row.left, 0.5f)
+        assertEquals(366f, row.width, 0.5f)
+        assertEquals(64f, row.height, 0.5f)
         compose.runOnIdle { width = 1280; height = 800 }
-        val wideRow = compose.onNodeWithTag("settings-row-general").fetchSemanticsNode().boundsInRoot
-        assertEquals(280f, wideRow.left, 0.5f)
-        assertEquals(720f, wideRow.width, 0.5f)
+        val wideRow = compose.onNodeWithTag("settings-row-theme").fetchSemanticsNode().boundsInRoot
+        assertEquals(292f, wideRow.left, 0.5f)
+        assertEquals(696f, wideRow.width, 0.5f)
         for (sub in listOf(SettingsPage.General, SettingsPage.Playback, SettingsPage.Notifications)) {
             compose.runOnIdle { width = 390; height = 844; page = sub }
             capture("settings-${sub.argument}-390", "settings", output, record, goldens)

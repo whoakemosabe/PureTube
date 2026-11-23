@@ -37,6 +37,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.hhst.youtubelite.BuildConfig
 import com.hhst.youtubelite.account.SignInFlow
 import com.hhst.youtubelite.account.domain.AccountMenuAction
+import com.hhst.youtubelite.account.domain.icon
 import com.hhst.youtubelite.account.presentation.AccountMenuHeader
 import com.hhst.youtubelite.account.presentation.accountMenuActions
 import com.hhst.youtubelite.channel.ChannelActivity
@@ -206,10 +207,10 @@ class YouActivity : com.hhst.youtubelite.ui.ContentActivity() {
             if (state.overlay == LibraryOverlay.Account) {
                 val account = (state.content as? LibraryContent.Ready)?.page?.account?.takeIf { state.signedIn }
                 if (account == null) {
-                    val actions = listOf(AccountMenuAction.SwitchAccount, AccountMenuAction.Settings, AccountMenuAction.About)
+                    val actions = listOf(AccountMenuAction.SwitchAccount, AccountMenuAction.About)
                     MenuBottomSheet(
                         items = actions.map { action ->
-                            com.hhst.youtubelite.ui.design.MenuSheetItem(null,
+                            com.hhst.youtubelite.ui.design.MenuSheetItem(action.icon,
                                 if (action == AccountMenuAction.SwitchAccount &&
                                     (fixtures || com.hhst.youtubelite.data.media.MediaSession.accounts().none { !it.disabled })) stringResource(R.string.ui_sign_in) else stringResource(action.labelResource),
                                 tag = "account-action-${action.tag}")
@@ -221,7 +222,7 @@ class YouActivity : com.hhst.youtubelite.ui.ContentActivity() {
                 } else {
                     MenuBottomSheet(
                         items = accountMenuActions.map { action ->
-                            com.hhst.youtubelite.ui.design.MenuSheetItem(null, stringResource(action.labelResource),
+                            com.hhst.youtubelite.ui.design.MenuSheetItem(action.icon, stringResource(action.labelResource),
                                 tag = "account-action-${action.tag}")
                         },
                         onDismiss = { youViewModel.onAction(LibraryAction.CloseOverlay) },

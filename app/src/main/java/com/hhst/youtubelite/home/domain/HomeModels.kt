@@ -194,6 +194,8 @@ sealed interface HomeNavigationRequest {
     data class OpenVerification(val challengeUrl: String) : HomeNavigationRequest
     data object VoiceSearch : HomeNavigationRequest
     data object Explore : HomeNavigationRequest
+    /** The gear in the top bar: Settings in one tap (Matt, 2026-11-23). */
+    data object Settings : HomeNavigationRequest
 }
 
 sealed interface HomeAction {
