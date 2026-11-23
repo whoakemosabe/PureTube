@@ -4,7 +4,7 @@ enum class AccountMenuAction(val label: String, val tag: String) {
     ViewChannel("View channel", "view"),
     SwitchAccount("Switch account", "switch"),
     Settings("Settings", "settings"),
-    About("About Puretube", "about"),
+    About("About PureTube", "about"),
     SignOut("Sign out", "signout");
 }
 

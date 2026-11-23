@@ -83,7 +83,10 @@ fun MainNavigationBar(tag: String, signedIn: Boolean, avatarAsset: String?, sele
                         MainTab.Subscriptions -> AppIcon.Subscriptions
                         MainTab.You -> AppIcon.You
                     })
-                    AppText(stringResource(tab.labelResource), size = 11, line = 14, maxLines = 1)
+                    // The current tab's label is heavier, so the selection reads at a glance.
+                    AppText(stringResource(tab.labelResource), size = 11, line = 14, maxLines = 1,
+                        weight = if (tab == selected) androidx.compose.ui.text.font.FontWeight.Medium
+                            else androidx.compose.ui.text.font.FontWeight.Normal)
                 }
             }
         }

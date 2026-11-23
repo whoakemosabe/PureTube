@@ -144,7 +144,7 @@ object UpdateWatch {
         when (val st = ui) {
             is UpdateUi.Available -> download(context, st.release)
             is UpdateUi.Ready -> if (!Updater.install(context, st.file)) {
-                ui = st.copy(note = "Allow Puretube to install updates, then tap Install again.")
+                ui = st.copy(note = "Allow PureTube to install updates, then tap Install again.")
             }
             else -> {}
         }
@@ -165,7 +165,7 @@ object UpdateWatch {
             if (manager?.getNotificationChannel(CHANNEL) == null) {
                 manager?.createNotificationChannel(
                     NotificationChannel(CHANNEL, "App updates", NotificationManager.IMPORTANCE_LOW)
-                        .apply { description = "When a new Puretube version is out" })
+                        .apply { description = "When a new PureTube version is out" })
             }
         }
         val open = PendingIntent.getActivity(context, 0,
@@ -174,7 +174,7 @@ object UpdateWatch {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val n = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Puretube $version is available")
+            .setContentTitle("PureTube $version is available")
             .setContentText("Tap to see what's new and update.")
             .setContentIntent(open)
             .setAutoCancel(true)

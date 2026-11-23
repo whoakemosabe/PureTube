@@ -252,9 +252,9 @@ fun PuretubeMark(modifier: Modifier = Modifier) {
 fun PuretubeBrand(modifier: Modifier = Modifier) {
     CompositionLocalProvider(LocalDensity provides androidx.compose.ui.unit.Density(LocalDensity.current.density, 1f)) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        PuretubeMark(Modifier.size(28.dp))
-        Spacer(Modifier.width(3.dp))
-        AppText(stringResource(R.string.app_name), size = 22, line = 28, weight = FontWeight.Black)
+        PuretubeMark(Modifier.size(26.dp))
+        Spacer(Modifier.width(6.dp))
+        AppText(stringResource(R.string.app_name), size = 22, line = 28, weight = FontWeight.Black, maxLines = 1)
     }
     }
 }

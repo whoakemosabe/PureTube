@@ -299,10 +299,11 @@ private fun LazyGridScope.homeCards(items: List<FeedItem>, width: Float, live: B
 @Composable
 private fun HomeTopBar(onAction: (HomeAction) -> Unit) {
     Row(Modifier.fillMaxWidth().height(DesignTokens.TopBarHeight).testTag("home-topbar"), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.width(117.dp).fillMaxHeight().clickable(role = Role.Button) {
+        // Sized to the brand, so the name is never clipped.
+        Box(Modifier.fillMaxHeight().clickable(role = Role.Button) {
             onAction(HomeAction.Navigate(HomeNavigationRequest.Destination(HomeDestination.Home)))
         }.appDescription(R.string.a11y_puretube_home), contentAlignment = Alignment.CenterStart) {
-            PuretubeBrand(Modifier.padding(start = 12.dp))
+            PuretubeBrand(Modifier.padding(start = 12.dp, end = 8.dp))
         }
         Spacer(Modifier.weight(1f))
         AppIconButton(AppIcon.Search, stringResource(R.string.a11y_search_youtube)) { onAction(HomeAction.OpenSearch) }
@@ -323,22 +324,17 @@ private fun HomeBottomBar(signedIn: Boolean, onAction: (HomeAction) -> Unit, ava
                         onAction(HomeAction.Navigate(HomeNavigationRequest.Destination(destination)))
                     }.testTag("nav-${destination.name}"),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    if (signedIn && destination == HomeDestination.You) {
-                        if (avatar.isNullOrBlank()) {
-                            Image(
-                                painterResource(R.drawable.sample_bunny),
-                                contentDescription = null, modifier = Modifier.size(24.dp).clip(CircleShape),
-                                contentScale = ContentScale.Crop,
-                            )
-                        } else {
-                            com.hhst.youtubelite.ui.design.Artwork(avatar,
-                                modifier = Modifier.size(24.dp).clip(CircleShape), contentScale = ContentScale.Crop)
-                        }
+                    // Same rules as MainNavigationBar, so the bar looks identical on every tab:
+                    // the account picture only when there is one, never a placeholder.
+                    if (signedIn && destination == HomeDestination.You && !avatar.isNullOrBlank()) {
+                        com.hhst.youtubelite.ui.design.Artwork(avatar,
+                            modifier = Modifier.size(24.dp).clip(CircleShape), contentScale = ContentScale.Crop)
                     } else AppIcon(when (destination) {
                         HomeDestination.Home -> AppIcon.Home; HomeDestination.Shorts -> AppIcon.Shorts
                         HomeDestination.Subscriptions -> AppIcon.Subscriptions; HomeDestination.You -> AppIcon.You
                     })
-                    AppText(stringResource(destination.labelResource), size = 11, line = 14, maxLines = 1)
+                    AppText(stringResource(destination.labelResource), size = 11, line = 14, maxLines = 1,
+                        weight = if (destination == HomeDestination.Home) FontWeight.Medium else FontWeight.Normal)
                 }
             }
         }
@@ -382,7 +378,7 @@ private fun EmptyHome(content: HomeContent.Empty, showTools: Boolean, wide: Bool
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("home-empty"), horizontalAlignment = Alignment.CenterHorizontally) {
         if (showTools) {
             Spacer(Modifier.height(if (wide) 76.dp else 60.dp))
-            PuretubeMark(Modifier.size(width = 80.dp, height = 55.dp))
+            PuretubeMark(Modifier.size(64.dp))
             Spacer(Modifier.height(16.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal = 23.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {

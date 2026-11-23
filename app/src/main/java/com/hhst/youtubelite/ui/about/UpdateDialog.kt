@@ -32,7 +32,7 @@ fun UpdateDialog(ui: UpdateUi, progress: Float, onMain: () -> Unit, onDismiss: (
     val downloading = ui is UpdateUi.Downloading
     AlertDialog(
         onDismissRequest = { if (!downloading) onDismiss() },
-        title = { Text("Puretube ${release.version} is available") },
+        title = { Text("PureTube ${release.version} is available") },
         text = {
             Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {

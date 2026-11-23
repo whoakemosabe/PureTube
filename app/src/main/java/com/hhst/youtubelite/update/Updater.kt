@@ -196,7 +196,7 @@ object Updater {
         }
         if (info.packageName != context.packageName) {
             apk.delete()
-            throw IOException("The download isn't this Puretube")
+            throw IOException("The download isn't this PureTube")
         }
         val v = info.versionName.orEmpty()
         if (isNewer(expected, v) || !isNewer(v, installedVersion(context))) {

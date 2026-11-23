@@ -90,7 +90,7 @@ class AboutActivity : ComponentActivity() {
             val update = UpdateWatch.ui
             val updateStatus = when (update) {
                 UpdateUi.Checking -> "Checking for updates…"
-                is UpdateUi.UpToDate -> "Puretube is up to date (${update.version})"
+                is UpdateUi.UpToDate -> "PureTube is up to date (${update.version})"
                 is UpdateUi.Downloading -> "Downloading update… ${(UpdateWatch.progress * 100).toInt()}%"
                 is UpdateUi.Ready -> "Update downloaded. Tap Install."
                 is UpdateUi.Error -> update.message
