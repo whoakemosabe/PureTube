@@ -1913,6 +1913,16 @@ class PlaybackEngine(
             recoverFromTextError(error)
             return
         }
+        // A live stream that buffered past the server's window (a long stall, a network
+        // drop) cannot resume where it was; Media3's answer is to rejoin the live edge.
+        // Without this every long live watch eventually ended in the error screen.
+        if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW &&
+            activePlayer() === player && attempt?.tryLiveRejoin() == true) {
+            playerLog("recovery_live_rejoin", mapOf("attempt" to attempt.liveRejoins))
+            player.seekToDefaultPosition()
+            player.prepare()
+            return
+        }
         var reason = recoveryReason(error)
         val causes = generateSequence<Throwable>(error) { it.cause }.take(8).toList()
         val failedRequest = causes.filterIsInstance<HttpDataSource.HttpDataSourceException>().firstOrNull()

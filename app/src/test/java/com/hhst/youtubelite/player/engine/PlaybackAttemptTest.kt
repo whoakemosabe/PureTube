@@ -123,4 +123,12 @@ class PlaybackAttemptTest {
         assertTrue(attempt.played(60_000))
         assertFalse(attempt.tryRestoreAdaptive())
     }
+
+    @Test fun liveRejoinIsBoundedAndComesBackAfterHealthyPlayback() {
+        val attempt = PlaybackAttempt("live")
+        repeat(3) { assertTrue(attempt.tryLiveRejoin()) }
+        assertFalse(attempt.tryLiveRejoin())
+        assertTrue(attempt.played(60_000))
+        assertTrue(attempt.tryLiveRejoin())
+    }
 }

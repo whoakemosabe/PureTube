@@ -19,6 +19,8 @@ internal class PlaybackAttempt(val videoId: String) {
         private set
     var adaptiveRestoreAttempted = false
         private set
+    var liveRejoins = 0
+        private set
 
     /** Played time still needed before a recovered source counts as healthy again. */
     private var healthyNeededMs = 0L
@@ -56,6 +58,18 @@ internal class PlaybackAttempt(val videoId: String) {
         return true
     }
 
+    /**
+     * A live stream that stalls past its window rejoins at the live edge. Bounded so a
+     * stream that keeps falling behind ends in the error screen, not an endless loop;
+     * a minute of good playback gives the budget back like the other recoveries.
+     */
+    fun tryLiveRejoin(): Boolean {
+        if (liveRejoins >= MAX_LIVE_REJOINS) return false
+        liveRejoins++
+        recovering()
+        return true
+    }
+
     /** Muxed fallback is a stopgap: grant one return to adaptive quality per attempt. */
     fun tryRestoreAdaptive(): Boolean {
         if (adaptiveRestoreAttempted) return false
@@ -82,6 +96,7 @@ internal class PlaybackAttempt(val videoId: String) {
         fullRefreshes = 0
         backupAttempted = false
         transportManifestAttempted = false
+        liveRejoins = 0
         return true
     }
 
@@ -95,5 +110,6 @@ internal class PlaybackAttempt(val videoId: String) {
         const val MAX_FULL_REFRESHES = 1
         const val MAX_HISTORY = 6
         const val HEALTHY_SPAN_MS = 60_000L
+        const val MAX_LIVE_REJOINS = 3
     }
 }
