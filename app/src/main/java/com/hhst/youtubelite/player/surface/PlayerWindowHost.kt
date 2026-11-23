@@ -46,6 +46,13 @@ class PlayerWindowHost(
                 window.attributes = lp
             }
         },
+        system = {
+            activity?.contentResolver?.let { resolver ->
+                runCatching {
+                    android.provider.Settings.System.getInt(resolver, android.provider.Settings.System.SCREEN_BRIGHTNESS) / 255f
+                }.getOrNull()
+            }
+        },
     )
     /** Per-gesture music volume in stream units; drives a smooth overlay percent. */
     private var volumeLevel: Float? = null

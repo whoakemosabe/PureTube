@@ -34,4 +34,15 @@ class WindowBrightnessTest {
         brightness.restore()
         assertEquals(0.3f, window)
     }
+
+    // Following the system at 10%: the first swipe starts from 10%, not a bright 50%.
+    @Test fun theFirstSwipeStartsFromThePhonesOwnBrightness() {
+        var window = -1f
+        val writes = mutableListOf<Float>()
+        val brightness = WindowBrightness(read = { window }, write = { window = it; writes += it }, system = { 0.1f })
+        brightness.adjust(0.02f)
+        org.junit.Assert.assertEquals(0.12f, writes.single(), 0.001f)
+        brightness.restore()
+        org.junit.Assert.assertEquals(-1f, window, 0f)
+    }
 }

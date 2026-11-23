@@ -11,6 +11,11 @@ import kotlin.math.roundToInt
 internal class WindowBrightness(
     private val read: () -> Float?,
     private val write: (Float) -> Unit,
+    /**
+     * The phone's own brightness (0..1), for a window that follows the system. Starting the
+     * first swipe from a fixed 50% instead flashed a dim screen bright at night.
+     */
+    private val system: () -> Float? = { null },
 ) {
     private var origin: Float? = null
     /** Per-gesture level; avoids re-reading OEM-quantized window attributes. */
@@ -23,7 +28,7 @@ internal class WindowBrightness(
     fun adjust(delta: Float): Float? {
         val windowLevel = read() ?: return null
         if (origin == null) origin = windowLevel
-        val current = level ?: if (windowLevel < 0f) 0.5f else windowLevel
+        val current = level ?: if (windowLevel < 0f) (system()?.coerceIn(0.01f, 1f) ?: 0.5f) else windowLevel
         val next = GestureMath.accumulateLevel(current, delta, 0.01f, 1f)
         level = next
         val snapped = (next * 100f).roundToInt() / 100f
