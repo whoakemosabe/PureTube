@@ -49,4 +49,16 @@ class SleepTimerTest {
         assertEquals(1, fired)
         assertFalse(timer.onVideoEnded())
     }
+
+    // Loop one, Pause at end and Shorts never report an end, so the player must stop itself.
+    @Test fun endOfVideoAsksThePlayerToStopAtTheEndAndReleasesItAfter() = runTest {
+        val armed = mutableListOf<Boolean>()
+        val timer = SleepTimer(this, {}, {}, armEndOfVideo = { armed += it })
+        timer.set(SleepChoice.EndOfVideo)
+        assertEquals(listOf(true), armed)
+        timer.onVideoEnded()
+        assertEquals(listOf(true, false), armed)
+        timer.set(SleepChoice.Minutes(15))
+        assertEquals(false, armed.last())
+    }
 }

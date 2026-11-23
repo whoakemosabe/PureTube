@@ -221,6 +221,16 @@ interface PlaybackApi {
     fun cancelPending(pausePlayback: Boolean = true)
     /** Called when the current item ends (drives queue/playlist auto-advance). */
     var onEnded: (() -> Unit)?
+    /**
+     * Sleep timer "End of video": pause when this video reaches its end, whatever the loop
+     * mode. Loop one and Shorts repeat without ever reporting an end, so the player itself
+     * has to stop there.
+     */
+    fun setPauseAtEndOfVideo(enabled: Boolean) {}
+    /** The player paused itself at the end of the video ([setPauseAtEndOfVideo]). */
+    var onPausedAtEndOfVideo: (() -> Unit)?
+        get() = null
+        set(_) {}
     /** Receiver hit a playback error while delegating: engine already detached and resumed local playback; the host must end the Cast session and surface the failure hint. */
     var onCastError: (() -> Unit)?
     /** Local quality/audio rebuild produced a Cast-incompatible published track set: the host should load a new manifest on the receiver. */
@@ -337,6 +347,11 @@ class PlaybackEngine(
     override val snapshot: StateFlow<PlaybackSnapshot> = _snapshot.asStateFlow()
 
     override var onEnded: (() -> Unit)? = null
+    override var onPausedAtEndOfVideo: (() -> Unit)? = null
+
+    override fun setPauseAtEndOfVideo(enabled: Boolean) {
+        player.pauseAtEndOfMediaItems = enabled
+    }
 
     private var shortsMode = false
 
@@ -512,6 +527,13 @@ class PlaybackEngine(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 publish()
                 if (playbackState == Player.STATE_ENDED) handleEnded()
+            }
+
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
+                    player.pauseAtEndOfMediaItems = false
+                    onPausedAtEndOfVideo?.invoke()
+                }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {

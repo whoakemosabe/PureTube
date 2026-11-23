@@ -25,6 +25,8 @@ class SleepTimer(
     private val scope: CoroutineScope,
     private val onChange: (SleepChoice) -> Unit,
     private val onFire: () -> Unit,
+    /** Asks the player to stop by itself at the end of the video (loops never "end"). */
+    private val armEndOfVideo: (Boolean) -> Unit = {},
 ) {
     var choice: SleepChoice = SleepChoice.Off
         private set
@@ -38,6 +40,7 @@ class SleepTimer(
             delay(next.minutes * 60_000L)
             fire()
         }
+        armEndOfVideo(next == SleepChoice.EndOfVideo)
         onChange(next)
     }
 
@@ -51,6 +54,7 @@ class SleepTimer(
     private fun fire() {
         job = null
         choice = SleepChoice.Off
+        armEndOfVideo(false)
         onChange(SleepChoice.Off)
         onFire()
     }

@@ -232,6 +232,22 @@ class PlayerViewModelTest {
         assertEquals(SleepChoice.Off, viewModel.uiState.value.sleepTimer)
     }
 
+    // Loop one / Shorts never end: the player pauses itself, then may still report an end.
+    @Test fun endOfVideoSleepArmsThePlayerAndItsOwnPauseIsNotFollowedByAutoplay() {
+        bindViewModel { "ddddddddddd" }
+        viewModel.openVideo(watchId)
+        engine.settle(watchId)
+        viewModel.onQueueAdd(QueueItem("bbbbbbbbbbb", title = "Queued"))
+        viewModel.onSleepTimer(SleepChoice.EndOfVideo)
+        assertTrue(engine.pauseAtEnd)
+        val before = engine.playCalls.size
+        engine.onPausedAtEndOfVideo?.invoke()
+        assertEquals(SleepChoice.Off, viewModel.uiState.value.sleepTimer)
+        assertFalse(engine.pauseAtEnd)
+        engine.finish()
+        assertEquals(before, engine.playCalls.size)
+    }
+
     @Test fun addToQueueWhileWatchingPlaysTheQueuedVideoNextEvenWithAutoplayOff() {
         bindViewModel { "ddddddddddd" }
         preferences.setEnabled(PreferenceKeys.ENABLE_AUTOPLAY, false)
@@ -1172,6 +1188,9 @@ class PlayerViewModelTest {
         }
 
         override var onEnded: (() -> Unit)? = null
+        override var onPausedAtEndOfVideo: (() -> Unit)? = null
+        var pauseAtEnd = false
+        override fun setPauseAtEndOfVideo(enabled: Boolean) { pauseAtEnd = enabled }
         override var onCastError: (() -> Unit)? = null
         override var onCastManifestReload: (() -> Unit)? = null
         override var onWatchContext: ((videoId: String, tracking: com.liskovsoft.youtubeapi.videoinfo.V2.PlayerTracking?, sessionGeneration: Long) -> Unit)? = null

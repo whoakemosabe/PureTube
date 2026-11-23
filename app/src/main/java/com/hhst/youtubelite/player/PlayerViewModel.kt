@@ -172,9 +172,12 @@ class PlayerViewModel(
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
+    /** The request whose end the sleep timer took; its later "ended" must not autoplay. */
+    private var sleptAtEndSeq = -1
     private val sleepTimer = SleepTimer(viewModelScope,
         onChange = { choice -> _uiState.update { it.copy(sleepTimer = choice) } },
-        onFire = { engine.pause() })
+        onFire = { engine.pause() },
+        armEndOfVideo = { engine.setPauseAtEndOfVideo(it) })
 
     override fun onSleepTimer(choice: SleepChoice) = sleepTimer.set(choice)
 
@@ -373,6 +376,7 @@ class PlayerViewModel(
             }
         }
         engine.onEnded = { onPlaybackEnded() }
+        engine.onPausedAtEndOfVideo = { if (sleepTimer.onVideoEnded()) sleptAtEndSeq = playbackRequestSeq }
         engine.onCastManifestReload = { recastPublishedSource() }
         cast.onSessionStarted = ::onCastSessionStarted
         cast.onSessionEnded = {
@@ -1535,7 +1539,8 @@ class PlayerViewModel(
         if (!engine.snapshot.value.ended || handledEndSeq == playbackRequestSeq) return
         handledEndSeq = playbackRequestSeq
         // "End of video" sleep: this end is where playback stops, not where it advances.
-        if (sleepTimer.onVideoEnded()) return
+        // The player may already have paused itself there and turned the timer off.
+        if (sleptAtEndSeq == playbackRequestSeq || sleepTimer.onVideoEnded()) return
         // Queue and playlist playback take priority over page autoplay; both
         // navigate strictly inside their own context (no stale-queue hijack).
         val queueContext = queueActive() && currentInQueue()
