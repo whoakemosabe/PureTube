@@ -20,4 +20,10 @@ class NavigationGlassTest {
         assertTrue(NavigationGlass.DARK_TINT in 0.3f..0.5f)
         assertTrue(NavigationGlass.LIGHT_TINT in 0.4f..0.6f)
     }
+
+    // The header matches the tab bar: its rim is the same curve, mirrored to the bottom edge.
+    @Test fun theHeaderRimMirrorsTheTabBar() {
+        assertTrue(HeaderGlass.Shape is CornerBasedShape)
+        assertTrue(HeaderGlass.BottomRadius == NavigationGlass.TopRadius)
+    }
 }

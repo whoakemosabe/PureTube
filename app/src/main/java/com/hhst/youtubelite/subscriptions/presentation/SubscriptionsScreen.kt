@@ -1,6 +1,5 @@
 package com.hhst.youtubelite.subscriptions.presentation
 
-import com.hhst.youtubelite.ui.design.frosted
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.hhst.youtubelite.ui.design.rememberGlassBackdrop
 import com.hhst.youtubelite.ui.design.extendBelow

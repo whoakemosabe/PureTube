@@ -4,7 +4,9 @@ import com.hhst.youtubelite.ui.design.reasonResources
 import com.hhst.youtubelite.ui.design.labelResource
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import com.hhst.youtubelite.ui.design.frosted
+import com.hhst.youtubelite.ui.design.headerGlass
+import com.hhst.youtubelite.ui.design.navigationGlass
+import com.hhst.youtubelite.ui.design.extendBelow
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.hhst.youtubelite.ui.design.rememberGlassBackdrop
 import androidx.compose.foundation.lazy.LazyRow
@@ -221,8 +223,8 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
                                 }
                             }
                             }
-                            Box(Modifier.graphicsLayer { translationY = (48f - chromeTravel * chromeOffset) * density }.frosted(glass)) { ChipStrip(state.selectedChip, state.chips, content.page.catalog != null, onAction) }
-                            Box(Modifier.graphicsLayer { translationY = -48f * chromeOffset * density }.frosted(glass)) { HomeTopBar(onAction) }
+                            Box(Modifier.graphicsLayer { translationY = (48f - chromeTravel * chromeOffset) * density }.headerGlass(glass, rim = true)) { ChipStrip(state.selectedChip, state.chips, content.page.catalog != null, onAction) }
+                            Box(Modifier.graphicsLayer { translationY = -48f * chromeOffset * density }.headerGlass(glass, rim = false)) { HomeTopBar(onAction) }
                         }
                     }
                     val refreshAnchor = if (state.content is HomeContent.Feed)

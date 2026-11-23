@@ -50,26 +50,6 @@ private val glassBase: Color @Composable get() = DesignTokens.Background
 private val glassDark: Boolean @Composable get() = LocalAppColors.current.dark
 
 /**
- * Frosted glass on any shape: the blurred, slightly more saturated page behind, under a tint
- * strong enough that bar text and icons stay readable over busy thumbnails.
- */
-@Composable
-fun Modifier.frosted(backdrop: LayerBackdrop, shape: Shape = RectangleShape): Modifier {
-    val base = glassBase
-    if (!glassAvailable) return this.background(base.copy(alpha = 0.94f), shape)
-    val tint = base.copy(alpha = if (glassDark) 0.55f else 0.66f)
-    return this.drawPlainBackdrop(
-        backdrop = backdrop,
-        shape = { shape },
-        effects = {
-            colorControls(saturation = 1.2f)
-            blur(18.dp.toPx())
-        },
-        onDrawSurface = { drawRect(tint) },
-    )
-}
-
-/**
  * The bottom tab bar's glass (Matt, 2026-11-23): clearer than the top bars, with rounded
  * top corners and a band along the top edge that bends the feed behind it like the rim of a
  * glass pane (Kyant's lens refraction, Android 13+). A soft light line traces the rim.
@@ -86,11 +66,32 @@ object NavigationGlass {
 }
 
 @Composable
-fun Modifier.navigationGlass(backdrop: LayerBackdrop): Modifier {
+fun Modifier.navigationGlass(backdrop: LayerBackdrop): Modifier =
+    clearGlass(backdrop, NavigationGlass.Shape, rim = GlassRim.Top)
+
+/**
+ * The header's glass, matching the tab bar (Matt, 2026-11-23): the same clear tint and blur.
+ * The chip strip is the header's lower pane, so it carries the rounded, refracting rim along
+ * its bottom edge; the top bar above it is the same glass without a rim, so the two read as
+ * one pane while the header slides away on scroll.
+ */
+object HeaderGlass {
+    val BottomRadius = NavigationGlass.TopRadius
+    val Shape = androidx.compose.foundation.shape.RoundedCornerShape(bottomStart = BottomRadius, bottomEnd = BottomRadius)
+}
+
+@Composable
+fun Modifier.headerGlass(backdrop: LayerBackdrop, rim: Boolean): Modifier =
+    if (rim) clearGlass(backdrop, HeaderGlass.Shape, rim = GlassRim.Bottom)
+    else clearGlass(backdrop, RectangleShape, rim = GlassRim.None)
+
+enum class GlassRim { Top, Bottom, None }
+
+@Composable
+private fun Modifier.clearGlass(backdrop: LayerBackdrop, shape: androidx.compose.ui.graphics.Shape, rim: GlassRim): Modifier {
     val base = glassBase
     val dark = glassDark
-    val shape = NavigationGlass.Shape
-    val rim = if (dark) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.7f)
+    val light = if (dark) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.7f)
     val edge = if (dark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.10f)
     if (!glassAvailable) return this.background(base.copy(alpha = 0.94f), shape)
     val tint = base.copy(alpha = if (dark) NavigationGlass.DARK_TINT else NavigationGlass.LIGHT_TINT)
@@ -100,15 +101,24 @@ fun Modifier.navigationGlass(backdrop: LayerBackdrop): Modifier {
         effects = {
             colorControls(saturation = 1.4f)
             blur(NavigationGlass.Blur.toPx())
-            // A no-op before Android 13 (no runtime shaders): the glass is then flat and frosted.
-            lens(NavigationGlass.RefractionHeight.toPx(), NavigationGlass.RefractionAmount.toPx())
+            // The lens bends every edge of a rounded pane; a rimless pane stays flat so it can
+            // butt against its neighbour. A no-op before Android 13 (no runtime shaders).
+            if (rim != GlassRim.None)
+                lens(NavigationGlass.RefractionHeight.toPx(), NavigationGlass.RefractionAmount.toPx())
         },
         onDrawSurface = {
             drawRect(tint)
-            // Light catching the rim, fading into the pane.
-            drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(
-                0f to rim.copy(alpha = rim.alpha * 0.5f), 1f to Color.Transparent, endY = NavigationGlass.RefractionHeight.toPx()))
-            drawOutline(shape.createOutline(size, layoutDirection, this), edge,
+            val band = NavigationGlass.RefractionHeight.toPx()
+            when (rim) {
+                // Light catching the rim, fading into the pane.
+                GlassRim.Top -> drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(
+                    0f to light.copy(alpha = light.alpha * 0.5f), 1f to Color.Transparent, endY = band))
+                GlassRim.Bottom -> drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(
+                    0f to Color.Transparent, 1f to light.copy(alpha = light.alpha * 0.5f),
+                    startY = size.height - band, endY = size.height))
+                GlassRim.None -> Unit
+            }
+            if (rim != GlassRim.None) drawOutline(shape.createOutline(size, layoutDirection, this), edge,
                 style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
         },
     )
