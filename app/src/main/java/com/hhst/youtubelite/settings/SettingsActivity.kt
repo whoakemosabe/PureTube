@@ -46,11 +46,13 @@ class SettingsActivity : com.hhst.youtubelite.ui.NativeActivity() {
             var preferences by remember { mutableStateOf(extensionManager.allPreferences()) }
             val context = LocalContext.current
             var notifications by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
+            var youtubeLinks by remember { mutableStateOf(LinkHandling.enabled(context)) }
             val lifecycleOwner = LocalLifecycleOwner.current
             DisposableEffect(lifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_RESUME) {
                         notifications = NotificationManagerCompat.from(context).areNotificationsEnabled()
+                        youtubeLinks = LinkHandling.enabled(context)
                     }
                 }
                 // The Advanced host and backup imports write through the same manager; follow it.
@@ -68,6 +70,12 @@ class SettingsActivity : com.hhst.youtubelite.ui.NativeActivity() {
                 page = current,
                 preferences = preferences,
                 notificationsEnabled = notifications,
+                youtubeLinks = youtubeLinks,
+                onOpenLinkSettings = {
+                    runCatching { startActivity(LinkHandling.settingsIntent(this@SettingsActivity)) }
+                        .onFailure { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:$packageName"))) }
+                },
                 onNavigate = { page = it.argument },
                 onToggle = { key, enabled ->
                     // The change listener above refreshes the map; this writes, never mirrors.

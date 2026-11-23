@@ -57,6 +57,8 @@ fun SettingsScreen(
     onAdvanced: (() -> Unit)? = null,
     onSelectTheme: (ThemeMode) -> Unit = {},
     onSelectLanguage: (String) -> Unit = {},
+    youtubeLinks: Boolean? = null,
+    onOpenLinkSettings: () -> Unit = {},
 ) {
     Column(modifier.fillMaxSize().background(DesignTokens.Background).testTag("settings-screen")) {
         SettingsTopBar(stringResource(when (page) {
@@ -70,7 +72,8 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()).testTag("settings-page-${page.argument}")) {
                 when (page) {
                     SettingsPage.Home -> SettingsHome(onNavigate, onAbout, onAdvanced)
-                    SettingsPage.General -> GeneralSettings(preferences, onToggle, onSelectTheme, onSelectLanguage)
+                    SettingsPage.General -> GeneralSettings(preferences, onToggle, onSelectTheme, onSelectLanguage,
+                        youtubeLinks, onOpenLinkSettings)
                     SettingsPage.Playback -> PlaybackSettings(preferences, onToggle)
                     SettingsPage.Notifications -> NotificationSettings(notificationsEnabled, onOpenNotificationSettings)
                 }
@@ -122,6 +125,8 @@ private fun GeneralSettings(
     onToggle: (String, Boolean) -> Unit,
     onSelectTheme: (ThemeMode) -> Unit,
     onSelectLanguage: (String) -> Unit,
+    youtubeLinks: Boolean?,
+    onOpenLinkSettings: () -> Unit,
 ) {
     SettingsGroup(stringResource(R.string.settings_group_appearance))
     var themeDialog by remember { mutableStateOf(false) }
@@ -134,6 +139,11 @@ private fun GeneralSettings(
             ThemeMode.Dark -> R.string.settings_theme_dark
             ThemeMode.DarkGrey -> R.string.settings_theme_dark_grey
         }), tag = "settings-row-theme", onClick = { themeDialog = true })
+    SettingsGroup(stringResource(R.string.settings_group_links))
+    // LiTube #65: Android 12+ only sends YouTube links here once they're on in the app's settings.
+    SettingsRow(stringResource(R.string.settings_open_links), stringResource(R.string.settings_open_links_summary),
+        value = youtubeLinks?.let { stringResource(if (it) R.string.settings_notifications_state_on else R.string.settings_notifications_state_off) },
+        tag = "settings-row-open-links", onClick = onOpenLinkSettings)
     SettingsGroup(stringResource(R.string.settings_group_feed))
     SettingsToggle(stringResource(R.string.settings_hide_shorts), stringResource(R.string.settings_hide_shorts_summary),
         PreferenceKeys.ENABLE_HIDE_SHORTS, preferences, onToggle)
@@ -149,7 +159,7 @@ private fun GeneralSettings(
                 ThemeMode.System -> R.string.settings_theme_system
                 ThemeMode.Light -> R.string.settings_theme_light
                 ThemeMode.Dark -> R.string.settings_theme_dark
-            ThemeMode.DarkGrey -> R.string.settings_theme_dark_grey
+                ThemeMode.DarkGrey -> R.string.settings_theme_dark_grey
             }) to (mode == AppAppearance.mode)
         },
         tag = "theme-dialog",
