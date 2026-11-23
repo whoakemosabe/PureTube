@@ -442,7 +442,9 @@ private fun WatchMetadata(video: WatchVideo, state: WatchUiState, onAction: (Wat
             Column(
                 Modifier.padding(start = 13.dp, end = 13.dp, top = 12.dp, bottom = 5.dp),
             ) {
-                WatchTitle(rememberDeArrowTitle(video.id, video.title))
+                // The title is one faded line; opening the description shows all of it (LiTube #406).
+                WatchTitle(rememberDeArrowTitle(video.id, video.title), expanded = state.descriptionExpanded,
+                    onClick = { onAction(WatchAction.ToggleDescription) })
                 Spacer(Modifier.height(6.dp))
                 WatchMetaRow(video, state, onAction)
                 androidx.compose.animation.AnimatedVisibility(state.descriptionExpanded,
@@ -466,10 +468,12 @@ private fun WatchMetadata(video: WatchVideo, state: WatchUiState, onAction: (Wat
 }
 
 @Composable
-private fun WatchTitle(title: String) {
+private fun WatchTitle(title: String, expanded: Boolean = false, onClick: (() -> Unit)? = null) {
+    val base = Modifier.fillMaxWidth().testTag("watch-title")
+        .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
     BasicText(
         title,
-        Modifier.fillMaxWidth().testTag("watch-title")
+        if (expanded) base else base
             .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithCache {
             val fade = Brush.horizontalGradient(0.9f to Color.Black, 1f to Color.Transparent)
             onDrawWithContent {
@@ -478,7 +482,7 @@ private fun WatchTitle(title: String) {
             }
         },
         style = DesignTokens.text(18, 26, FontWeight.Black),
-        maxLines = 1,
+        maxLines = if (expanded) Int.MAX_VALUE else 1,
         overflow = TextOverflow.Clip,
     )
 }

@@ -33,8 +33,11 @@ class MediaWatchRepository(private val client: MediaClient,
         // TV music metadata omits publication dates, and its player response may be
         // partial. Supplement display fields from public WEB metadata, retaining the
         // signed-in tracking identity used by playback/reporting.
+        // The signed-in TV /next and player responses can also leave out the description,
+        // which left "more" opening on an empty panel (LiTube #395).
         val details = if (page.third && (page.first.published.isNullOrBlank() && initialDetails?.published.isNullOrBlank() ||
-            page.first.author.isNullOrBlank() && initialDetails?.author.isNullOrBlank())) {
+            page.first.author.isNullOrBlank() && initialDetails?.author.isNullOrBlank() ||
+            page.first.description.isNullOrBlank() && initialDetails?.description.isNullOrBlank())) {
             val supplement = try { client.read { context, http ->
                 if (context.generation != page.second) throw kotlinx.coroutines.CancellationException("Session changed")
                 loadPlayerDetails(videoId, context.anonymous(), http).value
