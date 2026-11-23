@@ -145,4 +145,11 @@ class ExtensionManagerTest {
         // keys absent from the payload keep their stored value
         assertTrue(manager.isEnabled(PreferenceKeys.ENABLE_HIDE_SHORTS))
     }
+
+    @Test
+    fun themeDefaultsToDarkGreyButKeepsAStoredChoice() {
+        assertEquals(com.hhst.youtubelite.ui.theme.ThemeMode.DarkGrey, ExtensionManager(MemoryPrefStore()).themeMode())
+        manager.setThemeMode(com.hhst.youtubelite.ui.theme.ThemeMode.System)
+        assertEquals(com.hhst.youtubelite.ui.theme.ThemeMode.System, manager.themeMode())
+    }
 }

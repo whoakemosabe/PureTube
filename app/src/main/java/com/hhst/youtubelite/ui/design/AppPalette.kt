@@ -51,11 +51,14 @@ val DarkAppPalette = AppPalette(
     link = Color(0xFF3EA6FF),
 )
 
-/** Dark grey pages (LiTube #383): the dark palette on YouTube's #0F0F0F, containers one step up. */
+/**
+ * Dark grey pages (LiTube #383). The first version used YouTube's current #0F0F0F, which
+ * reads as black on a phone screen; #1F1F1F is plainly grey, with containers a step up.
+ */
 val DarkGreyAppPalette = DarkAppPalette.copy(
-    background = Color(0xFF0F0F0F),
-    surface = Color(0xFF272727),
-    ghost = Color(0xFF3F3F3F),
+    background = Color(0xFF1F1F1F),
+    surface = Color(0xFF2E2E2E),
+    ghost = Color(0xFF454545),
 )
 
 fun appPalette(dark: Boolean, grey: Boolean): AppPalette = when {

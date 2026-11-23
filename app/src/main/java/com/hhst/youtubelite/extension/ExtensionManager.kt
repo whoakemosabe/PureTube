@@ -109,7 +109,9 @@ class ExtensionManager(private val store: PrefStore) {
     /** Persisted appearance; System follows the OS. Applied by [AppAppearance] at startup. */
     fun themeMode(): com.hhst.youtubelite.ui.theme.ThemeMode =
         com.hhst.youtubelite.ui.theme.ThemeMode.entries.getOrElse(
-            store.getLong(prefKey(PreferenceKeys.THEME_MODE), 0L).toInt()) { com.hhst.youtubelite.ui.theme.ThemeMode.System }
+            // Dark grey is the default; a choice someone made (System included) is kept.
+            store.getLong(prefKey(PreferenceKeys.THEME_MODE), com.hhst.youtubelite.ui.theme.ThemeMode.DarkGrey.ordinal.toLong()).toInt()) {
+            com.hhst.youtubelite.ui.theme.ThemeMode.DarkGrey }
 
     fun setThemeMode(mode: com.hhst.youtubelite.ui.theme.ThemeMode) {
         if (mode == themeMode()) return

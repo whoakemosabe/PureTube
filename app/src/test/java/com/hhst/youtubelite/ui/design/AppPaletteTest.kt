@@ -17,7 +17,7 @@ class AppPaletteTest {
         AppAppearance.update(ThemeMode.DarkGrey)
         assertEquals(true, AppAppearance.dark)
         assertTrue(AppAppearance.grey)
-        assertEquals(Color(0xFF0F0F0F), appPalette(dark = true, grey = true).background)
+        assertEquals(Color(0xFF1F1F1F), appPalette(dark = true, grey = true).background)
     }
 
     @Test fun darkStaysBlack() {
