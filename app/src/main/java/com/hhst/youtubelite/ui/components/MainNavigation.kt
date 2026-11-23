@@ -68,8 +68,9 @@ object MainTabs {
 @Composable
 fun MainNavigationBar(tag: String, signedIn: Boolean, avatarAsset: String?, selected: MainTab = MainTab.You, modifier: Modifier = Modifier, onSelect: (MainTab) -> Unit) {
     val haptic = com.hhst.youtubelite.ui.design.rememberHapticAction(com.hhst.youtubelite.core.HapticsController.Event.TAB)
+    // No divider: the glass draws its own lit rim (see navigationGlass).
     Column(modifier.fillMaxWidth().testTag("$tag-navigation")) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(DesignTokens.NavigationDivider))
+        Spacer(Modifier.height(1.dp))
         Row(Modifier.fillMaxWidth().height(DesignTokens.BottomBarHeight)) {
             MainTabs.tabs(signedIn, com.hhst.youtubelite.ui.design.LocalHideShorts.current).forEach { tab ->
                 Column(Modifier.weight(1f).fillMaxHeight()

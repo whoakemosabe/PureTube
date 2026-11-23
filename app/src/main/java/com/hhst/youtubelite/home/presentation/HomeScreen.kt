@@ -156,7 +156,9 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
             val searchOpen = state.overlay == HomeOverlay.Search
             // The feed is recorded here and shown frosted behind the top bar, chips and tab bar.
             val glass = rememberGlassBackdrop()
-            Box(Modifier.fillMaxSize().then(if (state.overlay != HomeOverlay.None) Modifier.clearAndSetSemantics {} else Modifier)) {
+            // The feed and tab bar reach down behind the system navigation bar, so the glass meets the screen edge.
+            val navExtra = com.hhst.youtubelite.ui.design.navigationBarExtra()
+            Box(Modifier.fillMaxSize().extendBelow(navExtra).then(if (state.overlay != HomeOverlay.None) Modifier.clearAndSetSemantics {} else Modifier)) {
             Column(Modifier.fillMaxSize()) {
                 if (feed == null && state.content != HomeContent.Loading) {
                     HomeTopBar(onAction)
@@ -198,7 +200,7 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
                                 modifier = Modifier.fillMaxSize().testTag("home-feed"),
                                 contentPadding = PaddingValues(start = sidePadding, end = sidePadding, top = feedTopInset,
                                     // The tab bar floats over the feed, so the last row can scroll clear of it.
-                                    bottom = 24.dp + DesignTokens.BottomBarHeight + 1.dp),
+                                    bottom = 24.dp + DesignTokens.BottomBarHeight + 1.dp + navExtra),
                                 horizontalArrangement = Arrangement.spacedBy(layout.columnGap(DesignTokens.GridGap.value).dp),
                             ) {
                                 // A newer PureTube shows at the top of the feed until it's installed or hidden.
@@ -228,9 +230,10 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
                     PullRefreshIndicator(pullMotion, "home-refresh-indicator", refreshAnchor)
                 }
                 // Without a feed there is nothing to scroll under the tab bar: keep its space.
-                if (feed == null) Spacer(Modifier.height(DesignTokens.BottomBarHeight + 1.dp))
+                if (feed == null) Spacer(Modifier.height(DesignTokens.BottomBarHeight + 1.dp + navExtra))
             }
-            HomeBottomBar(state.signedInPreview, onAction, state.avatar, Modifier.align(Alignment.BottomCenter).frosted(glass))
+            HomeBottomBar(state.signedInPreview, onAction, state.avatar,
+                Modifier.align(Alignment.BottomCenter).navigationGlass(glass).padding(bottom = navExtra))
             }
             when (val overlay = state.overlay) {
                 HomeOverlay.None -> Unit
@@ -326,8 +329,9 @@ private fun HomeTopBar(onAction: (HomeAction) -> Unit) {
 @Composable
 private fun HomeBottomBar(signedIn: Boolean, onAction: (HomeAction) -> Unit, avatar: String? = null, modifier: Modifier = Modifier) {
     val haptic = rememberHapticAction(com.hhst.youtubelite.core.HapticsController.Event.TAB)
+    // No divider: the glass draws its own lit rim (see navigationGlass).
     Column(modifier.fillMaxWidth().testTag("home-navigation")) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(DesignTokens.NavigationDivider))
+        Spacer(Modifier.height(1.dp))
         Row(Modifier.fillMaxWidth().height(DesignTokens.BottomBarHeight)) {
             val destinations = if (signedIn) HomeDestination.entries else listOf(HomeDestination.Home, HomeDestination.Shorts, HomeDestination.You)
             destinations.filterNot { LocalHideShorts.current && it == HomeDestination.Shorts }.forEach { destination ->

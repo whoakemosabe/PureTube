@@ -3,6 +3,8 @@ package com.hhst.youtubelite.library.presentation
 import com.hhst.youtubelite.ui.design.frosted
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.hhst.youtubelite.ui.design.rememberGlassBackdrop
+import com.hhst.youtubelite.ui.design.extendBelow
+import com.hhst.youtubelite.ui.design.navigationGlass
 import com.hhst.youtubelite.ui.design.CollapsingAppBar
 import com.hhst.youtubelite.ui.design.rememberAppBarCollapseState
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -47,7 +49,9 @@ fun YouScreen(state: LibraryUiState, onAction: (LibraryAction) -> Unit, modifier
         val listState = rememberLibraryListState()
         // The page is recorded here and shown frosted behind the tab bar, as on Home.
         val glass = rememberGlassBackdrop()
-        Box(Modifier.fillMaxSize().then(if (state.overlay != LibraryOverlay.None) Modifier.clearAndSetSemantics {} else Modifier)) {
+        // The page and tab bar reach down behind the system navigation bar, so the glass meets the screen edge.
+        val navExtra = com.hhst.youtubelite.ui.design.navigationBarExtra()
+        Box(Modifier.fillMaxSize().extendBelow(navExtra).then(if (state.overlay != LibraryOverlay.None) Modifier.clearAndSetSemantics {} else Modifier)) {
         Column(Modifier.fillMaxSize().layerBackdrop(glass)) {
             CollapsingAppBar(appBar) {
                 YouTopBar(state.signedIn, onAction)
@@ -74,7 +78,7 @@ fun YouScreen(state: LibraryUiState, onAction: (LibraryAction) -> Unit, modifier
             }
         }
         MainNavigationBar("main", state.signedIn, accountAvatar(state),
-            modifier = Modifier.align(Alignment.BottomCenter).frosted(glass)) { tab ->
+            modifier = Modifier.align(Alignment.BottomCenter).navigationGlass(glass).padding(bottom = navExtra)) { tab ->
             onAction(LibraryAction.Destination(tab))
         }
         }
@@ -118,7 +122,7 @@ private fun LibraryList(listState: LazyListState, content: LibraryContent.Ready,
     val page = content.page
     LazyColumn(Modifier.fillMaxSize().testTag("you-library"), state = listState,
         // The tab bar floats over the list, so the last row can scroll clear of it.
-        contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp + DesignTokens.BottomBarHeight + 1.dp)) {
+        contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp + DesignTokens.BottomBarHeight + 1.dp + com.hhst.youtubelite.ui.design.navigationBarExtra())) {
         item(key = "account") {
             Row(Modifier.fillMaxWidth().clickable(role = Role.Button) { onAction(LibraryAction.OpenAccountMenu) }
                 .testTag("you-account").padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
