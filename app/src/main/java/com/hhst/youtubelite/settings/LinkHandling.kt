@@ -2,6 +2,7 @@ package com.hhst.youtubelite.settings
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.verify.domain.DomainVerificationManager
 import android.content.pm.verify.domain.DomainVerificationUserState
 import android.net.Uri
@@ -33,4 +34,27 @@ object LinkHandling {
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, uri)
         }
     }
+
+    /** YouTube's own account settings: Restricted Mode, privacy, notifications (LiTube #389). */
+    const val YOUTUBE_SETTINGS_URL = "https://www.youtube.com/account"
+
+    /**
+     * A web page in a real browser. PureTube claims every youtube.com link, so a plain VIEW
+     * intent for one would come straight back here; the browser is picked from what opens an
+     * ordinary web page instead.
+     */
+    fun browserIntent(context: Context, url: String): Intent {
+        val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")).addCategory(Intent.CATEGORY_BROWSABLE)
+        val manager = context.packageManager
+        val preferred = manager.resolveActivity(probe, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+        val installed = manager.queryIntentActivities(probe, 0).map { it.activityInfo.packageName }
+        val target = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)
+        pickBrowser(preferred, installed, context.packageName)?.let(target::setPackage)
+        return target
+    }
+
+    /** The default browser if there is one, else the first installed one that isn't PureTube. */
+    internal fun pickBrowser(preferred: String?, installed: List<String>, own: String): String? =
+        preferred?.takeIf { it != own && it != "android" && it in installed }
+            ?: installed.firstOrNull { it != own && it != "android" }
 }

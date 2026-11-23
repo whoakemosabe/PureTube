@@ -21,6 +21,10 @@ internal fun rememberHideShorts(): Boolean = rememberFeedPreference(PreferenceKe
 @Composable
 internal fun rememberHideWatched(): Boolean = rememberFeedPreference(PreferenceKeys.ENABLE_HIDE_WATCHED)
 
+/** The watch page leaves out its related videos (LiTube #381). */
+@Composable
+internal fun rememberHideRelated(): Boolean = rememberFeedPreference(PreferenceKeys.ENABLE_HIDE_RELATED)
+
 @Composable
 private fun rememberFeedPreference(preference: String): Boolean {
     val manager = remember { GlobalContext.getOrNull()?.getOrNull<ExtensionManager>() }

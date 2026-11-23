@@ -76,6 +76,11 @@ class SettingsActivity : com.hhst.youtubelite.ui.NativeActivity() {
                         .onFailure { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                             Uri.parse("package:$packageName"))) }
                 },
+                onOpenYoutubeSettings = {
+                    runCatching { startActivity(LinkHandling.browserIntent(this@SettingsActivity, LinkHandling.YOUTUBE_SETTINGS_URL)) }
+                        .onFailure { android.widget.Toast.makeText(this@SettingsActivity,
+                            com.hhst.youtubelite.R.string.application_not_found, android.widget.Toast.LENGTH_SHORT).show() }
+                },
                 onNavigate = { page = it.argument },
                 onToggle = { key, enabled ->
                     // The change listener above refreshes the map; this writes, never mirrors.

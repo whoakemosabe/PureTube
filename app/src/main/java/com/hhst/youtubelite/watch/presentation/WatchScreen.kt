@@ -81,6 +81,7 @@ fun WatchScreen(
     val sidebarMainScroll = rememberSaveable(state.videoId, saver = LazyListState.Saver) { LazyListState() }
     val compactRelatedScroll = rememberSaveable(state.videoId, saver = LazyListState.Saver) { LazyListState() }
     val wideRelatedScroll = rememberSaveable(state.videoId, saver = LazyListState.Saver) { LazyListState() }
+    val hideRelated = com.hhst.youtubelite.ui.design.rememberHideRelated()
     AppTheme {
         Box(modifier.fillMaxSize().then(if (drawBackground) Modifier.background(DesignTokens.Background) else Modifier).testTag("watch-screen")) {
             BoxWithConstraints(
@@ -91,7 +92,8 @@ fun WatchScreen(
             ) {
                 val width = maxWidth.value
                 val height = maxHeight.value
-                val sidebarMode = WatchLayout.sidebar(width, height)
+                // With related videos hidden there is no sidebar to show, so wide screens use one column.
+                val sidebarMode = WatchLayout.sidebar(width, height) && !hideRelated
                 val columnWidth = WatchLayout.columnWidth(width, height)
                 val playerHeight = WatchLayout.playerHeight(width, height)
                 val pinned = WatchLayout.pinnedPlayer(width, height)
@@ -135,7 +137,7 @@ fun WatchScreen(
                         viewportHeight = height,
                         playerHeight = playerHeight,
                         pinned = pinned,
-                        includeRelated = true,
+                        includeRelated = !hideRelated,
                         showPlayer = showPlayer,
                         playerSlot = playerSlot,
                         onAction = onAction,

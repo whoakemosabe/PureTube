@@ -8,6 +8,7 @@ object PreferenceKeys {
     const val ENABLE_DISPLAY_DISLIKES = "enable_display_dislikes"
     const val ENABLE_HIDE_SHORTS = "enable_hide_shorts"
     const val ENABLE_HIDE_WATCHED = "enable_hide_watched"
+    const val ENABLE_HIDE_RELATED = "enable_hide_related"
     const val PRIVATE_BROWSING = "private_browsing"
     const val REMEMBER_QUALITY = "remember_quality"
     const val REMEMBER_PLAYBACK_SPEED = "remember_playback_speed"
@@ -78,6 +79,7 @@ object PreferenceKeys {
         ENABLE_SHOW_LIKES to true,
         ENABLE_HIDE_SHORTS to false,
         ENABLE_HIDE_WATCHED to false,
+        ENABLE_HIDE_RELATED to false,
         PRIVATE_BROWSING to false,
         SKIP_SPONSORS to true,
         SKIP_SELF_PROMO to true,

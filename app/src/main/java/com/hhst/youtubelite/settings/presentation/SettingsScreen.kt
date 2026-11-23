@@ -59,6 +59,7 @@ fun SettingsScreen(
     onSelectLanguage: (String) -> Unit = {},
     youtubeLinks: Boolean? = null,
     onOpenLinkSettings: () -> Unit = {},
+    onOpenYoutubeSettings: () -> Unit = {},
 ) {
     Column(modifier.fillMaxSize().background(DesignTokens.Background).testTag("settings-screen")) {
         SettingsTopBar(stringResource(when (page) {
@@ -73,7 +74,7 @@ fun SettingsScreen(
                 when (page) {
                     SettingsPage.Home -> SettingsHome(onNavigate, onAbout, onAdvanced)
                     SettingsPage.General -> GeneralSettings(preferences, onToggle, onSelectTheme, onSelectLanguage,
-                        youtubeLinks, onOpenLinkSettings)
+                        youtubeLinks, onOpenLinkSettings, onOpenYoutubeSettings)
                     SettingsPage.Playback -> PlaybackSettings(preferences, onToggle)
                     SettingsPage.Notifications -> NotificationSettings(notificationsEnabled, onOpenNotificationSettings)
                 }
@@ -127,6 +128,7 @@ private fun GeneralSettings(
     onSelectLanguage: (String) -> Unit,
     youtubeLinks: Boolean?,
     onOpenLinkSettings: () -> Unit,
+    onOpenYoutubeSettings: () -> Unit,
 ) {
     SettingsGroup(stringResource(R.string.settings_group_appearance))
     var themeDialog by remember { mutableStateOf(false) }
@@ -144,11 +146,16 @@ private fun GeneralSettings(
     SettingsRow(stringResource(R.string.settings_open_links), stringResource(R.string.settings_open_links_summary),
         value = youtubeLinks?.let { stringResource(if (it) R.string.settings_notifications_state_on else R.string.settings_notifications_state_off) },
         tag = "settings-row-open-links", onClick = onOpenLinkSettings)
+    // LiTube #389: Restricted Mode and the other account settings live on YouTube's own site.
+    SettingsRow(stringResource(R.string.settings_youtube_account), stringResource(R.string.settings_youtube_account_summary),
+        tag = "settings-row-youtube-account", onClick = onOpenYoutubeSettings)
     SettingsGroup(stringResource(R.string.settings_group_feed))
     SettingsToggle(stringResource(R.string.settings_hide_shorts), stringResource(R.string.settings_hide_shorts_summary),
         PreferenceKeys.ENABLE_HIDE_SHORTS, preferences, onToggle)
     SettingsToggle(stringResource(R.string.settings_hide_watched), stringResource(R.string.settings_hide_watched_summary),
         PreferenceKeys.ENABLE_HIDE_WATCHED, preferences, onToggle)
+    SettingsToggle(stringResource(R.string.settings_hide_related), stringResource(R.string.settings_hide_related_summary),
+        PreferenceKeys.ENABLE_HIDE_RELATED, preferences, onToggle)
     SettingsGroup(stringResource(R.string.settings_group_privacy))
     SettingsToggle(stringResource(R.string.settings_private_browsing), stringResource(R.string.settings_private_browsing_summary),
         PreferenceKeys.PRIVATE_BROWSING, preferences, onToggle)

@@ -441,6 +441,8 @@
     <string name="settings_group_links">Links</string>
     <string name="settings_open_links">Open YouTube links in PureTube</string>
     <string name="settings_open_links_summary">Turn on the YouTube links in Open by default</string>
+    <string name="settings_youtube_account">YouTube account settings</string>
+    <string name="settings_youtube_account_summary">Restricted Mode, privacy and more, in your browser</string>
     <string name="settings_group_feed">Feed</string>
     <string name="settings_group_privacy">Privacy</string>
     <string name="settings_group_system">System</string>
@@ -455,6 +457,8 @@
     <string name="settings_hide_shorts_summary">Remove Shorts shelves from the feed</string>
     <string name="settings_hide_watched">Hide watched videos</string>
     <string name="settings_hide_watched_summary">Leave videos you finished out of Home and Subscriptions</string>
+    <string name="settings_hide_related">Hide related videos</string>
+    <string name="settings_hide_related_summary">Show only the video, its details and comments on the watch page</string>
     <string name="settings_private_browsing">Private browsing</string>
     <string name="settings_private_browsing_summary">Don\'t send watch progress or save local history</string>
     <string name="settings_data_saver">Data saver</string>
