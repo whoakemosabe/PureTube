@@ -14,7 +14,7 @@ class LiveChatDiscoveryTest {
     private fun next(owner: String, chatField: String = "") = """{"videoDetails":{"videoId":"abcdefghijk","title":"$owner title","author":"$owner","channelId":"UC$owner"},
         "contents":[{"compactVideoRenderer":{"videoId":"$owner-related","title":{"simpleText":"$owner recommendation"}}}],
         "subscribeButtonRenderer":{"subscribed":true},"likeButtonRenderer":{"likeStatus":"LIKE"}${if (chatField.isBlank()) "" else ",$chatField"}}"""
-    private fun player(live: Boolean) = """{"videoDetails":{"videoId":"abcdefghijk","isLive":$live,"isLiveContent":true},
+    private fun player(live: Boolean) = """{"videoDetails":{"videoId":"abcdefghijk","shortDescription":"About the stream","isLive":$live,"isLiveContent":true},
         "microformat":{"playerMicroformatRenderer":{"publishDate":"2026-11-04"}},
         "playbackTracking":{"videostatsPlaybackUrl":{"baseUrl":"https://www.youtube.com/api/stats/playback?account=1"}}}"""
 
