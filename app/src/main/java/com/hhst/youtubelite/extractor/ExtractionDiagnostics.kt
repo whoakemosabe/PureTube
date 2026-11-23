@@ -34,7 +34,7 @@ class ExtractionDiagnostics : EngineDiagnostics {
     }
     @Synchronized fun mark(): Long = sequence
     @Synchronized fun since(mark: Long): List<Event> = events.filter { it.sequence > mark }
-    @Synchronized fun export(): String = "litube YouTube engine v1\n" + events.joinToString("\n") {
+    @Synchronized fun export(): String = "puretube YouTube engine v1\n" + events.joinToString("\n") {
         "${it.stage} ${it.profile} ${it.detail} ms=${it.elapsedMillis} http=${it.httpStatus}"
     }
 }

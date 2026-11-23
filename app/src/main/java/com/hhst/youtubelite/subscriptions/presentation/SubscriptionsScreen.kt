@@ -1,5 +1,8 @@
 package com.hhst.youtubelite.subscriptions.presentation
 
+import com.hhst.youtubelite.ui.design.frosted
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.hhst.youtubelite.ui.design.rememberGlassBackdrop
 import com.hhst.youtubelite.ui.design.labelResource
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutLinearInEasing
@@ -128,7 +131,10 @@ fun SubscriptionsScreen(state: SubscriptionsUiState, onAction: (SubscriptionsAct
             displayedChip = state.selectedChip
         }
         val showingChannels = state.overlay == SubscriptionsOverlay.Channels
-        Column(Modifier.fillMaxSize().then(if (state.overlay != SubscriptionsOverlay.None && !showingChannels) Modifier.clearAndSetSemantics {} else Modifier)) {
+        // The page is recorded here and shown frosted behind the tab bar, as on Home.
+        val glass = rememberGlassBackdrop()
+        Box(Modifier.fillMaxSize().then(if (state.overlay != SubscriptionsOverlay.None && !showingChannels) Modifier.clearAndSetSemantics {} else Modifier)) {
+        Column(Modifier.fillMaxSize().layerBackdrop(glass)) {
             if (showingChannels) {
                 ChannelsOverlay(state.channels, channelListState, onAction, Modifier.weight(1f))
             } else {
@@ -175,7 +181,9 @@ fun SubscriptionsScreen(state: SubscriptionsUiState, onAction: (SubscriptionsAct
                     }
                 }
             }
-            MainNavigationBar("main", state.signedIn, null, selected = MainTab.Subscriptions) { tab -> onAction(SubscriptionsAction.Destination(tab)) }
+        }
+        MainNavigationBar("main", state.signedIn, null, selected = MainTab.Subscriptions,
+            modifier = Modifier.align(Alignment.BottomCenter).frosted(glass)) { tab -> onAction(SubscriptionsAction.Destination(tab)) }
         }
     }
 }
@@ -187,7 +195,7 @@ private fun SubscriptionsTopBar(width: Float, selectedChannel: Boolean, onAction
             modifier = Modifier.testTag("subscriptions-back-to-all")) { onAction(SubscriptionsAction.SelectChannel(null)) }
         else Box(Modifier.width(if (width < 600f) 53.dp else 48.dp).height(DesignTokens.TopBarHeight)
             .clickable(role = Role.Button) { onAction(SubscriptionsAction.Destination(MainTab.Home)) }, contentAlignment = Alignment.Center) {
-            LitubeMark(Modifier.size(24.dp))
+            PuretubeMark(Modifier.size(24.dp))
         }
         AppText(stringResource(R.string.subscriptions_title), Modifier.weight(1f).testTag("subscriptions-title"), size = 20, line = 28,
             weight = FontWeight.Bold, maxLines = 1)
@@ -290,7 +298,9 @@ private fun SubscriptionsFeed(content: SubscriptionsContent.Feed, width: Float, 
         LazyVerticalGrid(
             columns = GridCells.Fixed(if (compact) 1 else SubscriptionsLayout.columns(width)), state = gridState,
             modifier = Modifier.fillMaxSize().testTag("subscriptions-feed"),
-            contentPadding = PaddingValues(start = SubscriptionsLayout.outerPadding(width).dp, end = SubscriptionsLayout.outerPadding(width).dp, bottom = 24.dp),
+            contentPadding = PaddingValues(start = SubscriptionsLayout.outerPadding(width).dp, end = SubscriptionsLayout.outerPadding(width).dp,
+                // The tab bar floats over the feed, so the last row can scroll clear of it.
+                bottom = 24.dp + DesignTokens.BottomBarHeight + 1.dp),
             horizontalArrangement = Arrangement.spacedBy(DesignTokens.GridGap),
         ) {
             items(visibleItems, key = { it.id }, contentType = { "video" }) { item ->
@@ -449,7 +459,7 @@ private fun ChannelsOverlay(channels: SubscriptionsChannels, listState: LazyList
                     PillButton(stringResource(R.string.retry), retryable@{ onAction(SubscriptionsAction.RetryChannels) })
                 }
                 is SubscriptionsChannels.Ready -> LazyColumn(Modifier.fillMaxSize().testTag("channels-list"), state = listState,
-                    contentPadding = PaddingValues(top = 13.dp, bottom = 24.dp)) {
+                    contentPadding = PaddingValues(top = 13.dp, bottom = 24.dp + DesignTokens.BottomBarHeight + 1.dp)) {
                     if (channels.channels.isEmpty()) {
                         item {
                             Box(Modifier.fillMaxWidth().padding(top = 96.dp), contentAlignment = Alignment.Center) {

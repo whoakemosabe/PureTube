@@ -17,7 +17,7 @@ class PlaybackTelemetry : AnalyticsListener {
     internal fun context(time: AnalyticsListener.EventTime): DiagnosticContext? = runCatching {
         if (time.timeline.isEmpty || time.windowIndex !in 0 until time.timeline.windowCount) return@runCatching null
         val json = time.timeline.getWindow(time.windowIndex, Timeline.Window()).mediaItem.mediaMetadata.extras
-            ?.getString("litube.diagnostic_context") ?: return@runCatching null
+            ?.getString("puretube.diagnostic_context") ?: return@runCatching null
         if (json.length > 2048) return@runCatching null
         DiagnosticJson.decodeContext(json)
     }.getOrNull()

@@ -244,15 +244,15 @@ fun AppIconButton(
 }
 
 @Composable
-fun LitubeMark(modifier: Modifier = Modifier) {
-    Image(painterResource(R.drawable.ic_litube_mark), contentDescription = stringResource(R.string.a11y_litube), modifier = modifier)
+fun PuretubeMark(modifier: Modifier = Modifier) {
+    Image(painterResource(R.drawable.ic_puretube_mark), contentDescription = stringResource(R.string.a11y_puretube), modifier = modifier)
 }
 
 @Composable
-fun LitubeBrand(modifier: Modifier = Modifier) {
+fun PuretubeBrand(modifier: Modifier = Modifier) {
     CompositionLocalProvider(LocalDensity provides androidx.compose.ui.unit.Density(LocalDensity.current.density, 1f)) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        LitubeMark(Modifier.size(28.dp))
+        PuretubeMark(Modifier.size(28.dp))
         Spacer(Modifier.width(3.dp))
         AppText(stringResource(R.string.app_name), size = 22, line = 28, weight = FontWeight.Black)
     }

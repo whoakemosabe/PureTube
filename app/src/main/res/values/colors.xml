@@ -7,4 +7,6 @@
     <color name="background">#FFFFFF</color>
     <color name="window_icon_color">#0F0F0F</color>
     <color name="window_icon_variant">#606060</color>
+    <!-- Puretube red: the launcher icon background and the in-app mark. -->
+    <color name="ic_launcher_background">#E3201B</color>
 </resources>

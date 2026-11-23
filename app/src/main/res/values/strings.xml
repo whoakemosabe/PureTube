@@ -320,6 +320,7 @@
     <string name="about_working">Working…</string>
     <string name="about_operation_failed">Operation failed. Please try again.</string>
     <string name="about_source">Source code</string>
+    <string name="about_credits">Puretube is free software under the GNU GPL v3. It is based on LiTube by HydeYYHH, and plays videos with MediaServiceCore by yuliskov (from SmartTube).</string>
     <string name="about_check_update">Check for updates</string>
     <string name="about_releases">All releases and what\'s new</string>
     <string name="about_clear_cache">Clear cache</string>
@@ -409,8 +410,8 @@
     <string name="a11y_history_settings">History settings</string>
     <string name="a11y_send_message">Send message</string>
     <string name="a11y_explore">Explore</string>
-    <string name="a11y_litube">Puretube</string>
-    <string name="a11y_litube_home">Puretube Home</string>
+    <string name="a11y_puretube">Puretube</string>
+    <string name="a11y_puretube_home">Puretube Home</string>
     <string name="a11y_loading">Loading</string>
     <string name="a11y_add_comment">Add a comment</string>
     <string name="a11y_sort_comments">Sort comments</string>

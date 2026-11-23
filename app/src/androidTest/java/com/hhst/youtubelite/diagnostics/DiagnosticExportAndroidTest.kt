@@ -194,7 +194,7 @@ class DiagnosticExportAndroidTest {
     @Test fun decoderAndFirstFrameCallbacksKeepTheOldVideoIdentityAfterSwitch() {
         val origin = DiagnosticContext(videoId = "Wh9klmWAm5s", generation = 1)
         val item = MediaItem.Builder().setUri(Uri.parse("https://fixture.invalid/media"))
-            .setMediaMetadata(MediaMetadata.Builder().setExtras(Bundle().apply { putString("litube.diagnostic_context", DiagnosticJson.encodeContext(origin)) }).build()).build()
+            .setMediaMetadata(MediaMetadata.Builder().setExtras(Bundle().apply { putString("puretube.diagnostic_context", DiagnosticJson.encodeContext(origin)) }).build()).build()
         val timeline = object : Timeline() {
             override fun getWindowCount() = 1
             override fun getPeriodCount() = 1

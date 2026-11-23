@@ -98,7 +98,7 @@ class MediaSourceResolver(
             .setTitle(m.title)
             .setArtist(m.author)
             .setArtworkUri(m.thumbnailUrl?.toUri())
-            .setExtras(diagnosticContext?.let { diagnostic -> Bundle().apply { putString("litube.diagnostic_context", DiagnosticJson.encodeContext(diagnostic)) } })
+            .setExtras(diagnosticContext?.let { diagnostic -> Bundle().apply { putString("puretube.diagnostic_context", DiagnosticJson.encodeContext(diagnostic)) } })
             .build()
 
     /**

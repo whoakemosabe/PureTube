@@ -167,7 +167,7 @@ fun SettingsDataScreen(
                     onClick = {
                         fileOperations[0]?.finish(DiagnosticOutcome.SUPERSEDED, "picker_reopened")
                         fileOperations[0] = AppLog.operation(AppLog.Category.STORAGE, "settings_export")
-                        exportLauncher.launch("litube-settings.json")
+                        exportLauncher.launch("puretube-settings.json")
                     },
                 )
                 ActionRow(

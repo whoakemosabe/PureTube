@@ -26,7 +26,6 @@ import com.hhst.youtubelite.ui.components.AppTopAppBar as TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -53,8 +52,7 @@ fun AboutScreen(label: String, version: String, onClose: () -> Unit, busy: Boole
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(SettingsTokens.GroupGap)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Image(painterResource(R.drawable.ic_launcher_monochrome), label, Modifier.size(40.dp), contentScale = ContentScale.Fit,
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface))
+                    Image(painterResource(R.drawable.ic_puretube_mark), label, Modifier.size(40.dp), contentScale = ContentScale.Fit)
                     Spacer(Modifier.width(16.dp))
                     Column {
                         Text(label, fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Medium)
@@ -72,6 +70,9 @@ fun AboutScreen(label: String, version: String, onClose: () -> Unit, busy: Boole
                     com.hhst.youtubelite.home.presentation.LoadingSpinner()
                 }
                 if (status.isNotEmpty()) Text(status, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(16.dp))
+                // GPL-3.0: keep the licence and the projects Puretube is built on visible to users.
+                Text(stringResource(R.string.about_credits), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             }
         }
     }

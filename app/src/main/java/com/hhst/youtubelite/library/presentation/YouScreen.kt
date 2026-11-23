@@ -1,5 +1,8 @@
 package com.hhst.youtubelite.library.presentation
 
+import com.hhst.youtubelite.ui.design.frosted
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.hhst.youtubelite.ui.design.rememberGlassBackdrop
 import com.hhst.youtubelite.ui.design.CollapsingAppBar
 import com.hhst.youtubelite.ui.design.rememberAppBarCollapseState
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -42,7 +45,10 @@ fun YouScreen(state: LibraryUiState, onAction: (LibraryAction) -> Unit, modifier
     BoxWithConstraints(modifier.fillMaxSize().background(DesignTokens.Background).testTag("you-screen").nestedScroll(appBar.connection)) {
         val width = maxWidth.value
         val listState = rememberLibraryListState()
-        Column(Modifier.fillMaxSize().then(if (state.overlay != LibraryOverlay.None) Modifier.clearAndSetSemantics {} else Modifier)) {
+        // The page is recorded here and shown frosted behind the tab bar, as on Home.
+        val glass = rememberGlassBackdrop()
+        Box(Modifier.fillMaxSize().then(if (state.overlay != LibraryOverlay.None) Modifier.clearAndSetSemantics {} else Modifier)) {
+        Column(Modifier.fillMaxSize().layerBackdrop(glass)) {
             CollapsingAppBar(appBar) {
                 YouTopBar(state.signedIn, onAction)
 
@@ -66,9 +72,11 @@ fun YouScreen(state: LibraryUiState, onAction: (LibraryAction) -> Unit, modifier
                         state.historyRetrying, state.playlistsRetrying, onAction)
                 }
             }
-            MainNavigationBar("main", state.signedIn, accountAvatar(state)) { tab ->
-                onAction(LibraryAction.Destination(tab))
-            }
+        }
+        MainNavigationBar("main", state.signedIn, accountAvatar(state),
+            modifier = Modifier.align(Alignment.BottomCenter).frosted(glass)) { tab ->
+            onAction(LibraryAction.Destination(tab))
+        }
         }
         state.undo?.let { removed ->
             HistoryUndoBanner(removed,
@@ -92,7 +100,7 @@ private fun rememberLibraryListState(): LazyListState {
 private fun YouTopBar(signedIn: Boolean, onAction: (LibraryAction) -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = DesignTokens.TopBarHeight).testTag("you-topbar"), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(117.dp).height(DesignTokens.TopBarHeight), contentAlignment = Alignment.CenterStart) {
-            com.hhst.youtubelite.ui.design.LitubeBrand(Modifier.padding(start = 12.dp))
+            com.hhst.youtubelite.ui.design.PuretubeBrand(Modifier.padding(start = 12.dp))
         }
         Spacer(Modifier.weight(1f))
         AppIconButton(AppIcon.Search, stringResource(R.string.a11y_search_youtube)) { onAction(LibraryAction.OpenSearch) }
@@ -105,7 +113,9 @@ private fun LibraryList(listState: LazyListState, content: LibraryContent.Ready,
                         historyRetrying: Boolean, playlistsRetrying: Boolean,
     onAction: (LibraryAction) -> Unit) {
     val page = content.page
-    LazyColumn(Modifier.fillMaxSize().testTag("you-library"), state = listState, contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("you-library"), state = listState,
+        // The tab bar floats over the list, so the last row can scroll clear of it.
+        contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp + DesignTokens.BottomBarHeight + 1.dp)) {
         item(key = "account") {
             Row(Modifier.fillMaxWidth().clickable(role = Role.Button) { onAction(LibraryAction.OpenAccountMenu) }
                 .testTag("you-account").padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {

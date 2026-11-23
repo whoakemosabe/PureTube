@@ -180,7 +180,7 @@ object AppLog {
             })
         cleanExports(context)
         val directory = File(context.cacheDir, "diagnostic-exports").apply { mkdirs() }
-        val archive = File.createTempFile("litube-diagnostics-", ".zip", directory)
+        val archive = File.createTempFile("puretube-diagnostics-", ".zip", directory)
         try {
             DiagnosticArchive.write(archive, sources.first, environment,
                 statistics() + mapOf("process_flush" to coverage, "skipped_files" to sources.second), deadline = ::expired)

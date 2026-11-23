@@ -27,7 +27,10 @@ data class SettingsBackupData(
 )
 
 object SettingsBackup {
-    const val SCHEMA = "litube-settings"
+    const val SCHEMA = "puretube-settings"
+    /** Backups exported from LiTube import too, so switching keeps your settings. */
+    const val LITUBE_SCHEMA = "litube-settings"
+    private fun knownSchema(schema: String?) = schema == SCHEMA || schema == LITUBE_SCHEMA
     /** Backups from newer app versions are refused instead of half-applied. */
     const val VERSION = 1
     // Write defaults so exports contain the complete settings schema.
@@ -51,7 +54,7 @@ object SettingsBackup {
     fun parse(text: String): SettingsBackupData? = runCatching {
         require(text.length <= 512 * 1024) { "settings_backup_too_large" }
         val root = Json.parseToJsonElement(text) as JsonObject
-        require(root["schema"]?.strictString() == SCHEMA)
+        require(knownSchema(root["schema"]?.strictString()))
         require(root["version"]?.integerIn(VERSION..VERSION) == true)
         root["preferences"]?.takeUnless { it is JsonNull }?.let { preferences ->
             require(preferences is JsonObject)
@@ -87,7 +90,7 @@ object SettingsBackup {
     fun apply(data: SettingsBackupData, manager: ExtensionManager, downloadPrefs: DownloadPrefs) {
         val operation = AppLog.operation(AppLog.Category.EXTENSION, "settings_import")
         try {
-            require(data.schema == SCHEMA && data.version == VERSION) { "invalid_settings_schema" }
+            require(knownSchema(data.schema) && data.version == VERSION) { "invalid_settings_schema" }
             require(data.hapticStrength == null || data.hapticStrength in 0..100) { "invalid_haptic_strength" }
             data.download?.maxConnections?.let {
                 require(it in com.hhst.youtubelite.downloader.core.DownloadSettings.MIN_CONNECTIONS..

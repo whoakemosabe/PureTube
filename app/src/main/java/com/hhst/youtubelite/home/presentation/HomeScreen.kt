@@ -6,7 +6,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import com.hhst.youtubelite.ui.design.frosted
 import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.hhst.youtubelite.ui.design.rememberGlassBackdrop
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.*
@@ -153,7 +153,7 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
             }
             val searchOpen = state.overlay == HomeOverlay.Search
             // The feed is recorded here and shown frosted behind the top bar, chips and tab bar.
-            val glass = rememberLayerBackdrop()
+            val glass = rememberGlassBackdrop()
             Box(Modifier.fillMaxSize().then(if (state.overlay != HomeOverlay.None) Modifier.clearAndSetSemantics {} else Modifier)) {
             Column(Modifier.fillMaxSize()) {
                 if (feed == null && state.content != HomeContent.Loading) {
@@ -301,8 +301,8 @@ private fun HomeTopBar(onAction: (HomeAction) -> Unit) {
     Row(Modifier.fillMaxWidth().height(DesignTokens.TopBarHeight).testTag("home-topbar"), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(117.dp).fillMaxHeight().clickable(role = Role.Button) {
             onAction(HomeAction.Navigate(HomeNavigationRequest.Destination(HomeDestination.Home)))
-        }.appDescription(R.string.a11y_litube_home), contentAlignment = Alignment.CenterStart) {
-            LitubeBrand(Modifier.padding(start = 12.dp))
+        }.appDescription(R.string.a11y_puretube_home), contentAlignment = Alignment.CenterStart) {
+            PuretubeBrand(Modifier.padding(start = 12.dp))
         }
         Spacer(Modifier.weight(1f))
         AppIconButton(AppIcon.Search, stringResource(R.string.a11y_search_youtube)) { onAction(HomeAction.OpenSearch) }
@@ -382,7 +382,7 @@ private fun EmptyHome(content: HomeContent.Empty, showTools: Boolean, wide: Bool
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("home-empty"), horizontalAlignment = Alignment.CenterHorizontally) {
         if (showTools) {
             Spacer(Modifier.height(if (wide) 76.dp else 60.dp))
-            LitubeMark(Modifier.size(width = 80.dp, height = 55.dp))
+            PuretubeMark(Modifier.size(width = 80.dp, height = 55.dp))
             Spacer(Modifier.height(16.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal = 23.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {

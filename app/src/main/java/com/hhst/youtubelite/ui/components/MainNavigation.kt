@@ -64,9 +64,9 @@ object MainTabs {
 }
 
 @Composable
-fun MainNavigationBar(tag: String, signedIn: Boolean, avatarAsset: String?, selected: MainTab = MainTab.You, onSelect: (MainTab) -> Unit) {
+fun MainNavigationBar(tag: String, signedIn: Boolean, avatarAsset: String?, selected: MainTab = MainTab.You, modifier: Modifier = Modifier, onSelect: (MainTab) -> Unit) {
     val haptic = com.hhst.youtubelite.ui.design.rememberHapticAction(com.hhst.youtubelite.core.HapticsController.Event.TAB)
-    Column(Modifier.fillMaxWidth().testTag("$tag-navigation")) {
+    Column(modifier.fillMaxWidth().testTag("$tag-navigation")) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(DesignTokens.NavigationDivider))
         Row(Modifier.fillMaxWidth().height(DesignTokens.BottomBarHeight)) {
             MainTabs.tabs(signedIn, com.hhst.youtubelite.ui.design.LocalHideShorts.current).forEach { tab ->
