@@ -35,7 +35,8 @@ class MediaLibraryRepository(private val client: MediaClient, private val local:
                 val profile = accounts.firstOrNull { it.id == context.accountId && !it.disabled }
                     ?: accounts.firstOrNull { it.selected && !it.disabled }
                     ?: throw MediaException(RequestError(RequestFailure.AUTH, "account_unavailable"))
-                AccountProfile(profile.name.orEmpty(), profile.email.orEmpty(), profile.photo.orEmpty(), profile.pageId.orEmpty())
+                AccountProfile(profile.name.orEmpty(), profile.email.orEmpty(), profile.photo.orEmpty(),
+                    accountChannelId(profile.pageId, profile.email))
             }
         }
         val history = async { try { Result.success(history()) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { Result.failure(e) } }
@@ -358,3 +359,13 @@ class MediaShortsRepository(private val client: MediaClient, private val startId
 
     private companion object { const val INITIAL_CURSOR = "local:shorts-initial" }
 }
+
+/**
+ * The signed-in account's own channel. Only brand accounts carry a page id; a personal
+ * account's byline is its @handle, which the channel screen resolves. Blank when neither
+ * is known, so the account menu doesn't offer a channel it can't open (LiTube #390).
+ */
+internal fun accountChannelId(pageId: String?, byline: String?): String =
+    pageId?.takeIf { it.isNotBlank() }
+        ?: byline?.trim()?.takeIf { it.startsWith("@") && it.length in 2..100 && it.none(Char::isWhitespace) }
+        ?: ""

@@ -51,9 +51,11 @@ val accountMenuItems = accountMenuActions.map { MenuSheetItem(null, it.label, ta
 
 @Composable
 fun AccountMenuHeader(account: AccountProfile, onOpenChannel: () -> Unit) {
+    // The whole header opens your channel; the link line says so (LiTube #390).
+    val hasChannel = account.channelId.isNotBlank()
     Row(
         Modifier.fillMaxWidth().heightIn(min = 56.dp)
-            .clickable(role = Role.Button, onClick = onOpenChannel)
+            .then(if (hasChannel) Modifier.clickable(role = Role.Button, onClick = onOpenChannel) else Modifier)
             .testTag("account-menu-header")
             .padding(start = MenuSheetLayout.RowStart.dp, end = MenuSheetLayout.RowStart.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -66,6 +68,10 @@ fun AccountMenuHeader(account: AccountProfile, onOpenChannel: () -> Unit) {
         Column {
             AppText(account.name, size = 16, line = 22, weight = FontWeight.Medium)
             AppText(account.handle, size = 14, line = 20, color = DesignTokens.Secondary)
+            if (hasChannel) {
+                AppText(stringResource(R.string.ui_view_channel), size = 14, line = 20,
+                    color = DesignTokens.Link, modifier = Modifier.testTag("account-view-channel"))
+            }
         }
     }
 }
