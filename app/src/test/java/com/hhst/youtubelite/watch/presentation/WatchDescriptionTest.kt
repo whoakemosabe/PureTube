@@ -84,4 +84,13 @@ class WatchDescriptionTest {
     @Test fun emptyTextProducesNoSegments() {
         assertTrue(parseDescription("").isEmpty())
     }
+
+    @Test
+    fun ratiosAndVersesWithOneDigitAfterTheColonStayPlain() {
+        assertNull(timestampSeconds("16:9"))
+        assertNull(timestampSeconds("1:2:03"))
+        val segments = parseDescription("Shot in 16:9 and 4:3, chapter at 4:30.")
+        assertEquals(listOf(DescriptionSegment.Timestamp("4:30", 270L)),
+            segments.filterIsInstance<DescriptionSegment.Timestamp>())
+    }
 }

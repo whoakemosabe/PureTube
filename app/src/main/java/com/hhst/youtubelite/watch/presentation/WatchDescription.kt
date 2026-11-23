@@ -24,7 +24,9 @@ internal sealed interface DescriptionSegment {
 }
 
 private val urlPattern = Regex("""(?:https?://|www\.)[^\s<>"']+""", RegexOption.IGNORE_CASE)
-private val timestampPattern = Regex("""(?<![\d:])(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?![\d:])""")
+// Seconds and minutes after a colon take two digits, as on YouTube: "16:9" or "3:2" is a
+// ratio, not a time to jump to.
+private val timestampPattern = Regex("""(?<![\d:])(\d{1,2}):(\d{2})(?::(\d{2}))?(?![\d:])""")
 private fun linkText(value: String): String {
     var result = value
     while (result.isNotEmpty()) {
@@ -80,7 +82,7 @@ internal fun parseDescription(text: String): List<DescriptionSegment> {
  * so the total can never overflow.
  */
 internal fun timestampSeconds(value: String): Long? {
-    if (!Regex("""\d{1,2}:\d{1,2}(?::\d{1,2})?""").matches(value)) return null
+    if (!Regex("""\d{1,2}:\d{2}(?::\d{2})?""").matches(value)) return null
     val parts = value.split(':').map { it.toLongOrNull() ?: return null }
     val seconds = when (parts.size) {
         2 -> {
