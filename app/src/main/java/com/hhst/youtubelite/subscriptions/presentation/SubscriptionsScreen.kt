@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.hhst.youtubelite.R
 import com.hhst.youtubelite.home.domain.AppendState
 import com.hhst.youtubelite.home.domain.FeedItem
+import com.hhst.youtubelite.home.domain.watched
 import com.hhst.youtubelite.watch.domain.toProvisional
 import com.hhst.youtubelite.home.presentation.LoadingSpinner
 import com.hhst.youtubelite.home.presentation.PillButton
@@ -277,7 +278,10 @@ private fun SubscriptionAvatar(channel: SubscribedChannel, size: androidx.compos
 private fun SubscriptionsFeed(content: SubscriptionsContent.Feed, width: Float, gridState: androidx.compose.foundation.lazy.grid.LazyGridState, verification: com.hhst.youtubelite.core.VerificationRequired?, onAction: (SubscriptionsAction) -> Unit) {
     val compact = width < 600f
     val hidden = com.hhst.youtubelite.ui.design.LocalHideShorts.current
-    val visibleItems = remember(content.page.items, hidden) { content.page.items.filterNot { hidden && it.short } }
+    val hideWatched = com.hhst.youtubelite.ui.design.LocalHideWatched.current
+    val visibleItems = remember(content.page.items, hidden, hideWatched) {
+        content.page.items.filterNot { hidden && it.short || hideWatched && it.watched() }
+    }
     val nearEnd by remember(gridState, visibleItems.size) { derivedStateOf {
         (gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1) >= visibleItems.size - 2
     } }

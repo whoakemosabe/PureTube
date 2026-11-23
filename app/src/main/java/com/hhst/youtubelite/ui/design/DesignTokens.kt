@@ -88,7 +88,8 @@ fun AppTheme(content: @Composable () -> Unit) {
         onPauseOrDispose { }
     }
     CompositionLocalProvider(LocalAppColors provides appPalette(darkTheme, com.hhst.youtubelite.ui.theme.AppAppearance.grey),
-        LocalMotionScale provides motion.value, LocalHideShorts provides rememberHideShorts()) {
+        LocalMotionScale provides motion.value, LocalHideShorts provides rememberHideShorts(),
+        LocalHideWatched provides rememberHideWatched()) {
         com.hhst.youtubelite.ui.theme.AppTheme(darkTheme = darkTheme) { content() }
     }
 }

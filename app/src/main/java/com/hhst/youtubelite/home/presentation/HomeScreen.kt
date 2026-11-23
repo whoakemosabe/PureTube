@@ -89,8 +89,10 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
                 AppMotion.scrollResponse(LocalMotionScale.current), label = "header")
             val density = LocalDensity.current.density
             val feed = state.content as? HomeContent.Feed
-            val visibleItems = remember(feed?.page?.items, hideShorts) {
-                feed?.page?.items.orEmpty().filterNot { hideShorts && (it is FeedItem.Shorts || it is FeedItem.Video && it.short) }
+            val hideWatched = com.hhst.youtubelite.ui.design.LocalHideWatched.current
+            val visibleItems = remember(feed?.page?.items, hideShorts, hideWatched) {
+                feed?.page?.items.orEmpty().filterNot { hideShorts && (it is FeedItem.Shorts || it is FeedItem.Video && it.short) ||
+                    hideWatched && it is FeedItem.Video && it.watched() }
             }
             val warmCandidate by rememberUpdatedState(onWarmCandidate)
             val homeLifecycle = LocalLifecycleOwner.current.lifecycle

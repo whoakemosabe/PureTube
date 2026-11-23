@@ -147,6 +147,8 @@ private fun GeneralSettings(
     SettingsGroup(stringResource(R.string.settings_group_feed))
     SettingsToggle(stringResource(R.string.settings_hide_shorts), stringResource(R.string.settings_hide_shorts_summary),
         PreferenceKeys.ENABLE_HIDE_SHORTS, preferences, onToggle)
+    SettingsToggle(stringResource(R.string.settings_hide_watched), stringResource(R.string.settings_hide_watched_summary),
+        PreferenceKeys.ENABLE_HIDE_WATCHED, preferences, onToggle)
     SettingsGroup(stringResource(R.string.settings_group_privacy))
     SettingsToggle(stringResource(R.string.settings_private_browsing), stringResource(R.string.settings_private_browsing_summary),
         PreferenceKeys.PRIVATE_BROWSING, preferences, onToggle)

@@ -453,6 +453,8 @@
     <string name="settings_language_system">System default</string>
     <string name="settings_hide_shorts">Hide Shorts</string>
     <string name="settings_hide_shorts_summary">Remove Shorts shelves from the feed</string>
+    <string name="settings_hide_watched">Hide watched videos</string>
+    <string name="settings_hide_watched_summary">Leave videos you finished out of Home and Subscriptions</string>
     <string name="settings_private_browsing">Private browsing</string>
     <string name="settings_private_browsing_summary">Don\'t send watch progress or save local history</string>
     <string name="settings_data_saver">Data saver</string>

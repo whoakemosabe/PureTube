@@ -12,15 +12,23 @@ import com.hhst.youtubelite.extension.PreferenceKeys
 import org.koin.core.context.GlobalContext
 
 val LocalHideShorts = staticCompositionLocalOf { false }
+/** Feeds drop videos watched to the end (LiTube #277). */
+val LocalHideWatched = staticCompositionLocalOf { false }
 
 @Composable
-internal fun rememberHideShorts(): Boolean {
+internal fun rememberHideShorts(): Boolean = rememberFeedPreference(PreferenceKeys.ENABLE_HIDE_SHORTS)
+
+@Composable
+internal fun rememberHideWatched(): Boolean = rememberFeedPreference(PreferenceKeys.ENABLE_HIDE_WATCHED)
+
+@Composable
+private fun rememberFeedPreference(preference: String): Boolean {
     val manager = remember { GlobalContext.getOrNull()?.getOrNull<ExtensionManager>() }
-    var hidden by remember(manager) { mutableStateOf(manager?.isEnabled(PreferenceKeys.ENABLE_HIDE_SHORTS) == true) }
+    var hidden by remember(manager) { mutableStateOf(manager?.isEnabled(preference) == true) }
     DisposableEffect(manager) {
         val listener: (String) -> Unit = { key ->
-            if (key == PreferenceKeys.ENABLE_HIDE_SHORTS || key == "*")
-                hidden = manager?.isEnabled(PreferenceKeys.ENABLE_HIDE_SHORTS) == true
+            if (key == preference || key == "*")
+                hidden = manager?.isEnabled(preference) == true
         }
         manager?.addOnChangedListener(listener)
         listener("*")

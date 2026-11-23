@@ -237,3 +237,7 @@ object HomeLayout {
         else (width - 16f).coerceAtLeast(0f)
     val chips = listOf("All", "Music", "Mixes", "Gaming", "Live", "Nature", "Podcasts", "Recently uploaded", "New to you")
 }
+
+/** Watched to the end, or within the last tenth (credits, end screens). */
+const val WATCHED_FRACTION = 0.9f
+fun FeedItem.Video.watched(): Boolean = (progress ?: 0f) >= WATCHED_FRACTION
