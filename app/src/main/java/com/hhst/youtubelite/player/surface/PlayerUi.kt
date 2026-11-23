@@ -86,7 +86,18 @@ object PlayerUi {
     const val ZOOM_RESET_BOTTOM_DP = 80
     const val TRACK_CHIP_GAP_DP = 8
 
-    val SpeedChoices = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 3f)
+    val SpeedChoices = listOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f)
+    const val SPEED_MIN = 0.25f
+    const val SPEED_MAX = 3f
+
+    /**
+     * Fine speed step for the speed dialog's - and + buttons (LiTube #374): 0.05x, snapped to
+     * that grid so float steps never drift, inside the range the engine plays.
+     */
+    fun stepSpeed(speed: Float, faster: Boolean): Float {
+        val steps = kotlin.math.round(speed * 20f).toInt() + if (faster) 1 else -1
+        return (steps / 20f).coerceIn(SPEED_MIN, SPEED_MAX)
+    }
 
     /** Player metadata stays readable above the video without extra font padding. */
     val TitleStyle = TextStyle(

@@ -4,6 +4,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Column
@@ -65,9 +69,11 @@ internal fun <T> OptionDialog(
     onDismiss: () -> Unit,
     fullscreen: Boolean = false,
     tag: String = "player-dialog-options",
+    header: (@Composable () -> Unit)? = null,
 ) {
     val haptic = com.hhst.youtubelite.ui.design.rememberHapticAction()
     PlayerModalDialog(onDismiss, fullscreen, tag) {
+        header?.invoke()
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
             rows.forEach { row ->
                 val selectedRow = row.value == selected
@@ -192,4 +198,33 @@ private fun InfoLine(label: String, value: String) {
             lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurface)
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+}
+
+/** The speed dialog's fine control: - and + step 0.05x around the current speed (LiTube #374). */
+@Composable
+internal fun SpeedStepper(speed: Float, onSpeed: (Float) -> Unit) {
+    val haptic = com.hhst.youtubelite.ui.design.rememberHapticAction()
+    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp).testTag("player-speed-stepper"),
+        verticalAlignment = Alignment.CenterVertically) {
+        SpeedStepButton("\u2212", stringResource(R.string.player_speed_slower), speed > PlayerUi.SPEED_MIN) {
+            haptic(); onSpeed(PlayerUi.stepSpeed(speed, faster = false))
+        }
+        Text(PlayerUi.speedLabel(speed), Modifier.weight(1f), fontSize = 16.sp, lineHeight = 22.sp,
+            fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface)
+        SpeedStepButton("+", stringResource(R.string.player_speed_faster), speed < PlayerUi.SPEED_MAX) {
+            haptic(); onSpeed(PlayerUi.stepSpeed(speed, faster = true))
+        }
+    }
+    HorizontalDivider()
+}
+
+@Composable
+private fun SpeedStepButton(symbol: String, description: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(Modifier.size(48.dp).clip(CircleShape)
+        .clickable(enabled = enabled, role = Role.Button, onClickLabel = description, onClick = onClick)
+        .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center) {
+        Text(symbol, fontSize = 22.sp, lineHeight = 24.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.38f))
+    }
 }

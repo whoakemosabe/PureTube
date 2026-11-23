@@ -258,6 +258,7 @@ fun PlayerDialogHost(
             onDismiss = onDismiss,
             fullscreen = state.fullscreen && !state.mini,
             tag = "player-dialog-speed",
+            header = { SpeedStepper(state.speed, callbacks::onSpeed) },
         )
         PlayerDialog.Resize -> ResizeDialog(
             selected = state.resizeMode,

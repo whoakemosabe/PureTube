@@ -195,6 +195,20 @@ class PlayerUiTest {
     }
 
     @Test
+    fun speedStepsByFiveHundredthsInsideThePlayableRange() {
+        // LiTube #374: speeds between the presets.
+        assertEquals(1.05f, PlayerUi.stepSpeed(1f, faster = true), 0f)
+        assertEquals(0.95f, PlayerUi.stepSpeed(1f, faster = false), 0f)
+        assertEquals("1.05x", PlayerUi.speedLabel(PlayerUi.stepSpeed(1f, faster = true)))
+        var speed = 1f
+        repeat(4) { speed = PlayerUi.stepSpeed(speed, faster = true) }
+        assertEquals(1.2f, speed, 0f)
+        assertEquals(PlayerUi.SPEED_MAX, PlayerUi.stepSpeed(3f, faster = true), 0f)
+        assertEquals(PlayerUi.SPEED_MIN, PlayerUi.stepSpeed(0.25f, faster = false), 0f)
+        assertTrue(0.25f in PlayerUi.SpeedChoices)
+    }
+
+    @Test
     fun lockedControlsFadeEvenWhilePaused() {
         assertTrue(PlayerUi.controlsAutoHide(locked = true, isPlaying = false))
         assertTrue(PlayerUi.controlsAutoHide(locked = false, isPlaying = true))

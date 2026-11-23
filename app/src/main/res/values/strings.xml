@@ -338,6 +338,8 @@
     <string name="info_audio_decoder">Audio decoder</string>
     <string name="info_dropped_frames">Dropped frames / total</string>
     <string name="info_playback_speed">Playback speed</string>
+    <string name="player_speed_slower">Slower</string>
+    <string name="player_speed_faster">Faster</string>
     <string name="info_buffer_state">Playback / buffering</string>
     <string name="info_first_frame">First frame time</string>
     <string name="gallery_zoom">Zoom in</string>
