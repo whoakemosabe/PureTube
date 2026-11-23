@@ -63,7 +63,7 @@ object UpdateWatch {
      * or scrolling the Home banner away used to cancel them midway, which left the state
      * stuck on Checking or Downloading with nothing running.
      */
-    private val work = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val work by lazy { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
 
     /** Seams for tests; the real ones talk to GitHub. */
     internal var checker: suspend (Context) -> Updater.Check = { Updater.check(it) }
@@ -131,13 +131,29 @@ object UpdateWatch {
     private suspend fun check(context: Context, background: Boolean, force: Boolean = false): Updater.Release? {
         val p = prefs(context)
         val now = System.currentTimeMillis()
-        val every = if (background) BACKGROUND_EVERY else OPEN_EVERY
-        if (!force && now - p.getLong("last_check", 0L) < every) return null
-        p.edit().putLong("last_check", now).apply()
+        if (!force && !checkDue(now, p.getLong("last_check", 0L), background)) return null
         return when (val r = checker(context)) {
-            is Updater.Check.Available -> r.release.also { remember(context, it) }
-            Updater.Check.UpToDate -> null.also { remember(context, null) }
+            // Only an answer counts as checked: a failed ask (offline, GitHub busy) tries again next time.
+            is Updater.Check.Available -> r.release.also { p.edit().putLong("last_check", now).apply(); remember(context, it) }
+            Updater.Check.UpToDate -> null.also { p.edit().putLong("last_check", now).apply(); remember(context, null) }
             is Updater.Check.Failed -> null
+        }
+    }
+
+    internal fun checkDue(now: Long, lastAnswered: Long, background: Boolean): Boolean =
+        now - lastAnswered >= if (background) BACKGROUND_EVERY else OPEN_EVERY
+
+    private val homeCheckRunning = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Home coming to the front asks GitHub if due. App start alone was not enough: background
+     * play keeps the process alive for days, so a release after the last start never showed.
+     */
+    fun onHomeShown(context: Context) {
+        val app = context.applicationContext
+        if (!homeCheckRunning.compareAndSet(false, true)) return
+        scope.launch {
+            try { runCatching { checkAndNotify(app, background = false) } } finally { homeCheckRunning.set(false) }
         }
     }
 

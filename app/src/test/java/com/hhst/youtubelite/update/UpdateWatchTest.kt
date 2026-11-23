@@ -54,3 +54,17 @@ class UpdateWatchTest {
         assertTrue(UpdateWatch.ui is UpdateUi.Error)
     }
 }
+
+class UpdateCheckScheduleTest {
+    private val minute = 60_000L
+
+    @Test fun openingHomeAsksAgainAfterTenMinutes() {
+        assertTrue(UpdateWatch.checkDue(now = 11 * minute, lastAnswered = 0, background = false))
+        org.junit.Assert.assertFalse(UpdateWatch.checkDue(now = 9 * minute, lastAnswered = 0, background = false))
+    }
+
+    @Test fun theBackgroundCheckWaitsSixHours() {
+        org.junit.Assert.assertFalse(UpdateWatch.checkDue(now = 5 * 60 * minute, lastAnswered = 0, background = true))
+        assertTrue(UpdateWatch.checkDue(now = 6 * 60 * minute, lastAnswered = 0, background = true))
+    }
+}

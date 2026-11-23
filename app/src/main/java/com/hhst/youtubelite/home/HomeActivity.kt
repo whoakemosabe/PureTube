@@ -230,6 +230,8 @@ class HomeActivity : com.hhst.youtubelite.ui.ContentActivity() {
         }
         refreshHomeSession()
         homeViewModel.applyCachedAvatars()
+        // The update bar at the top of Home: ask GitHub on every return, at most every 10 minutes.
+        com.hhst.youtubelite.update.UpdateWatch.onHomeShown(this)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
