@@ -21,7 +21,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.core.content.FileProvider
-import androidx.lifecycle.lifecycleScope
 import com.hhst.youtubelite.R
 import com.hhst.youtubelite.diagnostics.AppLog
 import com.hhst.youtubelite.diagnostics.DiagnosticOutcome
@@ -97,12 +96,12 @@ class AboutActivity : ComponentActivity() {
                 else -> null
             }
             UpdateDialog(update, UpdateWatch.progress,
-                onMain = { scope.launch { UpdateWatch.tap(this@AboutActivity) } },
+                onMain = { UpdateWatch.tap(this@AboutActivity) },
                 onDismiss = { UpdateWatch.notNow() })
             AboutScreen(applicationInfo.loadLabel(packageManager).toString(), version, { finish() },
                 busy || update is UpdateUi.Checking || update is UpdateUi.Downloading, updateStatus ?: status,
                 onSource = { openUrl(SOURCE) },
-                onUpdate = { scope.launch { UpdateWatch.checkOnly(this@AboutActivity) } },
+                onUpdate = { UpdateWatch.checkOnly(this@AboutActivity) },
                 onRelease = { openUrl(Updater.RELEASES_URL) },
                 updateProgress = UpdateWatch.progress.takeIf { update is UpdateUi.Downloading },
                 onClear = { action("clear_cache") {
@@ -176,7 +175,7 @@ class AboutActivity : ComponentActivity() {
     private fun openUpdateFrom(intent: Intent?) {
         if (intent?.getBooleanExtra(UpdateWatch.EXTRA_OPEN, false) != true) return
         intent.removeExtra(UpdateWatch.EXTRA_OPEN)
-        lifecycleScope.launch { UpdateWatch.checkOnly(this@AboutActivity) }
+        UpdateWatch.checkOnly(this@AboutActivity)
     }
 
     private fun openUrl(url: String) {

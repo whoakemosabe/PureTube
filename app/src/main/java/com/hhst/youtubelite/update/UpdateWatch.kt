@@ -58,6 +58,17 @@ object UpdateWatch {
     const val EXTRA_OPEN = "puretube.open_update"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /**
+     * Checks and downloads the user starts run here, not in the screen's scope: leaving About
+     * or scrolling the Home banner away used to cancel them midway, which left the state
+     * stuck on Checking or Downloading with nothing running.
+     */
+    private val work = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    /** Seams for tests; the real ones talk to GitHub. */
+    internal var checker: suspend (Context) -> Updater.Check = { Updater.check(it) }
+    internal var downloader: suspend (Context, Updater.Release, (Float) -> Unit) -> File =
+        { c, r, p -> Updater.download(c, r, p) }
 
     var ui by mutableStateOf<UpdateUi>(UpdateUi.Idle)
     var progress by mutableFloatStateOf(0f)
@@ -105,10 +116,12 @@ object UpdateWatch {
      * A tap on the banner opens the What's new window with the changelog, Download and its
      * progress bar. A background check only knew the version, so it asks GitHub first.
      */
-    suspend fun bannerTap(context: Context) {
+    fun bannerTap(context: Context) {
+        val app = context.applicationContext
         whatsNewOpen = true
-        if (ui !is UpdateUi.Available && ui !is UpdateUi.Downloading && ui !is UpdateUi.Ready) {
-            checkOnly(context)
+        if (ui is UpdateUi.Available || ui is UpdateUi.Downloading || ui is UpdateUi.Ready) return
+        work.launch {
+            runCheck(app)
             // Up to date or offline: nothing to show; the banner carries the error line.
             if (ui !is UpdateUi.Available) whatsNewOpen = false
         }
@@ -121,7 +134,7 @@ object UpdateWatch {
         val every = if (background) BACKGROUND_EVERY else OPEN_EVERY
         if (!force && now - p.getLong("last_check", 0L) < every) return null
         p.edit().putLong("last_check", now).apply()
-        return when (val r = Updater.check(context)) {
+        return when (val r = checker(context)) {
             is Updater.Check.Available -> r.release.also { remember(context, it) }
             Updater.Check.UpToDate -> null.also { remember(context, null) }
             is Updater.Check.Failed -> null
@@ -138,10 +151,15 @@ object UpdateWatch {
     }
 
     /** About → Check for updates: only checks. A newer version opens the What's new window. */
-    suspend fun checkOnly(context: Context) {
+    fun checkOnly(context: Context) {
+        val app = context.applicationContext
+        work.launch { runCheck(app) }
+    }
+
+    private suspend fun runCheck(context: Context) {
         if (ui is UpdateUi.Checking || ui is UpdateUi.Downloading) return
         ui = UpdateUi.Checking
-        ui = when (val r = Updater.check(context)) {
+        ui = when (val r = runCatching { checker(context) }.getOrElse { Updater.Check.Failed("Couldn't reach GitHub. Try again.") }) {
             is Updater.Check.Available -> {
                 remember(context, r.release)
                 UpdateUi.Available(r.release)
@@ -164,17 +182,18 @@ object UpdateWatch {
         ui = UpdateUi.Downloading(release)
         progress = 0f
         ui = try {
-            UpdateUi.Ready(Updater.download(context, release) { progress = it }, release)
+            UpdateUi.Ready(downloader(context, release) { progress = it }, release)
         } catch (e: Exception) {
             UpdateUi.Error("Download failed. Tap Check for updates to try again.")
         }
     }
 
     /** The window's main button: Download when available, Install once downloaded. */
-    suspend fun tap(context: Context) {
+    fun tap(context: Context) {
+        val app = context.applicationContext
         when (val st = ui) {
-            is UpdateUi.Available -> download(context, st.release)
-            is UpdateUi.Ready -> if (!Updater.install(context, st.file)) {
+            is UpdateUi.Available -> work.launch { download(app, st.release) }
+            is UpdateUi.Ready -> if (!Updater.install(app, st.file)) {
                 ui = st.copy(note = "Allow PureTube to install updates, then tap Install again.")
             }
             else -> {}

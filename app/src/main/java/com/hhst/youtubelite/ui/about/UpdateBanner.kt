@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,7 +33,6 @@ import com.hhst.youtubelite.ui.design.AppText
 import com.hhst.youtubelite.ui.design.DesignTokens
 import com.hhst.youtubelite.update.UpdateUi
 import com.hhst.youtubelite.update.UpdateWatch
-import kotlinx.coroutines.launch
 
 /** What the banner says and whether it shows, from the updater's state; pure so tests pin it. */
 internal data class UpdateBannerState(val version: String, val detail: String, val action: String?, val progress: Float?)
@@ -62,15 +60,14 @@ internal fun updateBannerState(waiting: String?, hidden: String?, ui: UpdateUi, 
 @Composable
 fun UpdateBanner(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val state = updateBannerState(UpdateWatch.waitingVersion, UpdateWatch.bannerHidden, UpdateWatch.ui, UpdateWatch.progress)
     // The window the banner opens; it carries the download's progress bar too.
     if (UpdateWatch.whatsNewOpen) UpdateDialog(UpdateWatch.ui, UpdateWatch.progress,
-        onMain = { scope.launch { UpdateWatch.tap(context) } },
+        onMain = { UpdateWatch.tap(context) },
         onDismiss = { UpdateWatch.notNow() })
     AnimatedVisibility(state != null, modifier, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
         val shown = state ?: return@AnimatedVisibility
-        val act: () -> Unit = { scope.launch { UpdateWatch.bannerTap(context) } }
+        val act: () -> Unit = { UpdateWatch.bannerTap(context) }
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
             .clip(RoundedCornerShape(12.dp)).background(DesignTokens.Surface)
             .clickable(enabled = shown.action != null, role = Role.Button, onClick = act)
