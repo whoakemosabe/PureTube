@@ -27,7 +27,10 @@ sealed interface ContentLink {
         fun parse(value: String): ContentLink? = runCatching {
             val uri = URI(value)
             val host = uri.host?.lowercase() ?: return null
-            if (uri.scheme != "https" || uri.userInfo != null || uri.port !in setOf(-1, 443) ||
+            // Old descriptions and comments still carry http:// YouTube links. Only the ids are
+            // kept and the app opens them over https, so they stay in the app.
+            val port = when (uri.scheme?.lowercase()) { "https" -> setOf(-1, 443); "http" -> setOf(-1, 80); else -> return null }
+            if (uri.userInfo != null || uri.port !in port ||
                 host !in setOf("youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be")) return null
             val parts = uri.path.orEmpty().split('/').filter(String::isNotEmpty)
             val query = uri.rawQuery.orEmpty().split('&').mapNotNull {

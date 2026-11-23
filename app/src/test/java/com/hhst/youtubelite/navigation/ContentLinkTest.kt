@@ -27,4 +27,12 @@ class ContentLinkTest {
         assertEquals(0L, ContentLink.timestamp("0"))
     }
 
+
+    @Test
+    fun oldHttpYoutubeLinksStayInTheApp() {
+        assertEquals(ContentLink.Video("aqz-KE-bpKQ", 90), ContentLink.parse("http://www.youtube.com/watch?v=aqz-KE-bpKQ&t=90"))
+        assertEquals(ContentLink.Video("aqz-KE-bpKQ"), ContentLink.parse("http://youtu.be/aqz-KE-bpKQ"))
+        assertNull(ContentLink.parse("http://youtube.com:8080/watch?v=aqz-KE-bpKQ"))
+        assertNull(ContentLink.parse("ftp://youtube.com/watch?v=aqz-KE-bpKQ"))
+    }
 }
