@@ -910,6 +910,15 @@ class PlayerViewModel(
     }
 
     /**
+     * Forward inside the playlist, honoring Shuffle the way the queue does. Shuffle used to
+     * be ignored here, and at the end of a video it stopped playback altogether.
+     */
+    private fun playlistForward(): QueueItem? =
+        if (_uiState.value.loopMode == LoopMode.QUEUE_RANDOM)
+            playlistItems.filter { it.videoId != playbackQueueId() }.randomOrNull()
+        else playlistNeighbor(1)
+
+    /**
      * "Add to queue" while watching a video that is not itself queued: the video the user
      * just queued plays after this one. Without it the end of the video fell through to
      * related autoplay (or nothing, with autoplay off), as if the add never happened. Only
@@ -956,7 +965,7 @@ class PlayerViewModel(
                 LoopMode.QUEUE_RANDOM -> queue.random(id)
                 else -> queue.nextStrict(id)
             }
-            playlistActive && playlistItems.any { it.videoId == id } -> playlistNeighbor(1)
+            playlistActive && playlistItems.any { it.videoId == id } -> playlistForward()
             else -> handoffTarget(id)
         }
     }
@@ -1557,8 +1566,10 @@ class PlayerViewModel(
             startPlayback(target.url, keepMini = true)
             return
         }
-        if (!queueContext && playlistItems.any { it.videoId == current } && _uiState.value.loopMode == LoopMode.QUEUE_NEXT) {
-            playlistNeighbor(1)?.let { startPlayback(it.url, keepMini = true) }
+        val loop = _uiState.value.loopMode
+        if (!queueContext && playlistItems.any { it.videoId == current } &&
+            (loop == LoopMode.QUEUE_NEXT || loop == LoopMode.QUEUE_RANDOM)) {
+            playlistForward()?.let { startPlayback(it.url, keepMini = true) }
             return
         }
         if (!queueContext && !playlistActive && mediaKind == MediaKind.WATCH && _uiState.value.loopMode == LoopMode.QUEUE_NEXT) {

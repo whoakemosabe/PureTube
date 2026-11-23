@@ -220,6 +220,23 @@ class PlayerViewModelTest {
         assertTrue(viewModel.uiState.value.playlistItems.isEmpty())
     }
 
+    @Test fun shuffleInsideAPlaylistPlaysAnotherPlaylistVideoAtTheEnd() {
+        bindViewModel { "zzzzzzzzzzz" }
+        val ids = listOf(watchId, "bbbbbbbbbbb", "ccccccccccc")
+        viewModel.startPlaylist(ids.map { QueueItem(it, title = it) })
+        engine.settle(watchId)
+        viewModel.onLoopMode(LoopMode.QUEUE_RANDOM)
+        val before = engine.playCalls.size
+        engine.finish()
+        assertEquals(before + 1, engine.playCalls.size)
+        val picked = VideoId.parse(engine.playCalls.last())
+        assertTrue(picked in ids && picked != watchId)
+        engine.settle(picked!!)
+        viewModel.skipToNext()
+        val skipped = VideoId.parse(engine.playCalls.last())
+        assertTrue(skipped in ids && skipped != picked)
+    }
+
     @Test fun endOfVideoSleepStopsInsteadOfPlayingTheNextVideo() {
         bindViewModel { "ddddddddddd" }
         viewModel.openVideo(watchId)
