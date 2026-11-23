@@ -108,23 +108,26 @@ class MediaSearchNavigationTest {
         assertEquals(listOf(null, "Today|", "Today|Playlist"), f.params.takeLast(3))
     }
 
-    @Test fun oauthTokenRotationPreservesTheSameProfileButAnAnonymousAuthFallbackDoesNot() = runBlocking {
-        val f = Fixture(RequestContext(accountId = "account", accessToken = "old", visitor = "visitor"))
+    /**
+     * The TV client that serves OAuth sign-ins returns no filter panel, so filtered searches
+     * read the public WEB results while unfiltered ones stay signed in (LiTube #394).
+     */
+    @Test fun oauthFilteredSearchesReadPublicResultsAndUnfilteredOnesStaySignedIn() = runBlocking {
+        val f = Fixture(RequestContext(accountId = "account", accessToken = "token", visitor = "visitor"))
         f.repository.search("q", SearchFilters())
-        f.context = f.context.copy(accessToken = "fresh")
+        assertEquals("Bearer token", f.authorizations.last())
         f.repository.search("q", SearchFilters(type = SearchResultType.Playlists))
-        assertEquals(listOf(null, "|Playlist"), f.params)
-        assertEquals("Bearer fresh", f.authorizations.last())
+        assertEquals(listOf(null, null, "|Playlist"), f.params)
+        assertEquals(listOf("Bearer token", null, null), f.authorizations)
+        f.repository.next("q", SearchFilters(type = SearchResultType.Playlists), "cursor")
+        assertNull(f.authorizations.last())
+        f.repository.next("q", SearchFilters(), "cursor")
+        assertEquals("Bearer token", f.authorizations.last())
         val fallback = Fixture(f.context).apply { rejectFirst = true }
         fallback.repository.search("q", SearchFilters())
         fallback.repository.search("q", SearchFilters(type = SearchResultType.Playlists))
         assertEquals(listOf(null, null, null, "|Playlist"), fallback.params)
         assertNull(fallback.authorizations[1])
-        val intermediate = Fixture(f.context).apply { rejectFirst = true }
-        val today = SearchFilters(uploaded = SearchUploadDate.Today)
-        intermediate.repository.search("q", today)
-        intermediate.repository.search("q", today.copy(type = SearchResultType.Channels))
-        assertEquals(listOf(null, null, "Today|", null, "Today|", "Today|Channel"), intermediate.params)
     }
 
     companion object {

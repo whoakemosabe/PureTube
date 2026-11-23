@@ -190,7 +190,8 @@ class MediaSearchRepository(private val client: MediaClient,
             duration = result.duration.ifBlank { duration },
             age = result.age.ifBlank { details.published?.substringBefore('T').orEmpty() })
     }
-    override suspend fun search(query: String, filters: SearchFilters): SearchPage = client.read { context, http ->
+    override suspend fun search(query: String, filters: SearchFilters): SearchPage = client.read { signedInContext, http ->
+        val context = filterReadContext(signedInContext, filters)
         val identity = filterIdentity(context)
         val direct = filterPanel?.takeIf { it.identity == identity && it.query == query && now() - it.at in 0..60_000 }
             ?.transition(filters)
@@ -269,9 +270,20 @@ class MediaSearchRepository(private val client: MediaClient,
         SearchResultType.All -> null
     }
 
-    override suspend fun next(query: String, filters: SearchFilters, cursor: String): SearchPage = client.read { context, http ->
+    override suspend fun next(query: String, filters: SearchFilters, cursor: String): SearchPage = client.read { signedInContext, http ->
+        // A filtered list continues with the client that produced its cursor.
+        val context = filterReadContext(signedInContext, filters)
         loadSearch(query, context, continuation = cursor, http = http).requireValue().toSearchPage(query, context)
     }
+
+    /**
+     * An OAuth sign-in searches with the TV client, whose results carry no filter panel, so
+     * every filter failed with filter_unavailable (LiTube #394). Filtered searches read the
+     * public WEB results instead; unfiltered searches keep the signed-in results.
+     */
+    private fun filterReadContext(context: com.liskovsoft.youtubeapi.videoinfo.V2.RequestContext,
+        filters: SearchFilters): com.liskovsoft.youtubeapi.videoinfo.V2.RequestContext =
+        if (filters != SearchFilters()) context.forPublicWebRead() else context
 
     override suspend fun menu(result: SearchResult): SearchResult {
         val endpoint = result.menuEndpoint ?: return result

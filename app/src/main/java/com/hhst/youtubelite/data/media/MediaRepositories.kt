@@ -212,13 +212,16 @@ class MediaChannelRepository(private val client: MediaClient, private val posts:
 
     override val serverSearch: Boolean get() = true
 
-    override suspend fun searchVideos(channelId: String, query: String): ChannelSearchResults = client.read { context, http ->
+    // TV channel browses ignore the query (LiTube #396), so channel search reads WEB results.
+    override suspend fun searchVideos(channelId: String, query: String): ChannelSearchResults = client.read { signedIn, http ->
+        val context = signedIn.forPublicWebRead()
         val resolved = resolveChannel(channelId, context, http)
         val page = loadChannel(resolved, context, search = query.trim(), http = http).requireValue()
         ChannelSearchResults(page.page.items.filter { it.kind == "video" }.map { it.channelVideo() }, page.page.nextKey)
     }
 
-    override suspend fun searchNext(channelId: String, cursor: String): ChannelSearchResults = client.read { context, http ->
+    override suspend fun searchNext(channelId: String, cursor: String): ChannelSearchResults = client.read { signedIn, http ->
+        val context = signedIn.forPublicWebRead()
         val resolved = resolveChannel(channelId, context, http)
         val page = loadChannel(resolved, context, continuation = cursor, http = http).requireValue()
         ChannelSearchResults(page.page.items.filter { it.kind == "video" }.map { it.channelVideo() }, page.page.nextKey)
