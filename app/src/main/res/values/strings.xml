@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name">Puretube</string>
+    <string name="app_name">PureTube</string>
     <string name="player_audio_only">Listen in background</string>
     <string name="back_again_to_exit">Press Back again to exit</string>
     <string name="navigate_back">Back</string>
@@ -320,7 +320,7 @@
     <string name="about_working">Working…</string>
     <string name="about_operation_failed">Operation failed. Please try again.</string>
     <string name="about_source">Source code</string>
-    <string name="about_credits">Puretube is free software under the GNU GPL v3. It is based on LiTube by HydeYYHH, and plays videos with MediaServiceCore by yuliskov (from SmartTube).</string>
+    <string name="about_credits">PureTube is free software under the GNU GPL v3. It is based on LiTube by HydeYYHH, and plays videos with MediaServiceCore by yuliskov (from SmartTube).</string>
     <string name="about_check_update">Check for updates</string>
     <string name="about_releases">All releases and what\'s new</string>
     <string name="about_clear_cache">Clear cache</string>
@@ -410,8 +410,8 @@
     <string name="a11y_history_settings">History settings</string>
     <string name="a11y_send_message">Send message</string>
     <string name="a11y_explore">Explore</string>
-    <string name="a11y_puretube">Puretube</string>
-    <string name="a11y_puretube_home">Puretube Home</string>
+    <string name="a11y_puretube">PureTube</string>
+    <string name="a11y_puretube_home">PureTube Home</string>
     <string name="a11y_loading">Loading</string>
     <string name="a11y_add_comment">Add a comment</string>
     <string name="a11y_sort_comments">Sort comments</string>
@@ -433,7 +433,7 @@
     <string name="settings_notifications_summary">System notification access</string>
     <string name="settings_advanced">Advanced</string>
     <string name="settings_advanced_summary">Player, gestures, SponsorBlock and backup</string>
-    <string name="settings_about_title">About Puretube</string>
+    <string name="settings_about_title">About PureTube</string>
     <string name="settings_about_summary">Version, updates and diagnostics</string>
     <string name="settings_group_appearance">Appearance</string>
     <string name="settings_group_feed">Feed</string>
@@ -460,7 +460,7 @@
     <string name="settings_notifications_state_on">On</string>
     <string name="settings_notifications_state_off">Off</string>
     <string name="settings_open_system_settings">Open system settings</string>
-    <string name="settings_open_system_settings_summary">Android notification settings for Puretube</string>
+    <string name="settings_open_system_settings_summary">Android notification settings for PureTube</string>
     <string name="settings_state_on">On</string>
     <string name="settings_state_off">Off</string>
     <string name="cast_searching">Searching…</string>
@@ -495,6 +495,11 @@
     <string name="ui_sign_in_with_your_google_account">Sign in with your Google account</string>
     <string name="ui_open_in_browser">Open in browser</string>
     <string name="ui_copy_code">Copy code</string>
+    <string name="sign_in_code_copied">Code copied. Paste it on the page that opens.</string>
+    <string name="sign_in_expired_title">Signed out</string>
+    <string name="sign_in_expired_message">Google ended this sign-in, for example after a password change. Sign in again to see your subscriptions and library.</string>
+    <string name="sign_in_expired_action">Sign in</string>
+    <string name="sign_in_expired_later">Not now</string>
     <string name="ui_loading">Loading…</string>
     <string name="ui_couldn_t_load_more_shorts_tap_to_retry">Couldn\'t load more Shorts. Tap to retry.</string>
     <string name="ui_couldn_t_load_more_streams_tap_to_retry">Couldn\'t load more streams. Tap to retry.</string>

@@ -39,7 +39,7 @@ class SettingsActivity : com.hhst.youtubelite.ui.NativeActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(SystemBarStyle.light(Color.WHITE, Color.WHITE), SystemBarStyle.light(Color.WHITE, Color.WHITE))
+        enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT))
         val initial = SettingsPage.parse(intent.getStringExtra(EXTRA_PAGE))
         setAppContent {
             var page by rememberSaveable { mutableStateOf(initial.argument) }

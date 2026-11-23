@@ -27,6 +27,7 @@ class MediaSessionTest {
     }
     @After fun tearDown() {
         MediaSession.tokenFactory = { initial, client -> AccountToken(initial, client) }
+        MediaSession.acknowledgeExpiredSignIn()
         MediaSession.initialize(MemoryAuthStore())
     }
 
@@ -625,5 +626,34 @@ class MediaSessionTest {
         assertFalse(MediaSession.setAnonymousMode(false)) // already off
         assertTrue(MediaSession.setAnonymousMode(true))
         assertFalse(MediaSession.setAnonymousMode(true))
+    }
+
+    @Test fun aRevokedRefreshTokenSignsOutAndAsksOnce() {
+        MediaSession.tokenFactory = { initial, signInClient -> AccountToken(initial, signInClient, object : HttpClient {
+            override fun execute(request: HttpRequest) = HttpReply(400, """{"error":"invalid_grant"}""", emptyMap())
+        }) }
+        MediaSession.completeSignIn(client(), token(access = "", expires = 0), accounts())
+        assertTrue(MediaSession.signedIn())
+        val failure = assertThrows(MediaException::class.java) { MediaSession.freshContext() }
+        assertEquals("sign_in_expired", failure.failure.code)
+        assertFalse(MediaSession.signedIn())
+        assertTrue(MediaSession.signInExpired.value)
+        assertNull(store.read(MediaSession.KEY_REFRESH_TOKEN))
+        // The install's client stays for an ordinary revoked grant.
+        assertEquals("id", store.read(MediaSession.KEY_CLIENT_ID))
+        MediaSession.acknowledgeExpiredSignIn()
+        assertFalse(MediaSession.signInExpired.value)
+        // Signed out, the next read is anonymous instead of failing again.
+        assertNull(MediaSession.freshContext().accessToken)
+    }
+
+    @Test fun aTemporaryRefreshFailureKeepsTheSignIn() {
+        MediaSession.tokenFactory = { initial, signInClient -> AccountToken(initial, signInClient, object : HttpClient {
+            override fun execute(request: HttpRequest) = HttpReply(503, "", emptyMap())
+        }) }
+        MediaSession.completeSignIn(client(), token(access = "", expires = 0), accounts())
+        assertThrows(MediaException::class.java) { MediaSession.freshContext() }
+        assertTrue(MediaSession.signedIn())
+        assertFalse(MediaSession.signInExpired.value)
     }
 }

@@ -69,7 +69,7 @@ class PlaylistActivity : com.hhst.youtubelite.ui.ContentActivity() {
         super.onCreate(savedInstanceState)
         val sources = org.koin.java.KoinJavaComponent.getKoin().get<com.hhst.youtubelite.data.media.ContentRepositories>()
         val fixtures = com.hhst.youtubelite.data.media.ContentRepositories.fixtures(intent)
-        enableEdgeToEdge(SystemBarStyle.dark(0xFF2D4F72.toInt()), SystemBarStyle.light(Color.WHITE, Color.WHITE))
+        enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT))
         val playlistId = intent.getStringExtra(EXTRA_PLAYLIST_ID)
         if (playlistId.isNullOrBlank() && !fixtures) {
             // No identity and no fixture seam: rendering a default playlist would fabricate content.

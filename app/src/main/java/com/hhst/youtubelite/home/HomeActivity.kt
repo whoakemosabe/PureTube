@@ -101,7 +101,7 @@ class HomeActivity : com.hhst.youtubelite.ui.ContentActivity() {
         if (::homeViewModel.isInitialized) return
         val sources = org.koin.java.KoinJavaComponent.getKoin().get<com.hhst.youtubelite.data.media.ContentRepositories>()
         val fixtures = com.hhst.youtubelite.data.media.ContentRepositories.fixtures(intent)
-        enableEdgeToEdge(SystemBarStyle.light(Color.WHITE, Color.WHITE), SystemBarStyle.light(Color.WHITE, Color.WHITE))
+        enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT))
         val scenario = if (fixtures) HomeScenario.parse(intent.getStringExtra(EXTRA_SCENARIO)) else HomeScenario.Loading
         homeViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

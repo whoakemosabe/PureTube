@@ -6,7 +6,8 @@ import com.liskovsoft.youtubeapi.videoinfo.V2.RequestContext
 import com.liskovsoft.youtubeapi.videoinfo.V2.PlayerClient
 import com.liskovsoft.youtubeapi.videoinfo.V2.playerQuery
 
-private const val CONSENT_COOKIE = "SOCS=CAISEwgDEgk5NTA1MzE4OTQaAmVuIAEaBgiA7frSBg"
+/** YouTube's cookie-consent answer; without it, EU/EEA requests bounce to consent.youtube.com. */
+internal const val CONSENT_COOKIE = "SOCS=CAISEwgDEgk5NTA1MzE4OTQaAmVuIAEaBgiA7frSBg"
 
 internal fun anonymousHomeContext(context: RequestContext, http: HttpClient, verified: Boolean = false): RequestContext {
     if (context.signedIn || verified) return context

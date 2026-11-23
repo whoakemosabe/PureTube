@@ -38,15 +38,20 @@ class SignInViewModelTest {
         var completeError: Exception? = null
         var pollBlocks = false
         var pollCalls = 0
+        var codeCalls = 0
+        var polledCode: SignInCode? = null
+        var completeCancels = false
         var completed: AccessToken? = null
 
         override suspend fun loadCode(): SignInCode {
+            codeCalls++
             codeError?.let { throw it }
             return code
         }
 
         override suspend fun poll(code: SignInCode): AccessToken {
             pollCalls++
+            polledCode = code
             pollError?.let { throw it }
             if (pollBlocks) awaitCancellation()
             return AccessToken("access", "refresh", Long.MAX_VALUE)
@@ -54,6 +59,7 @@ class SignInViewModelTest {
 
         override suspend fun complete(token: AccessToken): List<Account> {
             completeError?.let { throw it }
+            if (completeCancels) throw kotlinx.coroutines.CancellationException("Session changed")
             completed = token
             return emptyList()
         }
@@ -114,5 +120,40 @@ class SignInViewModelTest {
         val state = vm.uiState.value
         assertTrue(state is SignInUiState.Error)
         assertTrue((state as SignInUiState.Error).message.contains("declined"))
+    }
+
+    @Test fun aCodeSavedBeforeProcessDeathIsResumedInsteadOfReplaced() = runTest {
+        val service = FakeSignInService().apply { pollBlocks = true }
+        val saved = androidx.lifecycle.SavedStateHandle()
+        val first = SignInViewModel(service, saved)
+        runCurrent()
+        first.viewModelScope.cancel()
+        // A new ViewModel over the same saved state stands in for the restored process.
+        val restored = SignInViewModel(service, saved)
+        runCurrent()
+        assertEquals(1, service.codeCalls)
+        assertEquals("device", service.polledCode?.deviceCode)
+        assertEquals("ABCD-EFGH", (restored.uiState.value as SignInUiState.Ready).userCode)
+        restored.viewModelScope.cancel()
+    }
+
+    @Test fun anExpiredSavedCodeIsDroppedForANewOne() = runTest {
+        val service = FakeSignInService().apply { pollBlocks = true }
+        val saved = androidx.lifecycle.SavedStateHandle(mapOf(
+            "sign_in:device_code" to "old", "sign_in:user_code" to "OLD-CODE",
+            "sign_in:verification_url" to "https://www.youtube.com/activate",
+            "sign_in:expires_at" to 1_000L, "sign_in:interval" to 5_000L))
+        val vm = SignInViewModel(service, saved, now = { 2_000L })
+        runCurrent()
+        assertEquals(1, service.codeCalls)
+        assertEquals("device", service.polledCode?.deviceCode)
+        vm.viewModelScope.cancel()
+    }
+
+    @Test fun aForeignCancellationWhileFinishingShowsAnErrorInsteadOfSpinning() = runTest {
+        val service = FakeSignInService().apply { completeCancels = true }
+        val vm = SignInViewModel(service)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value is SignInUiState.Error)
     }
 }

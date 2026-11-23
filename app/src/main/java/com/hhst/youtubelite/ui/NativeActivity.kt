@@ -8,6 +8,9 @@ import android.os.Bundle
 import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.lifecycleScope
+import com.hhst.youtubelite.ui.theme.appDialogContext
+import kotlinx.coroutines.launch
 import com.hhst.youtubelite.data.media.ContentRepositories
 import com.hhst.youtubelite.search.SearchResultsActivity
 import com.hhst.youtubelite.R
@@ -16,9 +19,12 @@ abstract class NativeActivity : ComponentActivity() {
     companion object {
         internal const val EXTRA_TAB_NAVIGATION = "navigation_tab"
         internal const val EXTRA_TAB_BACKWARD = "navigation_tab_backward"
-        internal fun tabAnimations(backwards: Boolean): Pair<Int, Int> = if (backwards)
-            R.anim.navigation_tab_backward_enter to R.anim.navigation_tab_backward_exit
-        else R.anim.navigation_tab_forward_enter to R.anim.navigation_tab_forward_exit
+        /**
+         * Tabs switch in place, with no window animation. Each tab is its own window with its
+         * own nav bar, so any slide or fade moves and flashes the bar along with the page.
+         */
+        @Suppress("UNUSED_PARAMETER")
+        internal fun tabAnimations(backwards: Boolean): Pair<Int, Int> = 0 to 0
     }
 
     private enum class NavigationAnimation { Detail, Tab, Instant }
@@ -143,12 +149,39 @@ abstract class NativeActivity : ComponentActivity() {
         // Live system-bar response to in-app appearance changes (Compose handles content).
         appearanceListener = com.hhst.youtubelite.ui.theme.AppAppearance.onChange { applySystemBarStyle() }
         applySystemBarStyle()
+        watchExpiredSignIn()
     }
 
     override fun onPause() {
         appearanceListener?.invoke()
         appearanceListener = null
+        expiredSignInWatch?.cancel()
+        expiredSignInWatch = null
         super.onPause()
+    }
+
+    private var expiredSignInWatch: kotlinx.coroutines.Job? = null
+    private var expiredSignInDialog: android.app.AlertDialog? = null
+
+    /** The screen in front tells the user once when Google ended the sign-in. */
+    private fun watchExpiredSignIn() {
+        if (ContentRepositories.fixtures(intent)) return
+        expiredSignInWatch?.cancel()
+        expiredSignInWatch = lifecycleScope.launch {
+            com.hhst.youtubelite.data.media.MediaSession.signInExpired.collect { expired ->
+                if (!expired || expiredSignInDialog?.isShowing == true) return@collect
+                com.hhst.youtubelite.data.media.MediaSession.acknowledgeExpiredSignIn()
+                expiredSignInDialog = android.app.AlertDialog.Builder(
+                    appDialogContext())
+                    .setTitle(R.string.sign_in_expired_title)
+                    .setMessage(R.string.sign_in_expired_message)
+                    .setPositiveButton(R.string.sign_in_expired_action) { _, _ ->
+                        com.hhst.youtubelite.account.SignInFlow.open(this@NativeActivity)
+                    }
+                    .setNegativeButton(R.string.sign_in_expired_later, null)
+                    .show()
+            }
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -169,6 +202,7 @@ abstract class NativeActivity : ComponentActivity() {
         window.statusBarColor = android.graphics.Color.BLACK
         window.navigationBarColor = if (dark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
     }
+
 
     private fun darkAppearance(): Boolean = com.hhst.youtubelite.ui.theme.AppAppearance.dark ?:
         (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==

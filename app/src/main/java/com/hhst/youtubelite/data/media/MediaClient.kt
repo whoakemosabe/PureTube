@@ -17,6 +17,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -165,6 +166,7 @@ class MediaClient private constructor(
                     "Bearer ${current.accessToken}" else value
                 builder.header(name, header)
             }
+            if (needsConsentCookie(request)) builder.header("Cookie", CONSENT_COOKIE)
             val bodyStarted = AtomicBoolean(false)
             val body = if (request.method == "POST") request.body.toRequestBody(
                 (request.headers.entries.firstOrNull { it.key.equals("Content-Type", true) }?.value
@@ -240,4 +242,16 @@ class MediaClient private constructor(
 /** Instrumentation opts into fixtures before Application creation; normal launches use the service. */
 object ContentSource {
     @Volatile var fixtures: Boolean = false
+}
+
+/**
+ * The Shorts feed's first page is read from the m.youtube.com/shorts web document without
+ * cookies. In the EU/EEA (Iceland included) YouTube answers that with a redirect to its
+ * consent page, which reads as a failed request because redirects are not followed, so the
+ * Shorts tab showed an error. The consent answer alone keeps that read on the document.
+ */
+internal fun needsConsentCookie(request: HttpRequest): Boolean {
+    if (request.method != "GET" || request.headers.keys.any { it.equals("Cookie", true) }) return false
+    val url = request.url.toHttpUrlOrNull() ?: return false
+    return url.host == "m.youtube.com" && (url.encodedPath == "/shorts" || url.encodedPath.startsWith("/shorts/"))
 }

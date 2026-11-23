@@ -64,7 +64,8 @@ class SignInServiceTest {
     }
 
     @Test fun profilesFillTheCommittedSession() = runBlocking {
-        val service = service(beforeProfiles = { assertTrue(MediaSession.signedIn()) })
+        // The session changes once, with the account chosen, never half signed in first.
+        val service = service(beforeProfiles = { assertFalse(MediaSession.signedIn()) })
         service.loadCode()
         val accounts = service.complete(AccessToken("access", "refresh", Long.MAX_VALUE))
         assertEquals("owner", accounts.single().id)
@@ -80,5 +81,33 @@ class SignInServiceTest {
         } catch (_: CancellationException) {
             assertFalse(MediaSession.signedIn())
         }
+    }
+
+    @Test fun aDroppedConnectionWhileWaitingKeepsTheSameCode() = runBlocking {
+        var polls = 0
+        val http = OkHttpClient.Builder().addInterceptor { chain ->
+            val request = chain.request()
+            polls++
+            if (polls == 1) throw java.net.SocketTimeoutException("network switched")
+            Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("test")
+                .body("""{"access_token":"access","refresh_token":"refresh","expires_in":3600}"""
+                    .toResponseBody("application/json".toMediaType())).build()
+        }.build()
+        val code = com.liskovsoft.youtubeapi.videoinfo.V2.SignInCode("device", "ABCD", "https://www.google.com/device",
+            System.currentTimeMillis() + 60_000, 1)
+        // No loadCode first: a code restored after process death resolves the stored client.
+        val token = MediaSignInService(http, store).poll(code)
+        assertEquals("access", token.accessToken)
+        assertEquals(2, polls)
+    }
+
+    @Test fun aDroppedConnectionAfterTheCodeExpiredStillFails() = runBlocking {
+        val http = OkHttpClient.Builder().addInterceptor { throw java.net.SocketTimeoutException("offline") }.build()
+        val code = com.liskovsoft.youtubeapi.videoinfo.V2.SignInCode("device", "ABCD", "https://www.google.com/device",
+            1_000, 1)
+        try {
+            MediaSignInService(http, store, now = { 2_000 }).poll(code)
+            fail("An expired code kept waiting")
+        } catch (_: com.hhst.youtubelite.data.media.MediaException) { }
     }
 }

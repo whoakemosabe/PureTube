@@ -79,7 +79,7 @@ class PostDetailActivity : com.hhst.youtubelite.ui.ContentActivity() {
         super.onCreate(savedInstanceState)
         val sources = org.koin.java.KoinJavaComponent.getKoin().get<com.hhst.youtubelite.data.media.ContentRepositories>()
         val fixtures = com.hhst.youtubelite.data.media.ContentRepositories.fixtures(intent)
-        enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.light(Color.WHITE, Color.WHITE))
+        enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT))
         val channelId = intent.getStringExtra(EXTRA_CHANNEL_ID)
         val postId = intent.getStringExtra(EXTRA_POST_ID)
         if (postId.isNullOrBlank() && !fixtures) {

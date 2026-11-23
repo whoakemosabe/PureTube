@@ -57,6 +57,8 @@ data class MediaSessionIdentity(val generation: Long, val signedIn: Boolean)
  * Never persist or log access tokens beyond the auth keys below, and never log tokens at all.
  */
 object MediaSession {
+    /** OAuth refresh errors that mean the saved sign-in is gone for good. */
+    private val DEAD_GRANT_CODES = setOf("invalid_grant", "invalid_client", "unauthorized_client")
     internal const val KEY_CLIENT_ID = "auth:client_id"
     internal const val KEY_CLIENT_SECRET = "auth:client_secret"
     internal const val KEY_DEVICE_ID = "auth:device_id"
@@ -223,7 +225,15 @@ object MediaSession {
         active ?: return current
         // The anonymous switch keeps credentials stored but must never attach them.
         if (anonymous) return current
-        val fresh = active.token().requireValue()
+        val refreshed = active.token()
+        if (!refreshed.ok && refreshed.error?.code?.let { it in DEAD_GRANT_CODES } == true) {
+            // Google revoked the saved sign-in (password change, security check, device removed).
+            // Retrying the same refresh token can never work, so sign out and ask once.
+            expire(active, clientRejected = refreshed.error?.code != "invalid_grant")
+            throw MediaException(com.liskovsoft.youtubeapi.videoinfo.V2.RequestError(
+                com.liskovsoft.youtubeapi.videoinfo.V2.RequestFailure.AUTH, "sign_in_expired"))
+        }
+        val fresh = refreshed.requireValue()
         return synchronized(lock) {
             if (token !== active || snapshot().generation != current.generation) {
                 throw MediaException(com.liskovsoft.youtubeapi.videoinfo.V2.RequestError(
@@ -246,8 +256,14 @@ object MediaSession {
         }
     }
 
-    fun completeSignIn(client: SignInClient, token: AccessToken, accounts: List<Account>) {
+    /**
+     * Commits a sign-in. With [expectedGeneration], it commits only if no sign-in, sign-out or
+     * account switch happened since that generation was read, and returns whether it did.
+     */
+    fun completeSignIn(client: SignInClient, token: AccessToken, accounts: List<Account>,
+        expectedGeneration: Long? = null): Boolean {
         synchronized(lock) {
+            if (expectedGeneration != null && snapshot().generation != expectedGeneration) return false
             persistedAccess = null
             this.client = client
             this.token = tokenFactory(token, client)
@@ -273,6 +289,7 @@ object MediaSession {
                 persistedAccess = token
             }
         }
+        return true
     }
 
     fun updateAccounts(accounts: List<Account>, expectedGeneration: Long): Boolean = synchronized(lock) {
@@ -294,6 +311,32 @@ object MediaSession {
         store?.write(KEY_ACCOUNTS, encodeAccounts(session.accounts()))
         changed()
         true
+    }
+
+    /**
+     * True after a revoked sign-in signed the app out on its own, until a screen tells the
+     * user and calls [acknowledgeExpiredSignIn]. A flag, not an event, so it waits for the
+     * next visible screen when the expiry happened in the background.
+     */
+    private val _signInExpired = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val signInExpired: kotlinx.coroutines.flow.StateFlow<Boolean> = _signInExpired
+
+    fun acknowledgeExpiredSignIn() { _signInExpired.value = false }
+
+    private fun expire(active: AccountToken, clientRejected: Boolean) {
+        synchronized(lock) {
+            // Only the token that failed may end the session; a newer sign-in stays.
+            if (token !== active) return
+            session.clear()
+            token = null
+            persistedAccess = null
+            client = null
+            wipeLocked()
+            // A rejected client id/secret is re-read from YouTube on the next sign-in.
+            if (clientRejected) store?.let { s -> listOf(KEY_CLIENT_ID, KEY_CLIENT_SECRET).forEach { s.write(it, null) } }
+            changed()
+        }
+        _signInExpired.value = true
     }
 
     fun signOut() {

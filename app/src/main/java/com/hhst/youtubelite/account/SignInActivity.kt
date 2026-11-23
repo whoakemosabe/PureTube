@@ -40,6 +40,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.core.net.toUri
 import com.hhst.youtubelite.account.data.MediaSignInService
 import com.hhst.youtubelite.account.domain.SignInAction
@@ -67,7 +68,9 @@ class SignInActivity : com.hhst.youtubelite.ui.NativeActivity() {
         val model = androidx.lifecycle.ViewModelProvider(this,
             object : androidx.lifecycle.ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                override fun <T : androidx.lifecycle.ViewModel> create(
+                    modelClass: Class<T>, extras: androidx.lifecycle.viewmodel.CreationExtras,
+                ): T {
                     require(modelClass == SignInViewModel::class.java)
                     val service = if (fixtures) object : com.hhst.youtubelite.account.data.SignInService {
                         override suspend fun loadCode() = com.liskovsoft.youtubeapi.videoinfo.V2.SignInCode(
@@ -78,7 +81,7 @@ class SignInActivity : com.hhst.youtubelite.ui.NativeActivity() {
                             emptyList<com.liskovsoft.youtubeapi.videoinfo.V2.Account>()
                     } else MediaSignInService(
                         org.koin.java.KoinJavaComponent.getKoin().get<okhttp3.OkHttpClient>(), PreferencesAuthStore(this@SignInActivity))
-                    return SignInViewModel(service) as T
+                    return SignInViewModel(service, extras.createSavedStateHandle()) as T
                 }
             })[SignInViewModel::class.java]
         setAppContent {
@@ -136,7 +139,14 @@ class SignInActivity : com.hhst.youtubelite.ui.NativeActivity() {
             Spacer(Modifier.height(24.dp))
             StepRow(1, stringResource(R.string.ui_open_1_s_on_your_phone_or_computer , state.verificationUrl.toUri().host ?: state.verificationUrl))
             Spacer(Modifier.height(8.dp))
-            Button(onClick = { openBrowser(state.verificationUrl) },
+            Button(onClick = {
+                    // The code is on the clipboard before the browser opens, ready to paste.
+                    clipboard.setText(AnnotatedString(state.userCode))
+                    // Android 13+ confirms clipboard copies itself.
+                    if (android.os.Build.VERSION.SDK_INT < 33) android.widget.Toast.makeText(this@SignInActivity,
+                        R.string.sign_in_code_copied, android.widget.Toast.LENGTH_SHORT).show()
+                    openBrowser(state.verificationUrl)
+                },
                 shape = CircleShape, colors = ButtonDefaults.buttonColors(containerColor = AppStyle.Action),
                 modifier = Modifier.testTag("signin-open")) {
                 AppText(stringResource(R.string.ui_open_in_browser), size = 14, line = 20, weight = FontWeight.Medium,
