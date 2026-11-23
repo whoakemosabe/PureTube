@@ -28,7 +28,11 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
@@ -217,8 +221,37 @@ private fun SpeedHoldOverlay(modifier: Modifier = Modifier) {
 @Composable
 private fun ScrubBubbleOverlay(state: GestureUi.Scrub, modifier: Modifier = Modifier) {
     val deltaLabel = PlayerUi.offsetHint(state.deltaMs)
-    GesturePill(modifier = modifier, shape = RoundedCornerShape(16.dp)) {
-        Text(deltaLabel, Modifier.testTag("player-seek-offset"), color = Color.White, fontSize = 14.sp)
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        state.frame?.let { StoryboardPreview(it) }
+        GesturePill(shape = RoundedCornerShape(16.dp)) {
+            Text(deltaLabel, Modifier.testTag("player-seek-offset"), color = Color.White, fontSize = 14.sp)
+        }
+    }
+}
+
+/**
+ * The frame at the drag target, cut from YouTube's preview sheet. The previous sheet stays
+ * up while the next one loads, so dragging across a sheet edge never flashes empty.
+ */
+@Composable
+private fun StoryboardPreview(frame: com.hhst.youtubelite.extractor.StoryboardFrame) {
+    var sheet by remember { mutableStateOf<Pair<String, android.graphics.Bitmap>?>(null) }
+    LaunchedEffect(frame.url) {
+        com.hhst.youtubelite.core.YoutubeThumbnail.await(frame.url)?.let { sheet = frame.url to it }
+    }
+    val loaded = sheet?.takeIf { it.first == frame.url }?.second ?: return
+    val image = remember(loaded) { loaded.asImageBitmap() }
+    val widthDp = 160.dp
+    val heightDp = widthDp * frame.height / frame.width.coerceAtLeast(1)
+    Canvas(Modifier.size(widthDp, heightDp).clip(RoundedCornerShape(8.dp))
+        .border(0.5.dp, PlayerUi.GlassStroke, RoundedCornerShape(8.dp)).testTag("player-seek-preview")) {
+        // The sheet may be decoded smaller than its declared size; cut by fractions.
+        val cellW = image.width / frame.columns.coerceAtLeast(1)
+        val cellH = image.height / frame.rows.coerceAtLeast(1)
+        drawImage(image,
+            srcOffset = androidx.compose.ui.unit.IntOffset(frame.column * cellW, frame.row * cellH),
+            srcSize = androidx.compose.ui.unit.IntSize(cellW, cellH),
+            dstSize = androidx.compose.ui.unit.IntSize(size.width.roundToInt(), size.height.roundToInt()))
     }
 }
 

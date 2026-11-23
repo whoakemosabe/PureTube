@@ -19,6 +19,8 @@ interface PlaybackHost {
                 diagnosticContext: DiagnosticContext): ExtractionContext
     fun resolve(videoId: String, context: ExtractionContext, demand: PlaybackDemand?, fresh: Boolean): MscPlayback.Resolved
     fun chapters(videoId: String, context: ExtractionContext): List<Chapter>
+    /** Chapters and seek-bar previews from one watch-page read. */
+    fun watchExtras(videoId: String, context: ExtractionContext): ChapterList = ChapterList(chapters(videoId, context))
     /** Clients to try last for this video (recent media refusals). */
     fun deferredClients(videoId: String): Set<StreamClient>
     fun cache(inner: Cache, context: () -> ExtractionContext): Cache
@@ -301,7 +303,7 @@ private class Inflight(
                     }
                 },
                 chapters = Promise(ChapterList(), scope, autostart = false) {
-                    it.resolveChapters(id, scopedCache) { requireHost().chapters(id, context()) }
+                    it.resolveChapters(id, scopedCache) { requireHost().watchExtras(id, context()) }
                 },
             )
             return Inflight(id, epoch, extraction, active, preparation, catalog,
@@ -342,13 +344,14 @@ internal fun Promise<Stream>.resolveStream(
 internal fun Promise<ChapterList>.resolveChapters(
     videoId: String,
     cache: Cache,
-    loaded: () -> List<Chapter>,
+    loaded: () -> ChapterList,
 ) {
     cache.getChapters(videoId)?.let { cached ->
         set { copyFrom(cached) }
         return
     }
-    set { chapters = loaded() }
+    val read = loaded()
+    set { copyFrom(read) }
     cache.putChapters(videoId, value)
 }
 

@@ -55,7 +55,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 sealed interface GestureUi {
     data class DoubleTapSeek(val forward: Boolean, val accumMs: Long) : GestureUi
     data object SpeedHold : GestureUi
-    data class Scrub(val targetMs: Long, val deltaMs: Long) : GestureUi
+    /** [frame]: the seek-bar preview picture at [targetMs], when YouTube sent previews. */
+    data class Scrub(val targetMs: Long, val deltaMs: Long,
+        val frame: com.hhst.youtubelite.extractor.StoryboardFrame? = null) : GestureUi
     data class EdgeSlider(val volume: Boolean, val percent: Int) : GestureUi
 }
 
@@ -120,6 +122,7 @@ data class PlayerUiState(
     val videoWidth: Int = 0,
     val videoHeight: Int = 0,
     val chapters: List<Chapter> = emptyList(),
+    val storyboard: com.hhst.youtubelite.extractor.StoryboardSpec? = null,
     /** Quality actually rendering; badge shows "Auto · 720p" when unpinned. */
     val activeQuality: String? = null,
     val subtitleEnabled: Boolean = false,
@@ -469,6 +472,7 @@ class PlayerViewModel(
                 videoWidth = s.videoWidth,
                 videoHeight = s.videoHeight,
                 chapters = s.chapters,
+                storyboard = s.storyboard,
 
                 videoItag = s.videoFormat?.itag,
 
@@ -792,7 +796,7 @@ class PlayerViewModel(
         val anchor = scrubAnchorMs
             ?: _positionState.longValue.also { scrubAnchorMs = it }
         val target = scrubTarget(anchor + offsetMs)
-        _gestureState.value = GestureUi.Scrub(targetMs = target, deltaMs = target - anchor)
+        _gestureState.value = GestureUi.Scrub(targetMs = target, deltaMs = target - anchor, frame = previewFrame(target))
     }
 
     override fun onScrubCommit(offsetMs: Long) {
@@ -814,13 +818,19 @@ class PlayerViewModel(
         }
         val target = scrubTarget(targetMs)
         val delta = target - _positionState.longValue
-        _gestureState.value = GestureUi.Scrub(targetMs = target, deltaMs = delta)
+        _gestureState.value = GestureUi.Scrub(targetMs = target, deltaMs = delta, frame = previewFrame(target))
         _uiState.update { it.copy(scrubbing = true) }
     }
 
     override fun onTimeBarCommit() {
         _gestureState.value = null
         _uiState.update { it.copy(scrubbing = false) }
+    }
+
+    private fun previewFrame(targetMs: Long): com.hhst.youtubelite.extractor.StoryboardFrame? {
+        val state = _uiState.value
+        if (state.durationMs <= 0) return null
+        return state.storyboard?.frame(targetMs, state.durationMs)
     }
 
     private fun scrubTarget(targetMs: Long): Long {

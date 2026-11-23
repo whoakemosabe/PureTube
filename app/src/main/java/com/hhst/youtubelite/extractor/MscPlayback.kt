@@ -134,15 +134,18 @@ class MscPlayback(
     private fun playbackCacheNamespace(context: ExtractionContext): String =
         "${context.session.key}:${context.session.networkGeneration}"
 
-    fun chapters(videoId: String, context: ExtractionContext): List<Chapter> {
+    fun chapters(videoId: String, context: ExtractionContext): List<Chapter> = watchExtras(videoId, context).chapters
+
+    fun watchExtras(videoId: String, context: ExtractionContext): ChapterList {
         withTask(Task(context, videoId)) {
             val requestContext = requestContext(context)
             val watched = sharedWatchReads?.read(videoId, requestContext, transport, fresh = false, load = { id, ctx, http -> loadWatch(id, ctx, http = http) })
                 ?: loadWatch(videoId, requestContext, http = transport)
-            if (!watched.ok) return emptyList()
-            return watched.value!!.chapters.map {
+            if (!watched.ok) return ChapterList()
+            val page = watched.value!!
+            return ChapterList(page.chapters.map {
                 Chapter(it.title.orEmpty(), (it.startMs / 1000).toInt(), it.thumbnail)
-            }
+            }, StoryboardSpec.from(page.storyboard))
         }
     }
 

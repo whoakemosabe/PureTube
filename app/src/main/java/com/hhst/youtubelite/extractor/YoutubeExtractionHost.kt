@@ -67,6 +67,7 @@ class YoutubeExtractionHost(
     override fun resolve(videoId: String, context: ExtractionContext, demand: PlaybackDemand?, fresh: Boolean): MscPlayback.Resolved =
         playback.resolve(videoId, context, demand, fresh, deferredClients(videoId))
     override fun chapters(videoId: String, context: ExtractionContext): List<Chapter> = playback.chapters(videoId, context)
+    override fun watchExtras(videoId: String, context: ExtractionContext): ChapterList = playback.watchExtras(videoId, context)
     override fun extractionDiagnostics(): String = diagnostics.export()
     override fun invalidateStream(videoId: String) = synchronized(streams) {
         streams.keys.removeAll { it.contains(":" + videoId + ":") }

@@ -521,6 +521,23 @@ class PlayerViewModelTest {
         assertEquals(listOf(watchUrl), engine.playCalls)
     }
 
+    @Test fun seekBarDragShowsThePreviewFrameAtTheTarget() {
+        bindViewModel()
+        viewModel.openVideo(watchId)
+        engine.settle(watchId, 0)
+        val spec = com.hhst.youtubelite.extractor.StoryboardSpec("https://i.ytimg.com/sb/x/storyboard3_L\$L/\$N.jpg",
+            listOf(com.hhst.youtubelite.extractor.StoryboardLevelSpec(160, 90, 100, 5, 5, 2_000, "M\$M", "s")))
+        engine.withStoryboard(spec, 200_000)
+        viewModel.onTimeBarPreview(60_000)
+        val scrub = viewModel.gestureState.value as GestureUi.Scrub
+        assertEquals(spec.frame(60_000, 200_000), scrub.frame)
+        assertTrue(scrub.frame != null)
+        viewModel.onTimeBarCommit()
+        engine.withStoryboard(null, 200_000)
+        viewModel.onTimeBarPreview(60_000)
+        assertEquals(null, (viewModel.gestureState.value as GestureUi.Scrub).frame)
+    }
+
     @Test fun reopeningPreservesPausedPlaybackAndPosition() {
         bindViewModel()
         viewModel.openVideo(watchId)
@@ -1135,6 +1152,10 @@ class PlayerViewModelTest {
         fun finish() {
             _snapshot.value = _snapshot.value.copy(ended = true, isPlaying = false)
             onEnded?.invoke()
+        }
+
+        fun withStoryboard(spec: com.hhst.youtubelite.extractor.StoryboardSpec?, durationMs: Long) {
+            _snapshot.value = _snapshot.value.copy(storyboard = spec, durationMs = durationMs)
         }
 
         fun settle(videoId: String, positionMs: Long = 0L) {

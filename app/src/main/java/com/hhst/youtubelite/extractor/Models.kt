@@ -135,9 +135,61 @@ class Stream(
 @Serializable
 class ChapterList(
     var chapters: List<Chapter> = emptyList(),
+    /** Seek-bar preview sheets from the same watch-page read; null when YouTube sent none. */
+    var storyboard: StoryboardSpec? = null,
 ) {
     fun copyFrom(other: ChapterList) {
         chapters = other.chapters
+        storyboard = other.storyboard
+    }
+}
+
+/** One storyboard size: sheets of [columns] x [rows] frames, a frame every [intervalMs]. */
+@Serializable
+data class StoryboardLevelSpec(
+    val width: Int,
+    val height: Int,
+    val count: Int,
+    val columns: Int,
+    val rows: Int,
+    val intervalMs: Long,
+    val name: String,
+    val signature: String,
+)
+
+/** One frame to show: a [width] x [height] cell at [column], [row] of the sheet at [url]. */
+data class StoryboardFrame(val url: String, val column: Int, val row: Int, val width: Int, val height: Int, val columns: Int, val rows: Int)
+
+/**
+ * YouTube's preview sheets for the seek bar. Frame math is MediaServiceCore's own
+ * Storyboard.tile, so the URL and cell rules live in one place.
+ */
+@Serializable
+data class StoryboardSpec(val template: String, val levels: List<StoryboardLevelSpec>) {
+    /** The largest level up to [maxWidth] wide (bigger sheets cost data for a small bubble). */
+    private fun levelIndex(maxWidth: Int = 320): Int =
+        levels.indices.filter { levels[it].width in 1..maxWidth && levels[it].count > 0 && levels[it].columns > 0 && levels[it].rows > 0 }
+            .maxByOrNull { levels[it].width } ?: -1
+
+    fun frame(positionMs: Long, durationMs: Long): StoryboardFrame? {
+        val index = levelIndex()
+        if (index < 0) return null
+        val level = levels[index]
+        val core = com.liskovsoft.youtubeapi.videoinfo.V2.Storyboard(template, levels.map {
+            com.liskovsoft.youtubeapi.videoinfo.V2.StoryboardLevel(it.width, it.height, it.count, it.columns, it.rows,
+                it.intervalMs, it.name, it.signature)
+        })
+        val tile = runCatching { core.tile(positionMs.coerceAtLeast(0), durationMs.coerceAtLeast(1), index) }.getOrNull() ?: return null
+        return StoryboardFrame(tile.url, tile.column, tile.row, tile.width, tile.height, level.columns, level.rows)
+    }
+
+    companion object {
+        fun from(core: com.liskovsoft.youtubeapi.videoinfo.V2.Storyboard?): StoryboardSpec? {
+            if (core == null || core.template.isBlank() || core.levels.isEmpty()) return null
+            return StoryboardSpec(core.template, core.levels.map {
+                StoryboardLevelSpec(it.width, it.height, it.count, it.columns, it.rows, it.intervalMs, it.name, it.signature)
+            })
+        }
     }
 }
 

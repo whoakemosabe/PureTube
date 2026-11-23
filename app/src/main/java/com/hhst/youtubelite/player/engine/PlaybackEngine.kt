@@ -150,6 +150,7 @@ data class PlaybackSnapshot(
     val videoWidth: Int = 0,
     val videoHeight: Int = 0,
     val chapters: List<Chapter> = emptyList(),
+    val storyboard: com.hhst.youtubelite.extractor.StoryboardSpec? = null,
     /** Quality actually rendering (from the selected track); null = unknown. */
     val activeQuality: String? = null,
     val subtitleEnabled: Boolean = false,
@@ -868,7 +869,7 @@ class PlaybackEngine(
                 durationMs = durationMs,
                 prepared = true,
                 error = null,
-                chapters = emptyList(),
+                chapters = emptyList(), storyboard = null,
                 videoFormat = source.videoFormat,
                 audioFormat = source.audioFormat,
             )
@@ -894,15 +895,15 @@ class PlaybackEngine(
             if (castPlayer != null) mediaReady.complete(Unit)
             chapterJob = scope.launch {
                 if (withTimeoutOrNull(15_000) { mediaReady.await(); true } != true) return@launch
-                val chapters = try {
-                    withContext(Dispatchers.IO) { extraction.chapters.await().chapters }
+                val extras = try {
+                    withContext(Dispatchers.IO) { extraction.chapters.await() }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
-                    emptyList()
+                    null
                 }
                 if (stillCurrent(generation) && attachedGeneration == generation) {
-                    _snapshot.value = _snapshot.value.copy(chapters = chapters)
+                    _snapshot.value = _snapshot.value.copy(chapters = extras?.chapters.orEmpty(), storyboard = extras?.storyboard)
                 }
             }
         } catch (t: Throwable) {
