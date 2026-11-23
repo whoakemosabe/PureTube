@@ -322,9 +322,15 @@ object PlayerUi {
         else -> R.string.segments
     }
 
-    /** Lock control lives on the fullscreen surface, never inside More. */
-    fun lockVisible(fullscreen: Boolean, mini: Boolean, locked: Boolean, controlsVisible: Boolean): Boolean =
-        fullscreen && !mini && (locked || controlsVisible)
+    /**
+     * Lock control lives on the fullscreen surface, never inside More. While locked it is the
+     * only control: a tap shows it and it fades with the controls timer (LiTube #376).
+     */
+    fun lockVisible(fullscreen: Boolean, mini: Boolean, controlsVisible: Boolean): Boolean =
+        fullscreen && !mini && controlsVisible
+
+    /** Locked controls fade whether or not the video is playing; unlocked ones only while it plays. */
+    fun controlsAutoHide(locked: Boolean, isPlaying: Boolean): Boolean = locked || isPlaying
 
     fun lockIconRes(locked: Boolean): Int =
         if (locked) R.drawable.ic_lock else R.drawable.ic_unlock

@@ -195,11 +195,19 @@ class PlayerUiTest {
     }
 
     @Test
+    fun lockedControlsFadeEvenWhilePaused() {
+        assertTrue(PlayerUi.controlsAutoHide(locked = true, isPlaying = false))
+        assertTrue(PlayerUi.controlsAutoHide(locked = false, isPlaying = true))
+        assertFalse(PlayerUi.controlsAutoHide(locked = false, isPlaying = false))
+    }
+
+    @Test
     fun lockVisible_fullscreenOnlyNeverInMini() {
-        assertTrue(PlayerUi.lockVisible(fullscreen = true, mini = false, locked = false, controlsVisible = true))
-        assertTrue(PlayerUi.lockVisible(fullscreen = true, mini = false, locked = true, controlsVisible = false))
-        assertFalse(PlayerUi.lockVisible(fullscreen = false, mini = false, locked = false, controlsVisible = true))
-        assertFalse(PlayerUi.lockVisible(fullscreen = true, mini = true, locked = false, controlsVisible = true))
+        assertTrue(PlayerUi.lockVisible(fullscreen = true, mini = false, controlsVisible = true))
+        // LiTube #376: once the controls timer fires, the lock control fades too.
+        assertFalse(PlayerUi.lockVisible(fullscreen = true, mini = false, controlsVisible = false))
+        assertFalse(PlayerUi.lockVisible(fullscreen = false, mini = false, controlsVisible = true))
+        assertFalse(PlayerUi.lockVisible(fullscreen = true, mini = true, controlsVisible = true))
     }
 
     @Test

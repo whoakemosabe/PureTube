@@ -209,12 +209,12 @@ fun PlayerSurface(
         state.controlsVisible, state.isPlaying, state.locked, state.scrubbing,
         sheet, dialog, menu, state.error, state.videoId, state.fullscreen, gestureActive,
     ) {
-        if (sheet != null || dialog != null || menu != null || state.locked ||
+        if (sheet != null || dialog != null || menu != null ||
             state.error != null || state.scrubbing || gestureActive
         ) {
             return@LaunchedEffect
         }
-        if (state.controlsVisible && state.isPlaying) {
+        if (state.controlsVisible && PlayerUi.controlsAutoHide(state.locked, state.isPlaying)) {
             delay(CONTROLS_AUTO_HIDE_MS)
             callbacks.onHideControls()
         }
@@ -530,14 +530,16 @@ fun PlayerSurface(
                         )
                     }
 
-                    if (PlayerUi.lockVisible(state.fullscreen, state.mini, state.locked, state.controlsVisible) && !pip) {
+                    AnimatedVisibility(
+                        visible = PlayerUi.lockVisible(state.fullscreen, state.mini, state.controlsVisible) && !pip,
+                        modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp),
+                        enter = fadeIn(tween(motionDuration(AppMotion.ChromeInMs, LocalMotionScale.current))),
+                        exit = fadeOut(tween(motionDuration(AppMotion.ChromeOutMs, LocalMotionScale.current))),
+                    ) {
                         LockAffordance(
                             locked = state.locked,
                             onToggle = callbacks::onLockToggle,
                             iconSize = chromeSizing.iconDp,
-                            modifier = Modifier
-                                .align(Alignment.CenterStart)
-                                .padding(start = 8.dp),
                         )
                     }
                     if (zoom.zoomed && state.fullscreen && !pip && !state.locked) {
@@ -663,8 +665,9 @@ private fun rememberGestureCallbacks(
     val haptic = com.hhst.youtubelite.ui.design.rememberHapticAction(com.hhst.youtubelite.core.HapticsController.Event.GESTURE_THRESHOLD)
     return remember(callbacks, locked, fullscreen, zoom, fullscreenSwipe, haptic) {
     if (locked) {
+        // Locked: a tap only shows or hides the lock control; every other gesture is ignored.
         object : GestureCallbacks {
-            override fun onTap() = Unit
+            override fun onTap() = callbacks.onToggleControls()
         }
     } else {
         ForwardingGestures(callbacks, fullscreen, zoom, fullscreenSwipe, haptic)

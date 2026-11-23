@@ -1528,7 +1528,8 @@ class PlayerViewModel(
             fullscreenRestoresEntryOrientation = restoreEntryOrientation, controlsVisible = true) }
 
     fun setLocked(locked: Boolean) =
-        _uiState.update { it.copy(locked = locked, controlsVisible = !locked) }
+        // Controls show on both: locking leaves the lock control up until the timer fades it.
+        _uiState.update { it.copy(locked = locked, controlsVisible = true) }
 
     fun pauseForBackground() = engine.pauseLocal()
 
