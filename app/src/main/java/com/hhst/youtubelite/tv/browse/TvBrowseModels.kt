@@ -20,6 +20,10 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
 
+    /** Bumped when the TV signs in or out, so screens drop rows read as the old identity. */
+    private val _identity = MutableStateFlow(0L)
+    val identity: StateFlow<Long> = _identity.asStateFlow()
+
     val signedIn: Boolean get() = source.signedIn
 
     private val lists = mutableMapOf<TvSection, TvListModel>()
@@ -28,6 +32,18 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
 
     var searchResults: TvListModel = TvListModel(scope) { TvPage(emptyList()) }
         private set
+
+    /** A sign-in or sign-out: every list belongs to the old account now. */
+    fun identityChanged(generation: Long) {
+        if (generation == _identity.value) return
+        lists.clear()
+        relatedFor = null
+        relatedList = null
+        _openPlaylist.value = null
+        _query.value = ""
+        searchResults = TvListModel(scope) { TvPage(emptyList()) }
+        _identity.value = generation
+    }
 
     fun select(section: TvSection) {
         if (_section.value == section) return

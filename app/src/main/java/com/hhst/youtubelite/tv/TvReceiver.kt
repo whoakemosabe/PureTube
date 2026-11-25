@@ -3,6 +3,8 @@ package com.hhst.youtubelite.tv
 import android.content.Context
 import com.hhst.youtubelite.player.engine.PlaybackApi
 import com.hhst.youtubelite.player.engine.PlaybackSnapshot
+import com.hhst.youtubelite.data.media.MediaSession
+import com.hhst.youtubelite.tvlink.TvAccountLink
 import com.hhst.youtubelite.tvlink.TvLinkMessage
 import com.hhst.youtubelite.tvlink.TvLinkStore
 import kotlin.math.abs
@@ -14,8 +16,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** The video the phone handed over, as the TV shows it. */
 data class TvNowPlaying(val videoId: String, val title: String, val author: String?)
@@ -50,6 +56,11 @@ internal class TvReceiver(context: Context, private val engine: PlaybackApi, sto
                 // State changes go out at once; position alone rides the once-a-second tick.
                 if (lastSent?.copy(positionMs = 0, bufferedMs = 0) != status.copy(positionMs = 0, bufferedMs = 0)) publish(status)
             }
+        }
+        // The phone shows who the TV is signed in as: tell it on connect and on every change.
+        running.launch {
+            combine(server.state.map { it.connectedPhone }.distinctUntilChanged(), MediaSession.changes) { phone, _ -> phone }
+                .collect { phone -> if (phone != null) server.send(TvAccountLink.info()) }
         }
         running.launch {
             while (isActive) {
@@ -101,7 +112,21 @@ internal class TvReceiver(context: Context, private val engine: PlaybackApi, sto
             is TvLinkMessage.Seek -> engine.seekTo(message.positionMs.coerceAtLeast(0))
             is TvLinkMessage.Speed -> engine.setSpeed(message.speed.coerceIn(MIN_SPEED, MAX_SPEED))
             TvLinkMessage.Stop -> stopPlayback()
+            is TvLinkMessage.SignIn -> signIn(message)
+            TvLinkMessage.SignOut -> MediaSession.signOut()
             else -> Unit
+        }
+    }
+
+    private fun signIn(message: TvLinkMessage.SignIn) {
+        if (!TvAccountLink.apply(message)) {
+            server.send(TvAccountLink.info())
+            return
+        }
+        // Mint the first access token now, so the TV counts as signed in and its rows reload.
+        scope?.launch {
+            withContext(Dispatchers.IO) { runCatching { MediaSession.freshContext() } }
+            server.send(TvAccountLink.info())
         }
     }
 

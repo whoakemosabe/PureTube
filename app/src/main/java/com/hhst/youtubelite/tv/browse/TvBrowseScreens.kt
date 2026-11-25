@@ -32,6 +32,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -88,10 +89,13 @@ private val TvSection.icon: AppIcon get() = when (this) {
 internal fun TvBrowse(
     browse: TvBrowseModels,
     link: TvLinkUiState,
+    account: String?,
     onPlay: (TvCard) -> Unit,
     onForgetPhones: () -> Unit,
+    onSignOut: () -> Unit,
     onExit: () -> Unit,
 ) {
+    val identity by browse.identity.collectAsStateWithLifecycle()
     val section by browse.section.collectAsStateWithLifecycle()
     val openPlaylist by browse.openPlaylist.collectAsStateWithLifecycle()
     var sidebarOpen by remember { mutableStateOf(false) }
@@ -115,13 +119,14 @@ internal fun TvBrowse(
                 .blur(blur)
                 .focusRequester(contentFocus),
         ) {
+          key(identity) {
             val playlist = openPlaylist
             if (playlist != null) {
                 CardGrid(playlist.title, playlist.list, onPlay = onPlay, onOpen = browse::openPlaylist)
             } else when (section) {
                 TvSection.Search -> SearchSection(browse, onPlay)
                 TvSection.Phone -> PhoneSection(link)
-                TvSection.Settings -> SettingsSection(link, onForgetPhones)
+                TvSection.Settings -> SettingsSection(link, account, onForgetPhones, onSignOut)
                 else -> {
                     val list = browse.list(section)
                     if (section.needsAccount && !browse.signedIn) {
@@ -131,6 +136,7 @@ internal fun TvBrowse(
                     }
                 }
             }
+          }
         }
         if (sidebarOpen) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)))
@@ -214,7 +220,7 @@ internal fun CardGrid(title: String, model: TvListModel, onPlay: (TvCard) -> Uni
         )
         when {
             state.loading -> Message("Loading…")
-            state.failed && state.needsAccount -> Message("Sign in on your phone to see this here.")
+            state.failed && state.needsAccount -> Message("Sign this TV in from your phone's Cast menu to see this here.")
             state.failed -> RetryMessage("Couldn't load this.", model::reload)
             state.cards.isEmpty() -> Message("Nothing here yet.")
             else -> LazyVerticalGrid(
@@ -383,10 +389,23 @@ private fun PhoneSection(link: TvLinkUiState) {
 }
 
 @Composable
-private fun SettingsSection(link: TvLinkUiState, onForgetPhones: () -> Unit) {
+private fun SettingsSection(link: TvLinkUiState, account: String?, onForgetPhones: () -> Unit, onSignOut: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(start = 40.dp, top = 28.dp, end = 48.dp)) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TvColors.Text)
         Spacer(Modifier.height(16.dp))
+        if (account != null) {
+            Text("Signed in as $account", style = MaterialTheme.typography.titleMedium, color = TvColors.Text)
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = onSignOut) { Text("Sign out on this TV") }
+        } else {
+            Text(
+                "Not signed in. On your phone, connect to this TV from the Cast menu and tap Use my account on the TV.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = TvColors.Muted,
+                modifier = Modifier.widthIn(max = 720.dp),
+            )
+        }
+        Spacer(Modifier.height(28.dp))
         Text("This TV: ${link.tvName}", style = MaterialTheme.typography.titleMedium, color = TvColors.Text)
         Spacer(Modifier.height(12.dp))
         Text(
@@ -405,7 +424,7 @@ private fun SettingsSection(link: TvLinkUiState, onForgetPhones: () -> Unit) {
 private fun NeedsAccount(section: TvSection) {
     Column(Modifier.fillMaxSize().padding(start = 40.dp, top = 28.dp)) {
         Text(section.label, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TvColors.Text)
-        Message("Sign in on your phone, then send your sign-in to this TV from the phone's Cast menu.")
+        Message("On your phone, connect to this TV from the Cast menu and tap Use my account on the TV.")
     }
 }
 

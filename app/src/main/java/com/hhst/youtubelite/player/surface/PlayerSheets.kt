@@ -328,6 +328,8 @@ fun PlayerDialogHost(
             onDiscovery = callbacks::onCastDiscovery,
             onTvCode = callbacks::onTvPairCode,
             onTvCancel = callbacks::onTvPairCancel,
+            onTvSignIn = callbacks::onTvSignIn,
+            onTvSignOut = callbacks::onTvSignOut,
             onDismiss = onDismiss,
         )
     }

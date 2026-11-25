@@ -146,6 +146,11 @@ data class PlayerUiState(
     val castFailure: com.hhst.youtubelite.cast.CastFailureReport? = null,
     /** Pairing with a Puretube TV: the cast dialog asks for the code the TV shows. */
     val tvPairing: com.hhst.youtubelite.tvlink.TvPairingPrompt? = null,
+    /** Connected to a Puretube TV: the cast dialog offers to sign it in. */
+    val tvSession: Boolean = false,
+    val tvSignedIn: Boolean? = null,
+    val tvAccountName: String? = null,
+    val phoneSignedIn: Boolean = false,
     val subtitleStyle: SubtitleStyle = SubtitleStyle(),
 )
 
@@ -350,7 +355,9 @@ class PlayerViewModel(
             val dlnaState: Flow<DlnaUiState> = dlna?.state ?: flowOf(DlnaUiState())
             val tvState: Flow<com.hhst.youtubelite.tvlink.TvLinkPhoneState> =
                 tv?.state ?: flowOf(com.hhst.youtubelite.tvlink.TvLinkPhoneState())
-            combine(cast.state, dlnaState, tvState) { c, d, t -> Triple(c, d, t) }.collect { (c, d, t) ->
+            combine(cast.state, dlnaState, tvState, com.hhst.youtubelite.data.media.MediaSession.changes) { c, d, t, identity ->
+                CastStates(c, d, t, identity.signedIn)
+            }.collect { (c, d, t, phoneSignedIn) ->
                 _uiState.update {
                     it.copy(
                         casting = c.chromecastSession || d.session || t.session,
@@ -361,6 +368,10 @@ class PlayerViewModel(
                         // Puretube TVs first: they are the better route when there is one.
                         castDevices = t.devices + c.devices + d.devices,
                         tvPairing = t.pairing,
+                        tvSession = t.session,
+                        tvSignedIn = t.tvSignedIn,
+                        tvAccountName = t.tvAccountName,
+                        phoneSignedIn = phoneSignedIn,
                         castFailure = d.failure ?: c.failure ?: it.castFailure,
                     )
                 }
@@ -1337,6 +1348,14 @@ class PlayerViewModel(
         tv?.cancelPairing()
     }
 
+    override fun onTvSignIn() {
+        tv?.sendSignIn()
+    }
+
+    override fun onTvSignOut() {
+        tv?.signOutTv()
+    }
+
     override fun onCastDiscovery(enabled: Boolean) {
         tv?.setDiscoveryEnabled(enabled)
         cast.setDiscoveryEnabled(enabled)
@@ -1892,3 +1911,10 @@ class PlayerViewModel(
         }
     }
 }
+
+private data class CastStates(
+    val cast: com.hhst.youtubelite.cast.CastUiState,
+    val dlna: DlnaUiState,
+    val tv: com.hhst.youtubelite.tvlink.TvLinkPhoneState,
+    val phoneSignedIn: Boolean,
+)

@@ -58,6 +58,35 @@ internal sealed interface TvLinkMessage {
     @Serializable @SerialName("stop") data object Stop : TvLinkMessage
     @Serializable @SerialName("ping") data object Ping : TvLinkMessage
 
+    /**
+     * The phone's sign-in, handed to a paired TV over the sealed channel so the TV can show
+     * Subscriptions, History and Playlists. The TV refreshes its own access tokens from it.
+     */
+    @Serializable @SerialName("sign_in")
+    data class SignIn(
+        val clientId: String,
+        val clientSecret: String,
+        val deviceId: String,
+        val refreshToken: String,
+        val accountId: String? = null,
+        val accounts: List<LinkAccount> = emptyList(),
+    ) : TvLinkMessage {
+        override fun toString() = "SignIn(accounts=${accounts.size})"
+    }
+
+    @Serializable
+    data class LinkAccount(
+        val id: String,
+        val name: String? = null,
+        val email: String? = null,
+        val photo: String? = null,
+        val pageId: String? = null,
+        val disabled: Boolean = false,
+    )
+
+    /** Signs the TV out; the phone stays signed in. */
+    @Serializable @SerialName("sign_out") data object SignOut : TvLinkMessage
+
     // TV to phone, sealed.
 
     @Serializable @SerialName("status")
@@ -79,6 +108,10 @@ internal sealed interface TvLinkMessage {
             const val STATE_ENDED = "ended"
         }
     }
+
+    /** Who the TV is signed in as, sent on connect and after every change. */
+    @Serializable @SerialName("account")
+    data class AccountInfo(val signedIn: Boolean = false, val name: String? = null) : TvLinkMessage
 
     /** The TV remote's next or previous button: the phone owns the queue, so it picks the video. */
     @Serializable @SerialName("skip") data class Skip(val forward: Boolean) : TvLinkMessage

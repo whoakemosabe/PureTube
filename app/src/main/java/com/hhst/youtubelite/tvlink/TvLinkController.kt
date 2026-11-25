@@ -11,6 +11,7 @@ import androidx.media3.common.util.UnstableApi
 import com.hhst.youtubelite.cast.CastDevice
 import com.hhst.youtubelite.cast.LocalCastNetwork
 import com.hhst.youtubelite.cast.protocol.CastV2Discovery
+import com.hhst.youtubelite.data.media.MediaSession
 import com.hhst.youtubelite.diagnostics.AppLog
 import com.hhst.youtubelite.tv.TvLinkServer
 import java.io.IOException
@@ -35,6 +36,9 @@ data class TvLinkPhoneState(
     val deviceName: String? = null,
     val devices: List<CastDevice> = emptyList(),
     val pairing: TvPairingPrompt? = null,
+    /** The connected TV's sign-in, once it has said; null while unknown. */
+    val tvSignedIn: Boolean? = null,
+    val tvAccountName: String? = null,
 )
 
 /**
@@ -131,6 +135,18 @@ class TvLinkController internal constructor(
 
     fun cancelPairing() = _state.update { it.copy(pairing = null) }
 
+    /** Signs the connected TV in as this phone's account. False when there is nothing to send. */
+    fun sendSignIn(): Boolean {
+        if (connection == null) return false
+        val handoff = MediaSession.handoff() ?: return false
+        send(TvAccountLink.messageOf(handoff))
+        return true
+    }
+
+    fun signOutTv() {
+        if (connection != null) send(TvLinkMessage.SignOut)
+    }
+
     /** Plays [videoId] on the connected TV from [positionMs]. */
     fun startCasting(videoId: String, title: String, author: String?, positionMs: Long, autoplay: Boolean = true): Boolean {
         val remote = player ?: return false
@@ -156,7 +172,7 @@ class TvLinkController internal constructor(
         player?.release()
         player = null
         selectedId = null
-        _state.update { it.copy(session = false, deviceName = null) }
+        _state.update { it.copy(session = false, deviceName = null, tvSignedIn = null, tvAccountName = null) }
         publishDevices()
     }
 
@@ -210,6 +226,9 @@ class TvLinkController internal constructor(
                     when (message) {
                         is TvLinkMessage.Status -> if (player?.status(message) == true) onSessionEnded?.invoke()
                         is TvLinkMessage.Skip -> onSkip?.invoke(message.forward)
+                        is TvLinkMessage.AccountInfo -> _state.update {
+                            it.copy(tvSignedIn = message.signedIn, tvAccountName = message.name?.take(MAX_ACCOUNT_NAME))
+                        }
                         else -> Unit
                     }
                 }
@@ -263,6 +282,7 @@ class TvLinkController internal constructor(
 
     companion object {
         const val ID_PREFIX = "tv:"
+        private const val MAX_ACCOUNT_NAME = 80
         private const val CONNECT_TIMEOUT_MS = 4_000
         private const val HANDSHAKE_TIMEOUT_MS = 10_000
         private const val READ_TIMEOUT_MS = 15_000

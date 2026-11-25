@@ -62,6 +62,8 @@ internal fun CastDialog(
     onDiscovery: (Boolean) -> Unit,
     onTvCode: (String) -> Unit = {},
     onTvCancel: () -> Unit = {},
+    onTvSignIn: () -> Unit = {},
+    onTvSignOut: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     state.tvPairing?.let { prompt ->
@@ -107,6 +109,7 @@ internal fun CastDialog(
                     TextButton(onClick = onStop) {
                         Text(stringResource(R.string.cast_stop), color = PlayerUi.YtRed)
                     }
+                    if (state.tvSession) TvAccountRow(state, onTvSignIn, onTvSignOut)
                 }
                 Text(
                     text = stringResource(R.string.cast_section_devices),
@@ -239,6 +242,30 @@ internal fun CastDialog(
             }
         },
     )
+}
+
+/** Who the connected Puretube TV is signed in as, and the button to hand it this phone's sign-in. */
+@Composable
+private fun TvAccountRow(state: PlayerUiState, onSignIn: () -> Unit, onSignOut: () -> Unit) {
+    val name = state.tvAccountName
+    Text(
+        text = when (state.tvSignedIn) {
+            true -> stringResource(R.string.tv_account_signed_in, name ?: stringResource(R.string.tv_account_an_account))
+            false -> stringResource(R.string.tv_account_signed_out)
+            null -> ""
+        },
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontSize = SettingsTokens.DetailSize.sp,
+        modifier = Modifier.padding(top = 4.dp),
+    )
+    Row {
+        if (state.phoneSignedIn && state.tvSignedIn != null) {
+            TextButton(onClick = onSignIn) { Text(stringResource(R.string.tv_account_use_mine)) }
+        }
+        if (state.tvSignedIn == true) {
+            TextButton(onClick = onSignOut) { Text(stringResource(R.string.tv_account_sign_out)) }
+        }
+    }
 }
 
 /** Pairing with a Puretube TV: type the six digits the TV shows. */

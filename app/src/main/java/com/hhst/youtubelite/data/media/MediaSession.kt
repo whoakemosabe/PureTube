@@ -292,6 +292,19 @@ object MediaSession {
         return true
     }
 
+    /** What a paired Puretube TV needs to sign in as this account: never logged, never stored elsewhere. */
+    data class Handoff(val client: SignInClient, val refreshToken: String, val accounts: List<Account>, val accountId: String?) {
+        override fun toString() = "Handoff(accounts=${accounts.size})"
+    }
+
+    /** The current sign-in for a paired TV, or null when signed out or in "On this device" mode. */
+    fun handoff(): Handoff? = synchronized(lock) {
+        if (anonymousMode) return null
+        val signInClient = client ?: return null
+        val refresh = store?.read(KEY_REFRESH_TOKEN)?.takeIf { it.isNotBlank() } ?: return null
+        Handoff(signInClient, refresh, session.accounts(), session.snapshot().accountId)
+    }
+
     fun updateAccounts(accounts: List<Account>, expectedGeneration: Long): Boolean = synchronized(lock) {
         if (snapshot().generation != expectedGeneration || !session.updateAccounts(accounts)) return false
         store?.write(KEY_ACCOUNT_ID, session.snapshot().accountId)

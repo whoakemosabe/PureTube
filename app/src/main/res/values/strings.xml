@@ -782,4 +782,9 @@
     <string name="signin_error_failed">Sign-in failed. Try again.</string>
     <string name="ui_mark_as_watched">Mark as watched</string>
     <string name="ui_mark_as_unwatched">Mark as unwatched</string>
+    <string name="tv_account_signed_in">The TV is signed in as %1$s.</string>
+    <string name="tv_account_an_account">an account</string>
+    <string name="tv_account_signed_out">The TV is not signed in.</string>
+    <string name="tv_account_use_mine">Use my account on the TV</string>
+    <string name="tv_account_sign_out">Sign the TV out</string>
 </resources>
