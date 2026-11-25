@@ -50,6 +50,7 @@ internal object TvColors {
     /** The frost: a light tint over the video. Real blur is too heavy for low-end TV chips. */
     val Frost = Color(0x29FFFFFF)
     val FrostEdge = Color(0x8CFFFFFF)
+    val FrostSelected = Color(0x59FFFFFF)
     val Focused = Color(0xFFF1F1F1)
     val OnFocused = Color(0xFF0F0F0F)
     val Sponsor = Color(0xFFF2C94C)
@@ -144,13 +145,20 @@ private fun FrostShell(onClick: () -> Unit, modifier: Modifier, size: Dp, glass:
  * (dimmed text when [active], e.g. already subscribed), so only the focused pill is ever white.
  */
 @Composable
-internal fun FrostPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, active: Boolean = false) {
+internal fun FrostPill(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    active: Boolean = false,
+    /** The chosen tab of a row of pills: brighter glass, so it reads as picked even unfocused. */
+    selected: Boolean = false,
+) {
     Surface(
         onClick = onClick,
         modifier = modifier.height(48.dp),
         shape = ClickableSurfaceDefaults.shape(CircleShape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = TvColors.Frost,
+            containerColor = if (selected) TvColors.FrostSelected else TvColors.Frost,
             contentColor = if (active) TvColors.Muted else TvColors.Text,
             focusedContainerColor = TvColors.Focused,
             focusedContentColor = TvColors.OnFocused,

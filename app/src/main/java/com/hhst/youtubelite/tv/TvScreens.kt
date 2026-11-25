@@ -67,45 +67,84 @@ import com.hhst.youtubelite.tv.browse.TvBrowse
 import com.hhst.youtubelite.tv.browse.TvBrowseModels
 import com.hhst.youtubelite.tv.browse.TvCard
 import com.hhst.youtubelite.tv.browse.TvListModel
+import com.hhst.youtubelite.tv.browse.TvPage
+import com.hhst.youtubelite.tv.browse.RepositoryTvBrowseSource
+import com.hhst.youtubelite.tv.browse.TvSettingsStore
+import com.hhst.youtubelite.extension.PreferenceKeys
+import com.hhst.youtubelite.watch.chat.LiveChatUiState
+import com.hhst.youtubelite.watch.chat.LiveChatViewModel
 import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.delay
 
 @Composable
 internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, browse: TvBrowseModels, player: TvPlayerSession,
-    account: String?, onSignOut: () -> Unit,
-    openSignIn: () -> TvSignInSession, onExit: () -> Unit) {
+    account: String?, settings: TvSettingsStore, version: String, chat: LiveChatViewModel,
+    onSignOut: () -> Unit, openSignIn: () -> TvSignInSession, onOpenDownloads: () -> Unit,
+    onDownload: (videoId: String, title: String, author: String?, artwork: String?) -> Unit, onExit: () -> Unit) {
     var signingIn by remember { mutableStateOf(false) }
     val snapshot by receiver.snapshot.collectAsStateWithLifecycle()
     val link by receiver.server.state.collectAsStateWithLifecycle()
     val nowPlaying by receiver.nowPlaying.collectAsStateWithLifecycle()
-    val play: (TvCard) -> Unit = { card -> card.videoId?.let { receiver.playLocal(it, card.title, card.author) } }
+    val values by settings.values.collectAsStateWithLifecycle()
+    /** The list the current video was started from, when it plays in order (a playlist, or Shorts). */
+    var queue by remember { mutableStateOf<List<TvCard>>(emptyList()) }
+    val play: (TvCard, List<TvCard>) -> Unit = { card, list ->
+        queue = playQueue(card, list)
+        card.videoId?.let { receiver.playLocal(it, card.title, card.author) }
+    }
     Box(Modifier.fillMaxSize().background(TvColors.Background)) {
         val videoId = snapshot.videoId
         if (videoId != null) {
             val hasPhone = link.connectedPhone != null
-            val related = browse.related(videoId)
+            val related = if (values[PreferenceKeys.ENABLE_HIDE_RELATED] == true) NO_RELATED else browse.related(videoId)
+            val following: (Boolean) -> TvCard? = { forward ->
+                val index = queue.indexOfFirst { it.videoId == videoId }
+                queue.getOrNull(if (forward) index + 1 else index - 1).takeIf { index >= 0 }
+            }
             LaunchedEffect(videoId) { player.video.load(videoId) }
-            // Watching on the TV alone, the next recommended video follows, like YouTube's autoplay.
+            // Watching on the TV alone, the next video follows, like YouTube's autoplay: the next
+            // one in the playlist or Shorts it came from, else the top recommendation.
             LaunchedEffect(videoId, snapshot.ended, hasPhone) {
-                if (snapshot.ended && !hasPhone && player.sleptOn != videoId) {
-                    related.state.value.cards.firstOrNull { it.videoId != null && it.videoId != videoId }?.let(play)
+                if (snapshot.ended && !hasPhone && player.sleptOn != videoId && values[PreferenceKeys.ENABLE_AUTOPLAY] != false) {
+                    following(true)?.let { play(it, queue) }
+                        ?: related.state.value.cards.firstOrNull { it.videoId != null && it.videoId != videoId }?.let { play(it, emptyList()) }
                 }
             }
             PlayerScreen(
-                snapshot, nowPlaying, engine, player,
-                canSkip = hasPhone,
+                snapshot, nowPlaying, engine, player, chat,
+                canSkip = hasPhone || queue.isNotEmpty(),
                 related = related,
-                onSkip = receiver::skip,
+                onSkip = { forward ->
+                    if (hasPhone) receiver.skip(forward) else following(forward)?.let { play(it, queue) }
+                },
                 onPlayCard = play,
+                onOpenChannel = { channelId ->
+                    receiver.stopPlayback()
+                    browse.openChannel(channelId)
+                },
+                onDownload = onDownload,
                 onStop = receiver::stopPlayback,
             )
         } else if (signingIn) {
             TvSignInScreen(openSignIn, onClose = { signingIn = false })
         } else {
-            TvBrowse(browse, link, account, onPlay = play, onForgetPhones = receiver.server::forgetPhones,
-                onSignOut = onSignOut, onSignIn = { signingIn = true }, onExit = onExit)
+            TvBrowse(browse, link, account, settings, version, onPlay = play, onForgetPhones = receiver.server::forgetPhones,
+                onSignOut = onSignOut, onSignIn = { signingIn = true }, onOpenDownloads = onOpenDownloads, onExit = onExit)
+            if (tvUpdateWaiting()) TvUpdatePanel()
         }
     }
+}
+
+/** Playlists and Shorts play in order; anything else is followed by its recommendations. */
+internal fun playQueue(card: TvCard, list: List<TvCard>): List<TvCard> = when {
+    card.short -> list.filter { it.short && it.videoId != null }
+    list.isNotEmpty() && list.all { it.key.startsWith(RepositoryTvBrowseSource.ENTRY_PREFIX) } -> list.filter { it.videoId != null }
+    else -> emptyList()
+}
+
+/** The recommended row when Hide recommended videos is on: never any tiles. */
+private val NO_RELATED by lazy {
+    TvListModel(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main.immediate)) { TvPage(emptyList()) }
 }
 
 @Composable
@@ -114,13 +153,17 @@ private fun PlayerScreen(
     nowPlaying: TvNowPlaying?,
     engine: PlaybackApi,
     player: TvPlayerSession,
+    chat: LiveChatViewModel,
     canSkip: Boolean,
     related: TvListModel,
     onSkip: (Boolean) -> Unit,
-    onPlayCard: (TvCard) -> Unit,
+    onPlayCard: (TvCard, List<TvCard>) -> Unit,
+    onOpenChannel: (String) -> Unit,
+    onDownload: (videoId: String, title: String, author: String?, artwork: String?) -> Unit,
     onStop: () -> Unit,
 ) {
     val video by player.video.state.collectAsStateWithLifecycle()
+    val chatState by chat.uiState.collectAsStateWithLifecycle()
     val sleep by player.sleep.collectAsStateWithLifecycle()
     var panel by remember { mutableStateOf<TvPanel?>(null) }
     /** The settings row last opened, so going back lands on it again. */
@@ -155,8 +198,18 @@ private fun PlayerScreen(
             player.video.clearNotice()
         }
     }
+    // The chat streams only while its panel is open.
+    val page = video.video
+    val chatKey = page?.chatKey?.takeIf { (page.live || snapshot.isLive) && it.isNotBlank() }
+    DisposableEffect(panel == TvPanel.Chat, chatKey) {
+        if (panel == TvPanel.Chat && chatKey != null && page != null) {
+            chat.open(chatKey, com.liskovsoft.youtubeapi.videoinfo.V2.chatMessageParameters(page.id, page.channelId))
+        }
+        onDispose { chat.close() }
+    }
     BackHandler {
         when {
+            panel == TvPanel.Comments && player.video.closeReplies() -> {}
             panel in SETTINGS_CHILDREN -> openPanel(TvPanel.Settings)
             panel != null -> openPanel(null)
             controlsVisible -> controlsVisible = false
@@ -227,11 +280,18 @@ private fun PlayerScreen(
                 onNext = { onSkip(true) },
                 related = related,
                 onPlayCard = onPlayCard,
+                hasChat = chatKey != null,
             )
         }
         panel?.let { open ->
-            PlayerPanel(open, snapshot, video, sleep, engine, player, statsVisible, settingsReturn,
-                onStats = { statsVisible = !statsVisible; openPanel(null) }, onPanel = openPanel)
+            PlayerPanel(open, snapshot, video, sleep, engine, player, statsVisible, settingsReturn, chatState,
+                onStats = { statsVisible = !statsVisible; openPanel(null) }, onPanel = openPanel,
+                onOpenChannel = onOpenChannel,
+                onDownload = {
+                    val id = video.videoId ?: snapshot.videoId
+                    if (id != null) onDownload(id, page?.title ?: snapshot.title, page?.channel ?: snapshot.author, page?.artwork)
+                    openPanel(null)
+                })
         }
         video.notice?.let {
             Text(
@@ -258,8 +318,11 @@ private fun PlayerPanel(
     player: TvPlayerSession,
     statsVisible: Boolean,
     settingsReturn: String?,
+    chat: LiveChatUiState,
     onStats: () -> Unit,
     onPanel: (TvPanel?) -> Unit,
+    onOpenChannel: (String) -> Unit,
+    onDownload: () -> Unit,
 ) {
     val pick: (TvPanelRow) -> Unit = { row ->
         applyPick(panel, row.key, engine, player::setSleep)
@@ -275,12 +338,21 @@ private fun PlayerPanel(
         }
         TvPanel.Comments -> TvSidePanel(listOf("Comments", video.comments.total).filter(String::isNotBlank).joinToString(" • ")) {
             LaunchedEffect(video.videoId) { if (!video.comments.started) player.video.loadComments() }
-            TvCommentList(video.comments, onNearEnd = player.video::loadComments)
+            TvCommentList(video.comments, onNearEnd = player.video::loadComments,
+                onReplies = player.video::loadReplies,
+                onMoreReplies = { video.comments.replyThread?.let(player.video::loadReplies) })
         }
+        TvPanel.Chat -> TvSidePanel("Live chat") { TvChatList(chat) }
         TvPanel.Channel -> TvSidePanel(video.video?.channel.orEmpty()) {
-            TvPanelList(listOf(TvPanelRow("unsubscribe", "Unsubscribe"))) {
-                player.video.toggleSubscribe()
-                onPanel(null)
+            val channelId = video.video?.channelId.orEmpty()
+            TvPanelList(listOf(
+                TvPanelRow(GO_TO_CHANNEL, "Go to channel"),
+                TvPanelRow(SUBSCRIBE, if (video.subscribed) "Unsubscribe" else "Subscribe"),
+            )) { row ->
+                when (row.key) {
+                    GO_TO_CHANNEL -> onOpenChannel(channelId)
+                    SUBSCRIBE -> { player.video.toggleSubscribe(); onPanel(null) }
+                }
             }
         }
         TvPanel.Save -> TvSidePanel("Save to") {
@@ -295,9 +367,14 @@ private fun PlayerPanel(
             }
         }
         TvPanel.Settings -> TvSidePanel("Settings") {
-            TvPanelList(settingsRows(snapshot, sleep) + TvPanelRow(STATS, "Stats for nerds", if (statsVisible) "On" else "Off"),
+            TvPanelList(settingsRows(snapshot, sleep) + TvPanelRow(DOWNLOAD, "Download") +
+                TvPanelRow(STATS, "Stats for nerds", if (statsVisible) "On" else "Off"),
                 focusKey = settingsReturn) { row ->
-                if (row.key == STATS) onStats() else onPanel(TvPanel.valueOf(row.key))
+                when (row.key) {
+                    STATS -> onStats()
+                    DOWNLOAD -> onDownload()
+                    else -> onPanel(TvPanel.valueOf(row.key))
+                }
             }
         }
         TvPanel.Quality -> TvSidePanel("Quality") { TvPanelList(qualityRows(snapshot), onPick = pick) }
@@ -346,7 +423,8 @@ private fun PlayerControls(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     related: TvListModel,
-    onPlayCard: (TvCard) -> Unit,
+    onPlayCard: (TvCard, List<TvCard>) -> Unit,
+    hasChat: Boolean,
 ) {
     // Down from the buttons slides the recommended row up from below, as on YouTube TV.
     var relatedOpen by remember { mutableStateOf(false) }
@@ -416,7 +494,7 @@ private fun PlayerControls(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    FrostAvatar(video.video?.avatar, video.video?.channel ?: author.orEmpty(), { onPanel(TvPanel.Description) })
+                    FrostAvatar(video.video?.avatar, video.video?.channel ?: author.orEmpty(), { onPanel(TvPanel.Channel) })
                     FrostPill("Description", { onPanel(TvPanel.Description) })
                     if (video.video?.channelId?.isNotBlank() == true) {
                         if (video.subscribed) {
@@ -434,7 +512,8 @@ private fun PlayerControls(
                     FrostGroup {
                         FrostButton(AppIcon.Like, "Like", onLike, size = 44.dp, glass = false, active = video.rating == VideoRating.Like)
                         FrostButton(AppIcon.Dislike, "Dislike", onDislike, size = 44.dp, glass = false, active = video.rating == VideoRating.Dislike)
-                        FrostButton(AppIcon.Comment, "Comments", { onPanel(TvPanel.Comments) }, size = 44.dp, glass = false)
+                        FrostButton(AppIcon.Comment, if (hasChat) "Live chat" else "Comments",
+                            { onPanel(if (hasChat) TvPanel.Chat else TvPanel.Comments) }, size = 44.dp, glass = false)
                         FrostButton(AppIcon.Bookmark, "Save", { onPanel(TvPanel.Save) }, size = 44.dp, glass = false)
                     }
                     FrostGroup {
@@ -574,6 +653,9 @@ private const val NOTICE_MS = 3_000L
 /** How far the recommended row sits below: its label and the top of its thumbnails still show. */
 private val RELATED_HIDDEN = 150.dp
 private const val STATS = "stats"
+private const val DOWNLOAD = "download"
+private const val GO_TO_CHANNEL = "channel"
+private const val SUBSCRIBE = "subscribe"
 private const val FOCUS_TRIES = 60
 private const val CONTROLS_HIDE_MS = 5_000L
 private const val SEEK_STEP_MS = 10_000L

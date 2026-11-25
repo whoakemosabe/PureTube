@@ -43,7 +43,14 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.hhst.youtubelite.comments.domain.CommentThread
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import com.hhst.youtubelite.ui.design.Artwork
 import com.hhst.youtubelite.player.SleepChoice
+import com.hhst.youtubelite.watch.chat.LiveChatContent
+import com.hhst.youtubelite.watch.chat.LiveChatUiState
 import com.hhst.youtubelite.player.engine.PlaybackApi
 import com.hhst.youtubelite.player.engine.PlaybackSnapshot
 import com.hhst.youtubelite.player.engine.SubtitleTrack
@@ -51,7 +58,7 @@ import com.hhst.youtubelite.player.surface.PlayerUi
 import com.hhst.youtubelite.ui.design.AppIcon
 
 /** The player's side panels, one at a time, opened from its buttons. */
-internal enum class TvPanel { Description, Comments, Channel, Save, Settings, Quality, Speed, Captions, Audio, Sleep }
+internal enum class TvPanel { Description, Comments, Chat, Channel, Save, Settings, Quality, Speed, Captions, Audio, Sleep }
 
 /** One row in a panel: a label, an optional value on the right, a check when it is the current pick. */
 internal data class TvPanelRow(val key: String, val label: String, val value: String? = null, val checked: Boolean = false)
@@ -217,9 +224,14 @@ internal fun TvDescription(meta: String, text: String) {
     }
 }
 
-/** Top comments, read-only, one focusable card each so the D-pad scrolls through them. */
+/** Top comments, one focusable card each so the D-pad scrolls; pressing one opens its replies. */
 @Composable
-internal fun TvCommentList(comments: TvComments, onNearEnd: () -> Unit) {
+internal fun TvCommentList(comments: TvComments, onNearEnd: () -> Unit, onReplies: (CommentThread) -> Unit, onMoreReplies: () -> Unit) {
+    val thread = comments.replyThread
+    if (thread != null) {
+        TvReplies(thread, comments, onMoreReplies)
+        return
+    }
     val first = remember { FocusRequester() }
     LaunchedEffect(comments.threads.isNotEmpty()) { if (comments.threads.isNotEmpty()) requestFocusSoon(first) }
     when {
@@ -229,43 +241,110 @@ internal fun TvCommentList(comments: TvComments, onNearEnd: () -> Unit) {
         comments.threads.isEmpty() -> Text("No comments yet.", color = TvColors.Muted)
         else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(comments.threads.size, key = { comments.threads[it].id }) { index ->
-                val thread = comments.threads[index]
-                Surface(
-                    onClick = {},
+                val item = comments.threads[index]
+                CommentCard(
+                    author = item.author.displayName.ifBlank { item.author.handle },
+                    age = item.age, body = item.body, likes = item.likes,
+                    replies = item.replyCount,
+                    onClick = { if (item.replyCount > 0) onReplies(item) },
                     modifier = Modifier
-                        .fillMaxWidth()
                         .then(if (index == 0) Modifier.focusRequester(first) else Modifier)
                         .onFocusChanged { if (it.isFocused && index >= comments.threads.size - 3) onNearEnd() },
-                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-                    colors = ClickableSurfaceDefaults.colors(
-                        containerColor = Color.Transparent,
-                        contentColor = TvColors.Text,
-                        focusedContainerColor = TvColors.Frost,
-                        focusedContentColor = TvColors.Text,
-                    ),
-                    border = ClickableSurfaceDefaults.border(
-                        focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(2.dp, TvColors.Focused),
-                            shape = RoundedCornerShape(12.dp)),
-                    ),
-                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-                ) {
-                    Column(Modifier.padding(14.dp)) {
-                        Text(
-                            listOf(thread.author.displayName.ifBlank { thread.author.handle }, thread.age).filter(String::isNotBlank).joinToString(" • "),
-                            style = MaterialTheme.typography.labelLarge, color = TvColors.Muted, maxLines = 1,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(thread.body, style = MaterialTheme.typography.bodyMedium, maxLines = 6, overflow = TextOverflow.Ellipsis)
-                        val counts = listOfNotNull(thread.likes.takeIf(String::isNotBlank)?.let { "$it likes" },
-                            thread.replyCount.takeIf { it > 0 }?.let { if (it == 1) "1 reply" else "$it replies" })
-                        if (counts.isNotEmpty()) {
-                            Spacer(Modifier.height(4.dp))
-                            Text(counts.joinToString(" • "), style = MaterialTheme.typography.labelMedium, color = TvColors.Muted)
-                        }
+                )
+            }
+            if (comments.loading) item { Text("Loading…", color = TvColors.Muted, modifier = Modifier.padding(14.dp)) }
+        }
+    }
+}
+
+/** One comment and its replies; Back returns to the list. */
+@Composable
+private fun TvReplies(thread: CommentThread, comments: TvComments, onMore: () -> Unit) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(thread.id) { requestFocusSoon(first) }
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item(key = "top") {
+            CommentCard(thread.author.displayName.ifBlank { thread.author.handle }, thread.age, thread.body, thread.likes, 0, {},
+                Modifier.focusRequester(first), maxLines = 12)
+        }
+        items(comments.replies.size, key = { comments.replies[it].id }) { index ->
+            val reply = comments.replies[index]
+            CommentCard(reply.author.displayName.ifBlank { reply.author.handle }, reply.age, reply.body, reply.likes, 0, {},
+                Modifier.padding(start = 28.dp).onFocusChanged { if (it.isFocused && index >= comments.replies.size - 3) onMore() })
+        }
+        when {
+            comments.repliesLoading -> item { Text("Loading…", color = TvColors.Muted, modifier = Modifier.padding(start = 42.dp, top = 8.dp)) }
+            comments.repliesFailed -> item { Text("Couldn't load replies.", color = TvColors.Muted, modifier = Modifier.padding(start = 42.dp, top = 8.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun CommentCard(
+    author: String,
+    age: String,
+    body: String,
+    likes: String,
+    replies: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    maxLines: Int = 6,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            contentColor = TvColors.Text,
+            focusedContainerColor = TvColors.Frost,
+            focusedContentColor = TvColors.Text,
+        ),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(2.dp, TvColors.Focused),
+                shape = RoundedCornerShape(12.dp)),
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Text(listOf(author, age).filter(String::isNotBlank).joinToString(" • "),
+                style = MaterialTheme.typography.labelLarge, color = TvColors.Muted, maxLines = 1)
+            Spacer(Modifier.height(4.dp))
+            Text(body, style = MaterialTheme.typography.bodyMedium, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+            val counts = listOfNotNull(likes.takeIf(String::isNotBlank)?.let { "$it likes" },
+                replies.takeIf { it > 0 }?.let { if (it == 1) "1 reply" else "$it replies" })
+            if (counts.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(counts.joinToString(" • "), style = MaterialTheme.typography.labelMedium, color = TvColors.Muted)
+            }
+        }
+    }
+}
+
+/** Live chat as it comes in, newest at the bottom. Reading only: typing chat with a remote isn't practical. */
+@Composable
+internal fun TvChatList(state: LiveChatUiState) {
+    val messages = (state.content as? LiveChatContent.Ready)?.messages.orEmpty()
+    val list = rememberLazyListState()
+    LaunchedEffect(messages.size) { if (messages.isNotEmpty()) list.scrollToItem(messages.size - 1) }
+    when {
+        state.content is LiveChatContent.Failed -> Text("Couldn't load the chat.", color = TvColors.Muted)
+        state.content is LiveChatContent.Loading -> Text("Loading…", color = TvColors.Muted)
+        messages.isEmpty() -> Text(if (state.ended) "The chat has ended." else "No messages yet.", color = TvColors.Muted)
+        else -> LazyColumn(state = list, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(messages.size, key = { messages[it].id }) { index ->
+                val message = messages[index]
+                Row(verticalAlignment = Alignment.Top) {
+                    if (message.photo.isNotBlank()) {
+                        Artwork(message.photo, Modifier.size(28.dp).clip(CircleShape))
+                        Spacer(Modifier.width(10.dp))
+                    }
+                    Column {
+                        Text(message.author, style = MaterialTheme.typography.labelLarge, color = TvColors.Muted, maxLines = 1)
+                        Text(message.text, style = MaterialTheme.typography.bodyMedium, color = TvColors.Text)
                     }
                 }
             }
-            if (comments.loading) item { Text("Loading…", color = TvColors.Muted, modifier = Modifier.padding(14.dp)) }
         }
     }
 }

@@ -1,7 +1,10 @@
 package com.hhst.youtubelite.tv
 
 import com.hhst.youtubelite.comments.domain.CommentAuthor
+import com.hhst.youtubelite.comments.domain.CommentReply
 import com.hhst.youtubelite.comments.domain.CommentThread
+import com.hhst.youtubelite.comments.domain.RepliesPage
+import com.hhst.youtubelite.tv.browse.TvCard
 import com.hhst.youtubelite.comments.domain.CommentsPage
 import com.hhst.youtubelite.player.SleepChoice
 import com.hhst.youtubelite.player.engine.PlaybackSnapshot
@@ -49,11 +52,16 @@ class TvVideoModelTest {
         /** Pages by cursor (null is the first); a missing cursor fails. */
         var commentPages: Map<String?, CommentsPage> = emptyMap()
         val commentCursors = mutableListOf<String?>()
+        var replyPages: Map<String?, RepliesPage> = emptyMap()
+        override suspend fun replies(videoId: String, thread: CommentThread, cursor: String?) =
+            replyPages[cursor] ?: throw IOException("offline")
         override suspend fun comments(videoId: String, cursor: String?): CommentsPage {
             commentCursors += cursor
             return commentPages[cursor] ?: throw IOException("offline")
         }
     }
+
+    private fun reply(id: String) = CommentReply(id, CommentAuthor("Name", "@name", ""), "1 day ago", "Reply $id", "")
 
     private fun thread(id: String) = CommentThread(id, CommentAuthor("Name", "@name", ""), "1 day ago", "Body $id", "3", 0)
 
@@ -142,6 +150,34 @@ class TvVideoModelTest {
         repeat(4) { model.loadComments(); advanceUntilIdle() }
         assertEquals(listOf(null, "c2"), ops.commentCursors)
         assertEquals(null, model.state.value.comments.next)
+    }
+
+    @Test fun repliesOpenPageAndCloseBackToTheList() = runTest {
+        val ops = FakeOps(ready("a")).apply {
+            commentPages = mapOf(null to CommentsPage("", listOf(thread("1")), null))
+            replyPages = mapOf(null to RepliesPage(listOf(reply("r1")), "n"), "n" to RepliesPage(listOf(reply("r2")), "n"))
+        }
+        val model = loaded(ops)
+        model.loadComments(); advanceUntilIdle()
+        val parent = model.state.value.comments.threads.single()
+        model.loadReplies(parent); advanceUntilIdle()
+        model.loadReplies(parent); advanceUntilIdle()
+        model.loadReplies(parent); advanceUntilIdle()
+        assertEquals(listOf("r1", "r2"), model.state.value.comments.replies.map { it.id })
+        assertEquals(null, model.state.value.comments.repliesNext)
+        assertTrue(model.closeReplies())
+        assertEquals(null, model.state.value.comments.replyThread)
+        assertEquals(listOf("1"), model.state.value.comments.threads.map { it.id })
+        assertFalse(model.closeReplies())
+    }
+
+    @Test fun shortsAndPlaylistsPlayInOrderOtherListsDont() {
+        val shorts = listOf(TvCard("s-1", "", "", "", videoId = "1", short = true), TvCard("s-2", "", "", "", videoId = "2", short = true))
+        assertEquals(shorts, playQueue(shorts[0], shorts))
+        val entries = listOf(TvCard("e-1", "", "", "", videoId = "1"), TvCard("e-2", "", "", "", videoId = "2"))
+        assertEquals(entries, playQueue(entries[0], entries))
+        val home = listOf(TvCard("v-1", "", "", "", videoId = "1"), TvCard("v-2", "", "", "", videoId = "2"))
+        assertTrue(playQueue(home[0], home).isEmpty())
     }
 
     @Test fun settingsHideTheAudioRowWithOneTrackAndCapSpeedAtTwo() {

@@ -65,6 +65,15 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import androidx.compose.foundation.shape.CircleShape
+import com.hhst.youtubelite.dearrow.rememberDeArrowArtwork
+import com.hhst.youtubelite.dearrow.rememberDeArrowTitle
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.launch
+import com.hhst.youtubelite.tv.FrostPill
 import com.hhst.youtubelite.tv.TvColors
 import com.hhst.youtubelite.tv.TvLinkUiState
 import com.hhst.youtubelite.tv.requestFocusSoon
@@ -74,10 +83,14 @@ import com.hhst.youtubelite.ui.design.Artwork
 private val TvSection.icon: AppIcon get() = when (this) {
     TvSection.Search -> AppIcon.Search
     TvSection.Home -> AppIcon.Home
+    TvSection.Shorts -> AppIcon.Shorts
+    TvSection.Explore -> AppIcon.Explore
     TvSection.Subscriptions -> AppIcon.Subscriptions
+    TvSection.Channels -> AppIcon.ChannelGrid
     TvSection.History -> AppIcon.Clock
     TvSection.Playlists -> AppIcon.Playlist
     TvSection.WatchLater -> AppIcon.Bookmark
+    TvSection.Downloads -> AppIcon.Download
     TvSection.Phone -> AppIcon.Device
     TvSection.Settings -> AppIcon.Settings
 }
@@ -91,15 +104,18 @@ internal fun TvBrowse(
     browse: TvBrowseModels,
     link: TvLinkUiState,
     account: String?,
-    onPlay: (TvCard) -> Unit,
+    settings: TvSettingsStore,
+    version: String,
+    onPlay: (TvCard, List<TvCard>) -> Unit,
     onForgetPhones: () -> Unit,
     onSignOut: () -> Unit,
     onSignIn: () -> Unit,
+    onOpenDownloads: () -> Unit,
     onExit: () -> Unit,
 ) {
     val identity by browse.identity.collectAsStateWithLifecycle()
     val section by browse.section.collectAsStateWithLifecycle()
-    val openPlaylist by browse.openPlaylist.collectAsStateWithLifecycle()
+    val opened by browse.opened.collectAsStateWithLifecycle()
     var sidebarOpen by remember { mutableStateOf(false) }
     val sidebarFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
@@ -109,7 +125,7 @@ internal fun TvBrowse(
     LaunchedEffect(identity) { requestFocusSoon(contentFocus) }
     BackHandler {
         when {
-            openPlaylist != null -> browse.closePlaylist()
+            opened.isNotEmpty() -> browse.closeTop()
             !sidebarOpen -> runCatching { sidebarFocus.requestFocus() }
             else -> onExit()
         }
@@ -124,19 +140,22 @@ internal fun TvBrowse(
                 .focusRequester(contentFocus),
         ) {
           key(identity) {
-            val playlist = openPlaylist
-            if (playlist != null) {
-                CardGrid(playlist.title, playlist.list, onPlay = onPlay, onOpen = browse::openPlaylist)
-            } else when (section) {
-                TvSection.Search -> SearchSection(browse, onPlay)
-                TvSection.Phone -> PhoneSection(link)
-                TvSection.Settings -> SettingsSection(link, account, onForgetPhones, onSignOut, onSignIn)
-                else -> {
-                    val list = browse.list(section)
-                    if (section.needsAccount && !browse.signedIn) {
-                        NeedsAccount(section, onSignIn)
-                    } else {
-                        CardGrid(section.label, list, onPlay = onPlay, onOpen = browse::openPlaylist)
+            when (val top = opened.lastOrNull()) {
+                is TvOpen.Playlist -> key(top) { CardGrid(top.title, top.list, onPlay = onPlay, onOpen = browse::open) }
+                is TvOpen.Channel -> key(top) { ChannelScreen(top.model, onPlay = onPlay, onOpen = browse::open) }
+                null -> when (section) {
+                    TvSection.Search -> SearchSection(browse, onPlay)
+                    TvSection.Explore -> ExploreSection(browse, onPlay)
+                    TvSection.Downloads -> DownloadsSection(onOpenDownloads)
+                    TvSection.Phone -> PhoneSection(link)
+                    TvSection.Settings -> SettingsSection(link, account, settings, version, onForgetPhones, onSignOut, onSignIn)
+                    else -> {
+                        val list = browse.list(section)
+                        if (section.needsAccount && !browse.signedIn) {
+                            NeedsAccount(section, onSignIn)
+                        } else {
+                            CardGrid(section.label, list, onPlay = onPlay, onOpen = browse::open, tall = section == TvSection.Shorts)
+                        }
                     }
                 }
             }
@@ -145,11 +164,17 @@ internal fun TvBrowse(
         if (sidebarOpen) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)))
         }
+        val focusManager = LocalFocusManager.current
+        val scope = rememberCoroutineScope()
         Sidebar(
             selected = section,
             open = sidebarOpen,
             focus = sidebarFocus,
-            onSelect = { browse.select(it) },
+            // Moving through the sidebar only highlights; pressing picks the section and goes into it.
+            onSelect = {
+                browse.select(it)
+                scope.launch { enterContent(focusManager) }
+            },
             modifier = Modifier.onFocusChanged { sidebarOpen = it.hasFocus },
         )
     }
@@ -171,9 +196,10 @@ private fun Sidebar(
             .width(width)
             .fillMaxHeight()
             .then(if (open) Modifier.background(glass) else Modifier)
-            .padding(vertical = 32.dp, horizontal = 12.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 20.dp, horizontal = 12.dp)
             .focusRestorer(focus),
-        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {
         TvSection.entries.forEach { section ->
             val isSelected = section == selected
@@ -181,9 +207,8 @@ private fun Sidebar(
                 onClick = { onSelect(section) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
-                    .then(if (isSelected) Modifier.focusRequester(focus) else Modifier)
-                    .onFocusChanged { if (it.isFocused) onSelect(section) },
+                    .height(42.dp)
+                    .then(if (isSelected) Modifier.focusRequester(focus) else Modifier),
                 shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(24.dp)),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = if (isSelected && open) TvColors.Frost else Color.Transparent,
@@ -211,11 +236,19 @@ private fun Sidebar(
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-internal fun CardGrid(title: String, model: TvListModel, onPlay: (TvCard) -> Unit, onOpen: (TvCard) -> Unit) {
+internal fun CardGrid(
+    title: String?,
+    model: TvListModel,
+    onPlay: (TvCard, List<TvCard>) -> Unit,
+    onOpen: (TvCard) -> Unit,
+    /** Shorts: six tall tiles a row instead of four wide ones. */
+    tall: Boolean = false,
+) {
     val state by model.state.collectAsStateWithLifecycle()
     LaunchedEffect(model) { model.loadFirst() }
+    val columns = if (tall) TALL_COLUMNS else COLUMNS
     Column(Modifier.fillMaxSize()) {
-        Text(
+        if (title != null) Text(
             title,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
@@ -228,15 +261,17 @@ internal fun CardGrid(title: String, model: TvListModel, onPlay: (TvCard) -> Uni
             state.failed -> RetryMessage("Couldn't load this.", model::reload)
             state.cards.isEmpty() -> Message("Nothing here yet.")
             else -> LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
+                columns = GridCells.Fixed(columns),
                 contentPadding = PaddingValues(start = 40.dp, end = 48.dp, top = 12.dp, bottom = 48.dp),
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
                 verticalArrangement = Arrangement.spacedBy(28.dp),
                 modifier = Modifier.fillMaxSize().focusRestorer(),
             ) {
                 itemsIndexed(state.cards, key = { _, card -> card.key }) { index, card ->
-                    VideoTile(card, onClick = { if (card.videoId != null) onPlay(card) else onOpen(card) },
-                        onFocused = { if (index >= state.cards.size - PREFETCH_ROWS * 4) model.loadMore() })
+                    val focused = { if (index >= state.cards.size - PREFETCH_ROWS * columns) model.loadMore() }
+                    val click = { if (card.videoId != null) onPlay(card, state.cards) else onOpen(card) }
+                    if (card.channelId != null && card.videoId == null) ChannelTile(card, click, focused)
+                    else VideoTile(card, onClick = click, onFocused = focused, tall = tall)
                 }
             }
         }
@@ -245,11 +280,14 @@ internal fun CardGrid(title: String, model: TvListModel, onPlay: (TvCard) -> Uni
 
 /** A video or playlist tile: thumbnail, duration, watched bar, then title and channel. */
 @Composable
-internal fun VideoTile(card: TvCard, onClick: () -> Unit, onFocused: () -> Unit = {}, modifier: Modifier = Modifier) {
+internal fun VideoTile(card: TvCard, onClick: () -> Unit, onFocused: () -> Unit = {}, modifier: Modifier = Modifier, tall: Boolean = false) {
+    // DeArrow's crowd-sourced title and thumbnail, when those settings are on.
+    val title = rememberDeArrowTitle(card.videoId, card.title)
+    val artwork = rememberDeArrowArtwork(card.videoId, card.artwork)
     Column(modifier) {
         Surface(
             onClick = onClick,
-            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).onFocusChanged { if (it.isFocused) onFocused() },
+            modifier = Modifier.fillMaxWidth().aspectRatio(if (tall) 9f / 16f else 16f / 9f).onFocusChanged { if (it.isFocused) onFocused() },
             shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
             colors = ClickableSurfaceDefaults.colors(containerColor = Color(0xFF272727), focusedContainerColor = Color(0xFF272727)),
             border = ClickableSurfaceDefaults.border(
@@ -259,7 +297,7 @@ internal fun VideoTile(card: TvCard, onClick: () -> Unit, onFocused: () -> Unit 
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
         ) {
             Box(Modifier.fillMaxSize()) {
-                Artwork(card.artwork, Modifier.fillMaxSize())
+                Artwork(artwork, Modifier.fillMaxSize())
                 val badge = if (card.live) "LIVE" else card.duration.takeIf(String::isNotBlank)
                     ?: if (card.playlistId != null && card.videoId == null) "Playlist" else null
                 badge?.let {
@@ -282,7 +320,32 @@ internal fun VideoTile(card: TvCard, onClick: () -> Unit, onFocused: () -> Unit 
                 }
             }
         }
-        Text(card.title, color = TvColors.Text, style = MaterialTheme.typography.titleSmall, maxLines = 2,
+        Text(title, color = TvColors.Text, style = MaterialTheme.typography.titleSmall, maxLines = 2,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
+        if (card.subtitle.isNotBlank()) {
+            Text(card.subtitle, color = TvColors.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        }
+    }
+}
+
+/** A channel: its round picture, with the name and subscriber count under it. */
+@Composable
+private fun ChannelTile(card: TvCard, onClick: () -> Unit, onFocused: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        Surface(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(0.62f).aspectRatio(1f).onFocusChanged { if (it.isFocused) onFocused() },
+            shape = ClickableSurfaceDefaults.shape(CircleShape),
+            colors = ClickableSurfaceDefaults.colors(containerColor = Color(0xFF272727), focusedContainerColor = Color(0xFF272727)),
+            border = ClickableSurfaceDefaults.border(
+                focusedBorder = Border(BorderStroke(3.dp, TvColors.Focused), inset = 3.dp, shape = CircleShape),
+            ),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+        ) {
+            Artwork(card.artwork, Modifier.fillMaxSize().clip(CircleShape))
+        }
+        Text(card.title, color = TvColors.Text, style = MaterialTheme.typography.titleSmall, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
         if (card.subtitle.isNotBlank()) {
             Text(card.subtitle, color = TvColors.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1,
@@ -294,7 +357,7 @@ internal fun VideoTile(card: TvCard, onClick: () -> Unit, onFocused: () -> Unit 
 /** The recommended row under the player, reached by pressing down. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-internal fun RelatedRow(model: TvListModel, onPlay: (TvCard) -> Unit, modifier: Modifier = Modifier) {
+internal fun RelatedRow(model: TvListModel, onPlay: (TvCard, List<TvCard>) -> Unit, modifier: Modifier = Modifier) {
     val state by model.state.collectAsStateWithLifecycle()
     LaunchedEffect(model) { model.loadFirst() }
     if (state.cards.isEmpty()) return
@@ -304,13 +367,13 @@ internal fun RelatedRow(model: TvListModel, onPlay: (TvCard) -> Unit, modifier: 
         horizontalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         itemsIndexed(state.cards, key = { _, card -> card.key }) { _, card ->
-            VideoTile(card, onClick = { onPlay(card) }, modifier = Modifier.width(300.dp))
+            VideoTile(card, onClick = { onPlay(card, emptyList()) }, modifier = Modifier.width(300.dp))
         }
     }
 }
 
 @Composable
-private fun SearchSection(browse: TvBrowseModels, onPlay: (TvCard) -> Unit) {
+private fun SearchSection(browse: TvBrowseModels, onPlay: (TvCard, List<TvCard>) -> Unit) {
     val query by browse.query.collectAsStateWithLifecycle()
     var typed by remember { mutableStateOf(query) }
     val field = remember { FocusRequester() }
@@ -352,7 +415,7 @@ private fun SearchSection(browse: TvBrowseModels, onPlay: (TvCard) -> Unit) {
             )
         }
         if (query.isNotBlank()) {
-            CardGrid("Results for \"$query\"", browse.searchResults, onPlay = onPlay, onOpen = browse::openPlaylist)
+            CardGrid("Results for \"$query\"", browse.searchResults, onPlay = onPlay, onOpen = browse::open)
         } else {
             Message("Type with the remote, or with your phone's keyboard from the Google TV app.")
         }
@@ -368,12 +431,19 @@ private fun PhoneSection(link: TvLinkUiState) {
             Text("Connected to $it.", style = MaterialTheme.typography.titleLarge, color = TvColors.Text)
             Spacer(Modifier.height(20.dp))
         }
-        Column(
-            Modifier
-                .widthIn(max = 640.dp)
-                .background(TvColors.Frost, RoundedCornerShape(20.dp))
-                .padding(horizontal = 32.dp, vertical = 24.dp),
+        // A focusable card, so the remote can step into this section and back out of it.
+        Surface(
+            onClick = {},
+            modifier = Modifier.widthIn(max = 640.dp),
+            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(20.dp)),
+            colors = ClickableSurfaceDefaults.colors(containerColor = TvColors.Frost, focusedContainerColor = TvColors.Frost,
+                contentColor = TvColors.Text, focusedContentColor = TvColors.Text),
+            border = ClickableSurfaceDefaults.border(
+                focusedBorder = Border(BorderStroke(2.dp, TvColors.Focused), shape = RoundedCornerShape(20.dp)),
+            ),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         ) {
+        Column(Modifier.padding(horizontal = 32.dp, vertical = 24.dp)) {
             Text("Pair a phone", style = MaterialTheme.typography.titleLarge, color = TvColors.Text)
             Spacer(Modifier.height(8.dp))
             Text(
@@ -390,35 +460,38 @@ private fun PhoneSection(link: TvLinkUiState) {
                 color = TvColors.Text,
             )
         }
+        }
     }
 }
 
+/** Explore: Music, Gaming, News and Sports as pills over the category's tiles. */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun SettingsSection(link: TvLinkUiState, account: String?, onForgetPhones: () -> Unit, onSignOut: () -> Unit, onSignIn: () -> Unit) {
+private fun ExploreSection(browse: TvBrowseModels, onPlay: (TvCard, List<TvCard>) -> Unit) {
+    val category by browse.exploreCategory.collectAsStateWithLifecycle()
+    Column(Modifier.fillMaxSize()) {
+        Text("Explore", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TvColors.Text,
+            modifier = Modifier.padding(start = 40.dp, top = 28.dp))
+        Row(
+            Modifier.padding(start = 40.dp, top = 14.dp, bottom = 4.dp).focusRestorer(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            EXPLORE_CATEGORIES.forEach { name ->
+                FrostPill(name, { browse.selectExplore(name) }, selected = name == category)
+            }
+        }
+        key(category) { CardGrid(null, browse.explore(category), onPlay = onPlay, onOpen = browse::open) }
+    }
+}
+
+/** Downloads keep to the phone's download manager, which works with the remote too. */
+@Composable
+private fun DownloadsSection(onOpen: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(start = 40.dp, top = 28.dp, end = 48.dp)) {
-        Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TvColors.Text)
+        Text("Downloads", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TvColors.Text)
+        Message("Save videos to this TV from the player's Settings, then watch them here.")
         Spacer(Modifier.height(16.dp))
-        if (account != null) {
-            Text("Signed in as $account", style = MaterialTheme.typography.titleMedium, color = TvColors.Text)
-            Spacer(Modifier.height(12.dp))
-            Button(onClick = onSignOut) { Text("Sign out on this TV") }
-        } else {
-            Text("Not signed in.", style = MaterialTheme.typography.titleMedium, color = TvColors.Text)
-            Spacer(Modifier.height(12.dp))
-            Button(onClick = onSignIn) { Text("Sign in") }
-        }
-        Spacer(Modifier.height(28.dp))
-        Text("This TV: ${link.tvName}", style = MaterialTheme.typography.titleMedium, color = TvColors.Text)
-        Spacer(Modifier.height(12.dp))
-        Text(
-            if (link.pairedPhones.isEmpty()) "No paired phones." else "Paired phones: " + link.pairedPhones.joinToString(", "),
-            style = MaterialTheme.typography.bodyLarge,
-            color = TvColors.Muted,
-        )
-        if (link.pairedPhones.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            Button(onClick = onForgetPhones) { Text("Forget paired phones") }
-        }
+        FrostPill("Open downloads", onOpen, modifier = Modifier.padding(start = 40.dp))
     }
 }
 
@@ -447,6 +520,20 @@ private fun RetryMessage(text: String, onRetry: () -> Unit) {
     }
 }
 
+/**
+ * After a section is picked its tiles compose a frame or two later: keep stepping right
+ * until focus leaves the sidebar, or give up and stay on it.
+ */
+private suspend fun enterContent(focusManager: androidx.compose.ui.focus.FocusManager) {
+    repeat(ENTER_TRIES) {
+        withFrameNanos { }
+        if (focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Right)) return
+    }
+}
+
+private const val ENTER_TRIES = 30
 private val SIDEBAR_COLLAPSED = 72.dp
 private val SIDEBAR_OPEN = 260.dp
 private const val PREFETCH_ROWS = 2
+private const val COLUMNS = 4
+private const val TALL_COLUMNS = 6

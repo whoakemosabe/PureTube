@@ -1,7 +1,10 @@
 package com.hhst.youtubelite.tv
 
 import com.hhst.youtubelite.comments.domain.CommentSort
+import com.hhst.youtubelite.comments.domain.CommentReply
+import com.hhst.youtubelite.comments.domain.CommentTarget
 import com.hhst.youtubelite.comments.domain.CommentThread
+import com.hhst.youtubelite.comments.domain.RepliesPage
 import com.hhst.youtubelite.comments.domain.CommentsPage
 import com.hhst.youtubelite.data.media.ContentRepositories
 import com.hhst.youtubelite.saves.domain.SaveChoice
@@ -41,6 +44,12 @@ internal data class TvComments(
     val turnedOff: Boolean = false,
     val next: String? = null,
     val started: Boolean = false,
+    /** The comment whose replies are open, or null for the list. */
+    val replyThread: CommentThread? = null,
+    val replies: List<CommentReply> = emptyList(),
+    val repliesLoading: Boolean = false,
+    val repliesFailed: Boolean = false,
+    val repliesNext: String? = null,
 )
 
 /** The account calls the TV player makes; repositories in the app, fakes in tests. */
@@ -51,6 +60,7 @@ internal interface TvVideoOps {
     suspend fun saveChoices(videoId: String): List<SaveChoice>
     suspend fun setSaved(playlistId: String, videoId: String, contains: Boolean)
     suspend fun comments(videoId: String, cursor: String?): CommentsPage
+    suspend fun replies(videoId: String, thread: CommentThread, cursor: String?): RepliesPage
 }
 
 internal class RepositoryTvVideoOps(private val repos: ContentRepositories) : TvVideoOps {
@@ -62,6 +72,8 @@ internal class RepositoryTvVideoOps(private val repos: ContentRepositories) : Tv
         repos.saves.setContaining(playlistId, videoId, contains)
     private val commentReads by lazy { repos.comments() }
     override suspend fun comments(videoId: String, cursor: String?) = commentReads.comments(videoId, CommentSort.Top, cursor)
+    override suspend fun replies(videoId: String, thread: CommentThread, cursor: String?) =
+        commentReads.repliesPage(CommentTarget.Video(videoId), thread, cursor)
 }
 
 /**
@@ -176,6 +188,51 @@ internal class TvVideoModel(private val scope: CoroutineScope, private val ops: 
                 ))
             }
         }
+    }
+
+    private val seenReplyCursors = mutableSetOf<String>()
+
+    /** Opens a comment's replies, or loads their next page when that comment is already open. */
+    fun loadReplies(thread: CommentThread) {
+        val current = _state.value
+        val videoId = current.videoId ?: return
+        val open = current.comments.replyThread?.id == thread.id
+        if (open && (current.comments.repliesLoading || (current.comments.repliesNext == null && !current.comments.repliesFailed))) return
+        val cursor = if (open && !(current.comments.repliesFailed && current.comments.replies.isEmpty())) current.comments.repliesNext else null
+        if (!open) seenReplyCursors.clear()
+        _state.update { state ->
+            state.copy(comments = if (open) state.comments.copy(repliesLoading = true, repliesFailed = false)
+                else state.comments.copy(replyThread = thread, replies = emptyList(), repliesLoading = true, repliesFailed = false, repliesNext = null))
+        }
+        scope.launch {
+            val page = try {
+                ops.replies(videoId, thread, cursor)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                if (_state.value.videoId == videoId && _state.value.comments.replyThread?.id == thread.id) {
+                    _state.update { it.copy(comments = it.comments.copy(repliesLoading = false, repliesFailed = true)) }
+                }
+                return@launch
+            }
+            if (_state.value.videoId != videoId || _state.value.comments.replyThread?.id != thread.id) return@launch
+            val following = page.nextCursor?.takeIf { seenReplyCursors.add(it) }
+            _state.update { state ->
+                val known = state.comments.replies.map(CommentReply::id).toSet()
+                state.copy(comments = state.comments.copy(
+                    replies = state.comments.replies + page.replies.filter { it.id !in known },
+                    repliesLoading = false, repliesNext = following,
+                ))
+            }
+        }
+    }
+
+    /** Back from the replies to the comment list. */
+    fun closeReplies(): Boolean {
+        if (_state.value.comments.replyThread == null) return false
+        _state.update { it.copy(comments = it.comments.copy(replyThread = null, replies = emptyList(), repliesLoading = false,
+            repliesFailed = false, repliesNext = null)) }
+        return true
     }
 
     fun clearNotice() = _state.update { it.copy(notice = null) }
