@@ -218,14 +218,13 @@ private fun PlayerScreen(
                 onPlayPause = engine::playOrPause,
                 onPrevious = { onSkip(false) },
                 onNext = { onSkip(true) },
-                onStats = { statsVisible = !statsVisible },
-                onStop = onStop,
                 related = related,
                 onPlayCard = onPlayCard,
             )
         }
         panel?.let { open ->
-            PlayerPanel(open, snapshot, video, sleep, engine, player, onPanel = { panel = it })
+            PlayerPanel(open, snapshot, video, sleep, engine, player, statsVisible,
+                onStats = { statsVisible = !statsVisible; panel = null }, onPanel = { panel = it })
         }
         video.notice?.let {
             Text(
@@ -250,6 +249,8 @@ private fun PlayerPanel(
     sleep: SleepChoice,
     engine: PlaybackApi,
     player: TvPlayerSession,
+    statsVisible: Boolean,
+    onStats: () -> Unit,
     onPanel: (TvPanel?) -> Unit,
 ) {
     val pick: (TvPanelRow) -> Unit = { row ->
@@ -276,7 +277,9 @@ private fun PlayerPanel(
             }
         }
         TvPanel.Settings -> TvSidePanel("Settings") {
-            TvPanelList(settingsRows(snapshot, sleep)) { row -> onPanel(TvPanel.valueOf(row.key)) }
+            TvPanelList(settingsRows(snapshot, sleep) + TvPanelRow(STATS, "Stats for nerds", if (statsVisible) "On" else "Off")) { row ->
+                if (row.key == STATS) onStats() else onPanel(TvPanel.valueOf(row.key))
+            }
         }
         TvPanel.Quality -> TvSidePanel("Quality") { TvPanelList(qualityRows(snapshot), pick) }
         TvPanel.Speed -> TvSidePanel("Playback speed") { TvPanelList(speedRows(snapshot), pick) }
@@ -323,8 +326,6 @@ private fun PlayerControls(
     onPlayPause: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
-    onStats: () -> Unit,
-    onStop: () -> Unit,
     related: TvListModel,
     onPlayCard: (TvCard) -> Unit,
 ) {
@@ -332,7 +333,8 @@ private fun PlayerControls(
     var relatedOpen by remember { mutableStateOf(false) }
     val lift by animateDpAsState(if (relatedOpen) 0.dp else RELATED_HIDDEN, label = "relatedLift")
     Box(Modifier.fillMaxSize()) {
-        Column(
+        // With the recommended row up, the title gives it the room, as on YouTube TV.
+        if (!relatedOpen) Column(
             Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopStart)
@@ -409,8 +411,6 @@ private fun PlayerControls(
                         )
                     }
                     FrostButton(AppIcon.Settings, "Settings", { onPanel(TvPanel.Settings) }, size = 48.dp, glass = false)
-                    FrostButton(R.drawable.ic_tv_stats, "Stats for nerds", onStats, size = 48.dp, glass = false)
-                    FrostButton(R.drawable.ic_tv_stop, "Stop", onStop, size = 48.dp, glass = false)
                 }
             }
             snapshot.error?.let {
@@ -537,6 +537,7 @@ internal fun statsLines(snapshot: PlaybackSnapshot): List<String> {
 private val SETTINGS_CHILDREN = setOf(TvPanel.Quality, TvPanel.Speed, TvPanel.Captions, TvPanel.Audio, TvPanel.Sleep)
 private const val NOTICE_MS = 3_000L
 private val RELATED_HIDDEN = 236.dp
+private const val STATS = "stats"
 private const val FOCUS_TRIES = 60
 private const val CONTROLS_HIDE_MS = 5_000L
 private const val SEEK_STEP_MS = 10_000L
