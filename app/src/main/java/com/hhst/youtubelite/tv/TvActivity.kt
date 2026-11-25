@@ -20,6 +20,8 @@ import com.hhst.youtubelite.tvlink.AndroidTvLinkStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.get
+import org.koin.android.ext.android.getKoin
+import com.hhst.youtubelite.data.media.PlaybackWatchReporting
 import org.koin.android.ext.android.inject
 
 /**
@@ -31,12 +33,14 @@ class TvActivity : ComponentActivity() {
     private val engine: PlaybackApi by inject()
     private lateinit var receiver: TvReceiver
     private lateinit var browse: TvBrowseModels
+    private lateinit var player: TvPlayerSession
     private val account = MutableStateFlow<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         (application as App).startMediaRuntime()
         receiver = TvReceiver(this, engine, AndroidTvLinkStore(this, "tv"))
+        player = TvPlayerSession(lifecycleScope, engine, RepositoryTvVideoOps(get<ContentRepositories>()), getKoin().getOrNull<PlaybackWatchReporting>())
         browse = TvBrowseModels(lifecycleScope, RepositoryTvBrowseSource(get<ContentRepositories>()))
         lifecycleScope.launch {
             receiver.snapshot.collect { snapshot ->
@@ -53,7 +57,7 @@ class TvActivity : ComponentActivity() {
         setContent {
             val signedInAs by account.collectAsStateWithLifecycle()
             TvTheme {
-                TvApp(receiver = receiver, engine = engine, browse = browse, account = signedInAs,
+                TvApp(receiver = receiver, engine = engine, browse = browse, player = player, account = signedInAs,
                     onSignOut = MediaSession::signOut,
                     openSignIn = { TvSignInSession(MediaSignInService(get<OkHttpClient>(), PreferencesAuthStore(this))) },
                     onExit = ::finish)
@@ -64,12 +68,14 @@ class TvActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         receiver.start()
+        player.start()
     }
 
     override fun onStop() {
         // Leaving the app on a TV means someone else wants the screen: pause, and stop listening.
         engine.pause()
         receiver.stop()
+        player.stop()
         super.onStop()
     }
 }

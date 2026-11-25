@@ -14,8 +14,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -27,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -52,7 +56,11 @@ import androidx.tv.material3.Text
 import com.hhst.youtubelite.R
 import com.hhst.youtubelite.player.engine.PlaybackApi
 import com.hhst.youtubelite.player.engine.PlaybackSnapshot
+import com.hhst.youtubelite.player.SleepChoice
 import com.hhst.youtubelite.player.surface.PlayerUi
+import com.hhst.youtubelite.ui.design.AppIcon
+import com.hhst.youtubelite.ui.design.Artwork
+import com.hhst.youtubelite.watch.domain.VideoRating
 import com.hhst.youtubelite.tv.browse.RelatedRow
 import com.hhst.youtubelite.tv.browse.TvBrowse
 import com.hhst.youtubelite.tv.browse.TvBrowseModels
@@ -61,7 +69,8 @@ import com.hhst.youtubelite.tv.browse.TvListModel
 import kotlinx.coroutines.delay
 
 @Composable
-internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, browse: TvBrowseModels, account: String?, onSignOut: () -> Unit,
+internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, browse: TvBrowseModels, player: TvPlayerSession,
+    account: String?, onSignOut: () -> Unit,
     openSignIn: () -> TvSignInSession, onExit: () -> Unit) {
     var signingIn by remember { mutableStateOf(false) }
     val snapshot by receiver.snapshot.collectAsStateWithLifecycle()
@@ -73,14 +82,15 @@ internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, browse: TvBrowseMo
         if (videoId != null) {
             val hasPhone = link.connectedPhone != null
             val related = browse.related(videoId)
+            LaunchedEffect(videoId) { player.video.load(videoId) }
             // Watching on the TV alone, the next recommended video follows, like YouTube's autoplay.
             LaunchedEffect(videoId, snapshot.ended, hasPhone) {
-                if (snapshot.ended && !hasPhone) {
+                if (snapshot.ended && !hasPhone && player.sleptOn != videoId) {
                     related.state.value.cards.firstOrNull { it.videoId != null && it.videoId != videoId }?.let(play)
                 }
             }
             PlayerScreen(
-                snapshot, nowPlaying, engine,
+                snapshot, nowPlaying, engine, player,
                 canSkip = hasPhone,
                 related = related,
                 onSkip = receiver::skip,
@@ -101,12 +111,16 @@ private fun PlayerScreen(
     snapshot: PlaybackSnapshot,
     nowPlaying: TvNowPlaying?,
     engine: PlaybackApi,
+    player: TvPlayerSession,
     canSkip: Boolean,
     related: TvListModel,
     onSkip: (Boolean) -> Unit,
     onPlayCard: (TvCard) -> Unit,
     onStop: () -> Unit,
 ) {
+    val video by player.video.state.collectAsStateWithLifecycle()
+    val sleep by player.sleep.collectAsStateWithLifecycle()
+    var panel by remember { mutableStateOf<TvPanel?>(null) }
     var controlsVisible by remember { mutableStateOf(true) }
     var statsVisible by remember { mutableStateOf(false) }
     // Any key press restarts the hide timer.
@@ -114,17 +128,28 @@ private fun PlayerScreen(
     val screenFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
 
-    LaunchedEffect(controlsVisible, activity, snapshot.isPlaying) {
-        if (controlsVisible && snapshot.isPlaying) {
+    LaunchedEffect(controlsVisible, activity, snapshot.isPlaying, panel) {
+        if (controlsVisible && snapshot.isPlaying && panel == null) {
             delay(CONTROLS_HIDE_MS)
             controlsVisible = false
         }
     }
-    LaunchedEffect(controlsVisible) {
-        runCatching { if (controlsVisible) playFocus.requestFocus() else screenFocus.requestFocus() }
+    LaunchedEffect(controlsVisible, panel) {
+        if (panel == null) runCatching { if (controlsVisible) playFocus.requestFocus() else screenFocus.requestFocus() }
+    }
+    LaunchedEffect(video.notice) {
+        if (video.notice != null) {
+            delay(NOTICE_MS)
+            player.video.clearNotice()
+        }
     }
     BackHandler {
-        if (controlsVisible) controlsVisible = false else onStop()
+        when {
+            panel in SETTINGS_CHILDREN -> panel = TvPanel.Settings
+            panel != null -> panel = null
+            controlsVisible -> controlsVisible = false
+            else -> onStop()
+        }
     }
 
     Box(
@@ -144,7 +169,7 @@ private fun PlayerScreen(
                     Key.MediaNext -> { if (canSkip) onSkip(true); true }
                     Key.MediaPrevious -> { if (canSkip) onSkip(false); true }
                     // With the controls up, the D-pad moves between buttons.
-                    else -> if (controlsVisible) false else when (event.key) {
+                    else -> if (controlsVisible || panel != null) false else when (event.key) {
                         Key.DirectionLeft -> { engine.seekRelative(-SEEK_STEP_MS); controlsVisible = true; true }
                         Key.DirectionRight -> { engine.seekRelative(SEEK_STEP_MS); controlsVisible = true; true }
                         Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { engine.playOrPause(); controlsVisible = true; true }
@@ -160,9 +185,14 @@ private fun PlayerScreen(
         if (snapshot.isBuffering && !controlsVisible) {
             Text("Loading…", color = TvColors.Text, modifier = Modifier.align(Alignment.Center))
         }
-        if (controlsVisible) {
+        if (controlsVisible && panel == null) {
             PlayerControls(
                 snapshot = snapshot,
+                video = video,
+                onPanel = { panel = it },
+                onLike = player.video::like,
+                onDislike = player.video::dislike,
+                onSubscribe = player.video::toggleSubscribe,
                 title = nowPlaying?.title?.takeIf { it.isNotBlank() } ?: snapshot.title,
                 author = nowPlaying?.author ?: snapshot.author,
                 playFocus = playFocus,
@@ -176,6 +206,65 @@ private fun PlayerScreen(
                 onPlayCard = onPlayCard,
             )
         }
+        panel?.let { open ->
+            PlayerPanel(open, snapshot, video, sleep, engine, player, onPanel = { panel = it })
+        }
+        video.notice?.let {
+            Text(
+                it,
+                color = TvColors.Text,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 32.dp)
+                    .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(24.dp))
+                    .padding(horizontal = 24.dp, vertical = 10.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlayerPanel(
+    panel: TvPanel,
+    snapshot: PlaybackSnapshot,
+    video: TvVideoState,
+    sleep: SleepChoice,
+    engine: PlaybackApi,
+    player: TvPlayerSession,
+    onPanel: (TvPanel?) -> Unit,
+) {
+    val pick: (TvPanelRow) -> Unit = { row ->
+        applyPick(panel, row.key, engine, player::setSleep)
+        onPanel(TvPanel.Settings)
+    }
+    when (panel) {
+        TvPanel.Description -> TvSidePanel(video.video?.title ?: snapshot.title) {
+            val page = video.video
+            TvDescription(
+                meta = listOfNotNull(page?.views, page?.age, page?.likes?.let { "$it likes" }).filter(String::isNotBlank).joinToString(" • "),
+                text = page?.description.orEmpty(),
+            )
+        }
+        TvPanel.Save -> TvSidePanel("Save to") {
+            val choices = video.saveChoices
+            when {
+                video.savesFailed -> Text("Couldn't load your playlists.", color = TvColors.Muted)
+                choices == null -> Text("Loading…", color = TvColors.Muted)
+                choices.isEmpty() -> Text("No playlists yet.", color = TvColors.Muted)
+                else -> TvPanelList(choices.map { TvPanelRow(it.id, it.title, checked = it.contains) }) { row ->
+                    choices.firstOrNull { it.id == row.key }?.let(player.video::toggleSave)
+                }
+            }
+        }
+        TvPanel.Settings -> TvSidePanel("Settings") {
+            TvPanelList(settingsRows(snapshot, sleep)) { row -> onPanel(TvPanel.valueOf(row.key)) }
+        }
+        TvPanel.Quality -> TvSidePanel("Quality") { TvPanelList(qualityRows(snapshot), pick) }
+        TvPanel.Speed -> TvSidePanel("Playback speed") { TvPanelList(speedRows(snapshot), pick) }
+        TvPanel.Captions -> TvSidePanel("Captions") { TvPanelList(captionRows(snapshot), pick) }
+        TvPanel.Audio -> TvSidePanel("Audio track") { TvPanelList(audioRows(snapshot), pick) }
+        TvPanel.Sleep -> TvSidePanel("Sleep timer") { TvPanelList(sleepRows(sleep), pick) }
     }
 }
 
@@ -203,6 +292,11 @@ private fun VideoSurface(engine: PlaybackApi) {
 @Composable
 private fun PlayerControls(
     snapshot: PlaybackSnapshot,
+    video: TvVideoState,
+    onPanel: (TvPanel) -> Unit,
+    onLike: () -> Unit,
+    onDislike: () -> Unit,
+    onSubscribe: () -> Unit,
     title: String,
     author: String?,
     playFocus: FocusRequester,
@@ -228,8 +322,15 @@ private fun PlayerControls(
         ) {
             Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
                 color = TvColors.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            author?.let {
-                Text(it, style = MaterialTheme.typography.titleMedium, color = TvColors.Text.copy(alpha = 0.85f), maxLines = 1)
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                video.video?.avatar?.takeIf(String::isNotBlank)?.let {
+                    Artwork(it, Modifier.size(40.dp).clip(CircleShape))
+                    Spacer(Modifier.width(12.dp))
+                }
+                (video.video?.channel?.takeIf(String::isNotBlank) ?: author)?.let {
+                    Text(it, style = MaterialTheme.typography.titleMedium, color = TvColors.Text.copy(alpha = 0.9f), maxLines = 1)
+                }
             }
         }
         Column(
@@ -272,7 +373,24 @@ private fun PlayerControls(
                     )
                     if (canSkip) FrostButton(R.drawable.ic_player_next, "Next", onNext, size = 52.dp)
                 }
+                // Channel side, as on YouTube TV: subscribe and the description.
+                Row(Modifier.align(Alignment.CenterStart), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (video.video?.channelId?.isNotBlank() == true) {
+                        FrostPill(if (video.subscribed) "Subscribed" else "Subscribe", onSubscribe, active = video.subscribed)
+                    }
+                    FrostPill("Description", { onPanel(TvPanel.Description) }, active = true)
+                }
                 FrostGroup(Modifier.align(Alignment.CenterEnd)) {
+                    FrostButton(AppIcon.Like, "Like", onLike, size = 48.dp, glass = false, active = video.rating == VideoRating.Like)
+                    FrostButton(AppIcon.Dislike, "Dislike", onDislike, size = 48.dp, glass = false, active = video.rating == VideoRating.Dislike)
+                    FrostButton(AppIcon.Bookmark, "Save", { onPanel(TvPanel.Save) }, size = 48.dp, glass = false)
+                    if (snapshot.subtitleTracks.isNotEmpty()) {
+                        FrostButton(
+                            if (snapshot.subtitleEnabled) R.drawable.ic_subtitles_on else R.drawable.ic_subtitles_off,
+                            "Captions", { onPanel(TvPanel.Captions) }, size = 48.dp, glass = false,
+                        )
+                    }
+                    FrostButton(AppIcon.Settings, "Settings", { onPanel(TvPanel.Settings) }, size = 48.dp, glass = false)
                     FrostButton(R.drawable.ic_tv_stats, "Stats for nerds", onStats, size = 48.dp, glass = false)
                     FrostButton(R.drawable.ic_tv_stop, "Stop", onStop, size = 48.dp, glass = false)
                 }
@@ -353,6 +471,8 @@ internal fun statsLines(snapshot: PlaybackSnapshot): List<String> {
     )
 }
 
+private val SETTINGS_CHILDREN = setOf(TvPanel.Quality, TvPanel.Speed, TvPanel.Captions, TvPanel.Audio, TvPanel.Sleep)
+private const val NOTICE_MS = 3_000L
 private val RELATED_HIDDEN = 236.dp
 private const val CONTROLS_HIDE_MS = 5_000L
 private const val SEEK_STEP_MS = 10_000L
