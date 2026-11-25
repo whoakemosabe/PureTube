@@ -256,9 +256,23 @@ private fun Sidebar(
             .focusRestorer(focus),
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {
-        ProfileButton(account, accountPhoto, open, onProfile)
+        // Your picture with Search beside it, so Search isn't a row of the list.
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            ProfileButton(account, accountPhoto, onProfile)
+            if (open || selected == TvSection.Search) {
+                RoundSidebarButton(
+                    onClick = { onSelect(TvSection.Search) },
+                    modifier = if (selected == TvSection.Search) Modifier.focusRequester(focus) else Modifier,
+                    highlighted = selected == TvSection.Search && !open,
+                ) { AppIcon(AppIcon.Search, Modifier.size(22.dp), color = androidx.tv.material3.LocalContentColor.current) }
+            }
+        }
+        if (open && account != null) {
+            Text(account, style = MaterialTheme.typography.bodySmall, color = TvColors.Muted, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp, top = 6.dp))
+        }
         Spacer(Modifier.height(10.dp))
-        TvSection.entries.forEach { section ->
+        TvSection.entries.filter { it in SIDEBAR_LIST }.forEach { section ->
             val isSelected = section == selected
             Surface(
                 onClick = { onSelect(section) },
@@ -291,34 +305,42 @@ private fun Sidebar(
     }
 }
 
-/** The top of the sidebar: your picture, or a silhouette when signed out. */
+/** The top of the sidebar: your picture, or a silhouette when signed out (pressing it signs in). */
 @Composable
-private fun ProfileButton(account: String?, photo: String?, open: Boolean, onClick: () -> Unit) {
+private fun ProfileButton(account: String?, photo: String?, onClick: () -> Unit) {
+    RoundSidebarButton(onClick) {
+        if (account != null && !photo.isNullOrBlank()) {
+            Artwork(photo, Modifier.fillMaxSize().clip(CircleShape))
+        } else {
+            AppIcon(AppIcon.You, Modifier.size(24.dp), color = androidx.tv.material3.LocalContentColor.current)
+        }
+    }
+}
+
+/** A round button at the top of the sidebar, ringed in white when focused. */
+@Composable
+private fun RoundSidebarButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    highlighted: Boolean = false,
+    content: @Composable () -> Unit,
+) {
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(52.dp),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(26.dp)),
+        modifier = modifier.size(48.dp),
+        shape = ClickableSurfaceDefaults.shape(CircleShape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
+            containerColor = if (highlighted) TvColors.Red else TvColors.Frost,
             contentColor = TvColors.Text,
             focusedContainerColor = TvColors.Focused,
             focusedContentColor = TvColors.OnFocused,
         ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = Border(BorderStroke(3.dp, TvColors.Focused), inset = 3.dp, shape = CircleShape),
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
     ) {
-        Row(Modifier.fillMaxSize().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(36.dp).clip(CircleShape).background(TvColors.Frost), contentAlignment = Alignment.Center) {
-                if (account != null && !photo.isNullOrBlank()) {
-                    Artwork(photo, Modifier.fillMaxSize().clip(CircleShape))
-                } else {
-                    AppIcon(AppIcon.You, Modifier.size(22.dp), color = androidx.tv.material3.LocalContentColor.current)
-                }
-            }
-            if (open) {
-                Spacer(Modifier.width(14.dp))
-                Text(account ?: "Sign in", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
     }
 }
 
@@ -697,6 +719,8 @@ private suspend fun enterContent(focusManager: androidx.compose.ui.focus.FocusMa
 }
 
 private const val ENTER_TRIES = 90
+/** Search lives beside your picture, so the list starts at Home. */
+private val SIDEBAR_LIST = TvSection.entries.toSet() - TvSection.Search
 private val SIDEBAR_COLLAPSED = 72.dp
 private val SIDEBAR_OPEN = 260.dp
 private const val PREFETCH_ROWS = 2

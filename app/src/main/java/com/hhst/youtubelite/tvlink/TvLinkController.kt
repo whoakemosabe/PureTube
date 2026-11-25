@@ -98,10 +98,22 @@ class TvLinkController internal constructor(
     private fun add(address: Pair<String, Int>, remember: Boolean): String {
         val (host, port) = address
         val id = ID_PREFIX + "$host:$port"
-        if (endpoints.values.none { it.host == host && it.port == port }) endpoints[id] = Endpoint("Puretube TV ($host)", host, port)
-        if (remember) appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(TYPED, "$host:$port").apply()
+        val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val known = prefs.getString(TYPED_NAME, null)?.takeIf { prefs.getString(TYPED, null) == "$host:$port" }
+        if (endpoints.values.none { it.host == host && it.port == port }) endpoints[id] = Endpoint(known ?: "Puretube TV ($host)", host, port)
+        if (remember && prefs.getString(TYPED, null) != "$host:$port") prefs.edit().putString(TYPED, "$host:$port").remove(TYPED_NAME).apply()
         publishDevices()
         return endpoints.entries.first { it.value.host == host && it.value.port == port }.key
+    }
+
+    /** A typed-in TV takes the name it sends once it answers, and keeps it for next time. */
+    private fun learnName(deviceId: String, tvName: String) {
+        val endpoint = endpoints[deviceId] ?: return
+        if (tvName.isBlank() || endpoint.name == tvName) return
+        endpoints[deviceId] = endpoint.copy(name = tvName)
+        val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.getString(TYPED, null) == "${endpoint.host}:${endpoint.port}") prefs.edit().putString(TYPED_NAME, tvName).apply()
+        publishDevices()
     }
 
     private fun typedAddress(): Pair<String, Int>? =
@@ -132,6 +144,7 @@ class TvLinkController internal constructor(
         when (val result = opened.result) {
             is PhoneHandshake.Result.Connected -> {
                 val connected = Connection(checkNotNull(opened.socket), result.channel)
+                withContext(Dispatchers.Main) { learnName(deviceId, result.tvName) }
                 withContext(Dispatchers.Main) { attach(connected, result.tvName) }
                 return ConnectResult.Connected
             }
@@ -306,6 +319,7 @@ class TvLinkController internal constructor(
         const val DEFAULT_PORT = 48765
         private const val PREFS = "puretube_tv_link_phone"
         private const val TYPED = "typed_address"
+        private const val TYPED_NAME = "typed_name"
 
         /** "192.168.1.20" or "192.168.1.20:48765" to host and port; null for anything else. */
         internal fun parseAddress(text: String): Pair<String, Int>? {

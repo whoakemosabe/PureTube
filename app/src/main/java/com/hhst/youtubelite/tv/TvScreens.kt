@@ -48,6 +48,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontFamily
@@ -183,6 +184,7 @@ private fun PlayerScreen(
     // Any key press restarts the hide timer.
     var activity by remember { mutableIntStateOf(0) }
     val screenFocus = remember { FocusRequester() }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val playFocus = remember { FocusRequester() }
     /** The key that brought the controls up; its release must not also press what got focus. */
     var swallowRelease by remember { mutableStateOf<Key?>(null) }
@@ -260,6 +262,16 @@ private fun PlayerScreen(
                         handled
                     }
                 }
+            }
+            // Up with nothing above the focused control (the top row): the overlay goes away.
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown || event.key != Key.DirectionUp) return@onKeyEvent false
+                if (!controlsVisible || panel != null) return@onKeyEvent false
+                if (!focusManager.moveFocus(FocusDirection.Up)) {
+                    controlsVisible = false
+                    swallowRelease = Key.DirectionUp
+                }
+                true
             }
             .focusable(),
     ) {
@@ -529,8 +541,9 @@ private fun PlayerControls(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     FrostGroup {
-                        FrostButton(AppIcon.Like, "Like", onLike, size = 44.dp, glass = false, active = video.rating == VideoRating.Like)
-                        FrostButton(AppIcon.Dislike, "Dislike", onDislike, size = 44.dp, glass = false, active = video.rating == VideoRating.Dislike)
+                        // Pressed thumbs fill in white, as on YouTube, instead of turning red.
+                        FrostButton(if (video.rating == VideoRating.Like) AppIcon.LikeFilled else AppIcon.Like, "Like", onLike, size = 44.dp, glass = false)
+                        FrostButton(if (video.rating == VideoRating.Dislike) AppIcon.DislikeFilled else AppIcon.Dislike, "Dislike", onDislike, size = 44.dp, glass = false)
                         FrostButton(AppIcon.Comment, if (hasChat) "Live chat" else "Comments",
                             { onPanel(if (hasChat) TvPanel.Chat else TvPanel.Comments) }, size = 44.dp, glass = false)
                         FrostButton(AppIcon.Bookmark, "Save", { onPanel(TvPanel.Save) }, size = 44.dp, glass = false)
