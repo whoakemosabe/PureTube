@@ -59,7 +59,7 @@ internal fun TvSignInScreen(openSession: () -> TvSignInSession, onClose: () -> U
     val action = remember { FocusRequester() }
     LaunchedEffect(state) {
         if (state == SignInUiState.Success) onClose()
-        runCatching { action.requestFocus() }
+        requestFocusSoon(action)
     }
     BackHandler(onBack = onClose)
     Box(Modifier.fillMaxSize().background(TvColors.Background), contentAlignment = Alignment.CenterStart) {

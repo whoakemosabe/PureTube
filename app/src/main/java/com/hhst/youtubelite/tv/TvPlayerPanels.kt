@@ -142,7 +142,7 @@ internal fun TvSidePanel(title: String, modifier: Modifier = Modifier, content: 
 @Composable
 internal fun TvPanelList(rows: List<TvPanelRow>, onPick: (TvPanelRow) -> Unit) {
     val first = remember { FocusRequester() }
-    LaunchedEffect(rows.size) { runCatching { first.requestFocus() } }
+    LaunchedEffect(rows.size) { requestFocusSoon(first) }
     val start = rows.indexOfFirst { it.checked }.coerceAtLeast(0)
     LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items(rows.size, key = { rows[it].key }) { index ->
@@ -180,7 +180,7 @@ internal fun TvPanelList(rows: List<TvPanelRow>, onPick: (TvPanelRow) -> Unit) {
 @Composable
 internal fun TvDescription(meta: String, text: String) {
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    LaunchedEffect(Unit) { requestFocusSoon(focus) }
     val scroll = rememberScrollState()
     val scope = rememberCoroutineScope()
     Surface(

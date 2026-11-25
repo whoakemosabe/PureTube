@@ -79,6 +79,13 @@ class HomeActivity : com.hhst.youtubelite.ui.ContentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // On a TV, apps opened from Downloader or the app list start here, not at the TV
+        // launcher entry: hand over to the TV screens.
+        if (com.hhst.youtubelite.tv.TvDevice.isTelevision(this)) {
+            startActivity(android.content.Intent(this, com.hhst.youtubelite.tv.TvActivity::class.java))
+            finish()
+            return
+        }
         if (!com.hhst.youtubelite.data.media.ContentRepositories.fixtures(intent)) {
             postCards.bind()
             observeAccountChanges {

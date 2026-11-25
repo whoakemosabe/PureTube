@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontFamily
@@ -66,6 +67,7 @@ import com.hhst.youtubelite.tv.browse.TvBrowse
 import com.hhst.youtubelite.tv.browse.TvBrowseModels
 import com.hhst.youtubelite.tv.browse.TvCard
 import com.hhst.youtubelite.tv.browse.TvListModel
+import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.delay
 
 @Composable
@@ -127,6 +129,8 @@ private fun PlayerScreen(
     var activity by remember { mutableIntStateOf(0) }
     val screenFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
+    /** The key that brought the controls up; its release must not also press what got focus. */
+    var swallowRelease by remember { mutableStateOf<Key?>(null) }
 
     LaunchedEffect(controlsVisible, activity, snapshot.isPlaying, panel) {
         if (controlsVisible && snapshot.isPlaying && panel == null) {
@@ -135,7 +139,8 @@ private fun PlayerScreen(
         }
     }
     LaunchedEffect(controlsVisible, panel) {
-        if (panel == null) runCatching { if (controlsVisible) playFocus.requestFocus() else screenFocus.requestFocus() }
+        // The controls compose a frame later than this effect runs: retry until focus lands.
+        if (panel == null) requestFocusSoon(if (controlsVisible) playFocus else screenFocus)
     }
     LaunchedEffect(video.notice) {
         if (video.notice != null) {
@@ -158,6 +163,11 @@ private fun PlayerScreen(
             .background(Color.Black)
             .focusRequester(screenFocus)
             .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyUp) {
+                    if (event.key != swallowRelease) return@onPreviewKeyEvent false
+                    swallowRelease = null
+                    return@onPreviewKeyEvent true
+                }
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 activity++
                 when (event.key) {
@@ -168,13 +178,20 @@ private fun PlayerScreen(
                     Key.MediaRewind -> { engine.seekRelative(-SEEK_STEP_MS); true }
                     Key.MediaNext -> { if (canSkip) onSkip(true); true }
                     Key.MediaPrevious -> { if (canSkip) onSkip(false); true }
-                    // With the controls up, the D-pad moves between buttons.
-                    else -> if (controlsVisible || panel != null) false else when (event.key) {
-                        Key.DirectionLeft -> { engine.seekRelative(-SEEK_STEP_MS); controlsVisible = true; true }
-                        Key.DirectionRight -> { engine.seekRelative(SEEK_STEP_MS); controlsVisible = true; true }
-                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { engine.playOrPause(); controlsVisible = true; true }
-                        Key.DirectionUp, Key.DirectionDown -> { controlsVisible = true; true }
-                        else -> false
+                    // With the controls up, the D-pad moves between them; the scrubber seeks.
+                    else -> if (controlsVisible || panel != null) false else {
+                        val handled = when (event.key) {
+                            Key.DirectionLeft -> { engine.seekRelative(-seekStep(event.nativeKeyEvent.repeatCount)); true }
+                            Key.DirectionRight -> { engine.seekRelative(seekStep(event.nativeKeyEvent.repeatCount)); true }
+                            Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { engine.playOrPause(); true }
+                            Key.DirectionUp, Key.DirectionDown -> true
+                            else -> false
+                        }
+                        if (handled) {
+                            controlsVisible = true
+                            swallowRelease = event.key
+                        }
+                        handled
                     }
                 }
             }
@@ -188,6 +205,7 @@ private fun PlayerScreen(
         if (controlsVisible && panel == null) {
             PlayerControls(
                 snapshot = snapshot,
+                engine = engine,
                 video = video,
                 onPanel = { panel = it },
                 onLike = player.video::like,
@@ -292,6 +310,7 @@ private fun VideoSurface(engine: PlaybackApi) {
 @Composable
 private fun PlayerControls(
     snapshot: PlaybackSnapshot,
+    engine: PlaybackApi,
     video: TvVideoState,
     onPanel: (TvPanel) -> Unit,
     onLike: () -> Unit,
@@ -355,7 +374,7 @@ private fun PlayerControls(
                     style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
                 )
             }
-            ProgressBar(snapshot)
+            Scrubber(snapshot, engine, Modifier.focusRequester(playFocus))
             Spacer(Modifier.height(24.dp))
             Box(Modifier.fillMaxWidth()) {
                 Row(
@@ -368,7 +387,6 @@ private fun PlayerControls(
                         if (snapshot.userWantsPlay) R.drawable.ic_player_pause else R.drawable.ic_player_play,
                         if (snapshot.userWantsPlay) "Pause" else "Play",
                         onPlayPause,
-                        modifier = Modifier.focusRequester(playFocus),
                         size = 68.dp,
                     )
                     if (canSkip) FrostButton(R.drawable.ic_player_next, "Next", onNext, size = 52.dp)
@@ -414,15 +432,58 @@ private fun PlayerControls(
 private fun currentChapter(snapshot: PlaybackSnapshot): String? =
     snapshot.chapters.lastOrNull { it.startSeconds * 1000L <= snapshot.positionMs }?.title?.takeIf { it.isNotBlank() }
 
+/**
+ * The progress bar takes focus first when the controls come up, as on YouTube TV: left and
+ * right seek (further the longer they are held), OK plays or pauses, down reaches the buttons.
+ */
+@Composable
+private fun Scrubber(snapshot: PlaybackSnapshot, engine: PlaybackApi, modifier: Modifier = Modifier) {
+    var focused by remember { mutableStateOf(false) }
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(24.dp)
+            .onFocusChanged { focused = it.isFocused }
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                when (event.key) {
+                    Key.DirectionLeft -> { engine.seekRelative(-seekStep(event.nativeKeyEvent.repeatCount)); true }
+                    Key.DirectionRight -> { engine.seekRelative(seekStep(event.nativeKeyEvent.repeatCount)); true }
+                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { engine.playOrPause(); true }
+                    else -> false
+                }
+            }
+            .focusable(),
+        contentAlignment = Alignment.Center,
+    ) {
+        ProgressBar(snapshot, thick = focused)
+    }
+}
+
+/** 10 s a press; held down, the steps grow so a long video can be crossed quickly. */
+private fun seekStep(repeatCount: Int): Long = when {
+    repeatCount >= 20 -> 60_000L
+    repeatCount >= 8 -> 30_000L
+    else -> SEEK_STEP_MS
+}
+
+/** Moves focus to [requester] once its target is on screen, trying for about a second. */
+internal suspend fun requestFocusSoon(requester: FocusRequester) {
+    repeat(FOCUS_TRIES) {
+        if (runCatching { requester.requestFocus() }.isSuccess) return
+        withFrameNanos { }
+    }
+}
+
 /** Played in white, buffered in grey, split at chapters, with skipped sponsor parts in yellow. */
 @Composable
-private fun ProgressBar(snapshot: PlaybackSnapshot) {
+private fun ProgressBar(snapshot: PlaybackSnapshot, thick: Boolean = false) {
     val duration = snapshot.durationMs.coerceAtLeast(1)
     val played = (snapshot.positionMs.toFloat() / duration).coerceIn(0f, 1f)
     val buffered = (snapshot.bufferedPositionMs.toFloat() / duration).coerceIn(played, 1f)
     val chapterStarts = snapshot.chapters.map { it.startSeconds * 1000f / duration }.filter { it > 0f && it < 1f }
     val sponsors = snapshot.sponsorSegments.map { (it.startMs.toFloat() / duration).coerceIn(0f, 1f) to (it.endMs.toFloat() / duration).coerceIn(0f, 1f) }
-    Canvas(Modifier.fillMaxWidth().height(6.dp)) {
+    Canvas(Modifier.fillMaxWidth().height(if (thick) 10.dp else 5.dp)) {
         val h = size.height
         val corner = CornerRadius(h / 2, h / 2)
         drawRoundRect(Color.White.copy(alpha = 0.3f), size = size, cornerRadius = corner)
@@ -435,6 +496,8 @@ private fun ProgressBar(snapshot: PlaybackSnapshot) {
         chapterStarts.forEach { start ->
             drawRect(Color.Black, topLeft = Offset(size.width * start - 2f, 0f), size = Size(4f, h))
         }
+        // The playhead, shown while the bar has focus.
+        if (thick) drawCircle(TvColors.Text, radius = h * 1.3f, center = Offset(size.width * played, h / 2))
     }
 }
 
@@ -474,5 +537,6 @@ internal fun statsLines(snapshot: PlaybackSnapshot): List<String> {
 private val SETTINGS_CHILDREN = setOf(TvPanel.Quality, TvPanel.Speed, TvPanel.Captions, TvPanel.Audio, TvPanel.Sleep)
 private const val NOTICE_MS = 3_000L
 private val RELATED_HIDDEN = 236.dp
+private const val FOCUS_TRIES = 60
 private const val CONTROLS_HIDE_MS = 5_000L
 private const val SEEK_STEP_MS = 10_000L

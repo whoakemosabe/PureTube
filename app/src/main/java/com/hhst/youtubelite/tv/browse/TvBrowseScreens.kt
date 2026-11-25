@@ -67,6 +67,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.hhst.youtubelite.tv.TvColors
 import com.hhst.youtubelite.tv.TvLinkUiState
+import com.hhst.youtubelite.tv.requestFocusSoon
 import com.hhst.youtubelite.ui.design.AppIcon
 import com.hhst.youtubelite.ui.design.Artwork
 
@@ -104,6 +105,8 @@ internal fun TvBrowse(
     val contentFocus = remember { FocusRequester() }
     val blur by animateDpAsState(if (sidebarOpen) 18.dp else 0.dp, label = "sidebarBlur")
 
+    // Start in the section's tiles, like YouTube TV, once they are on screen.
+    LaunchedEffect(identity) { requestFocusSoon(contentFocus) }
     BackHandler {
         when {
             openPlaylist != null -> browse.closePlaylist()
