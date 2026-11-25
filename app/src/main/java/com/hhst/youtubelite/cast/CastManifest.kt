@@ -53,10 +53,10 @@ object CastManifest {
     ): String? {
         // Unusable without byte ranges: no init segment and no sidx → receiver cannot locate media.
         if (!format.hasDashRanges) return null
-        // Container mime drives decoder choice; a mismatched container is MEDIA_ERR_DECODE on receivers.
-        val mime = Markup.xml(format.mimeType.ifBlank {
-            if (format.audioOnly) "audio/mp4" else "video/mp4"
-        })
+        // The AdaptationSet takes the bare container mime. The player answer's mimeType carries
+        // `; codecs="..."`, which the receiver's Shaka reads as an unknown container and refuses
+        // (LOAD_FAILED); codecs already go on the Representation.
+        val mime = Markup.xml(containerMime(format))
         val contentType = if (format.audioOnly) "audio" else "video"
         val codecs = Markup.xml(format.codec.orEmpty())
         val bandwidth = format.bitrate.takeIf { it > 0 } ?: 1
@@ -130,6 +130,11 @@ object CastManifest {
             append("</Representation></AdaptationSet>")
         }
     }
+
+    private fun containerMime(format: Format): String =
+        format.mimeType.substringBefore(';').trim().ifBlank {
+            if (format.audioOnly) "audio/mp4" else "video/mp4"
+        }
 
     private fun streamUrl(proxyBase: String, token: String, generation: Long): String {
         val base = "$proxyBase/stream/$token"

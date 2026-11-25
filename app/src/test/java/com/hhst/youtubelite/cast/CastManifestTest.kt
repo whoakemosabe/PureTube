@@ -95,6 +95,24 @@ class CastManifestTest {
         assertFalse(mpd.contains("<S d=\"1000000\" t="))
     }
 
+    @Test
+    fun build_writesBareContainerMimeWhenTheAnswerCarriesCodecs() {
+        val mpd = CastManifest.build(
+            video = video().copy(mimeType = "video/mp4; codecs=\"avc1.4d401f\"", codec = "avc1.4d401f"),
+            audio = video().copy(
+                itag = 140, mimeType = "audio/mp4; codecs=\"mp4a.40.2\"", codec = "mp4a.40.2",
+                audioOnly = true, height = 0, width = 0,
+            ),
+            durationMs = 10_000,
+            proxyBase = "http://host/k",
+        )!!
+        assertTrue(mpd.contains("mimeType=\"video/mp4\" contentType=\"video\""))
+        assertTrue(mpd.contains("mimeType=\"audio/mp4\" contentType=\"audio\""))
+        assertTrue(mpd.contains("codecs=\"avc1.4d401f\""))
+        assertTrue(mpd.contains("codecs=\"mp4a.40.2\""))
+        assertFalse(mpd.contains("&quot;"))
+    }
+
     private fun video() = Format(
         url = "https://example.com/v",
         itag = 137,
