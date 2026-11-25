@@ -37,6 +37,9 @@ import com.hhst.youtubelite.extension.ExtensionManager
 import com.hhst.youtubelite.extension.PreferenceKeys
 import com.hhst.youtubelite.tv.TvColors
 import com.hhst.youtubelite.tv.TvLinkUiState
+import androidx.compose.ui.platform.LocalContext
+import com.hhst.youtubelite.update.UpdateUi
+import com.hhst.youtubelite.update.UpdateWatch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -145,8 +148,29 @@ internal fun SettingsSection(
             }
         }
         item { GroupTitle("About") }
-        item { Text("Puretube $version", style = MaterialTheme.typography.bodyLarge, color = TvColors.Muted, modifier = Modifier.padding(start = 16.dp)) }
+        item(key = "check-update") {
+            val context = LocalContext.current
+            val waiting = UpdateWatch.waitingVersion
+            ActionRow(
+                if (waiting != null) "Update to Puretube $waiting" else "Check for updates",
+                updateSummary(UpdateWatch.ui, version, waiting),
+                {
+                    // A newer version opens its panel, even one closed with Not now before.
+                    UpdateWatch.showBanner(context)
+                    if (waiting == null) UpdateWatch.checkOnly(context)
+                },
+            )
+        }
     }
+}
+
+/** What the Check for updates row says under its title. */
+internal fun updateSummary(ui: UpdateUi, installed: String, waiting: String?): String = when {
+    ui is UpdateUi.Checking -> "Checking…"
+    ui is UpdateUi.Error -> ui.message
+    waiting != null -> "You have $installed. Press to see what's new and install."
+    ui is UpdateUi.UpToDate -> "You have the latest version, $installed."
+    else -> "You have Puretube $installed."
 }
 
 @Composable

@@ -48,3 +48,15 @@ class TvHomeAndChannelsTest {
         assertEquals("https://x/y.jpg", kept.artwork)
     }
 }
+
+class TvUpdateRowTest {
+    @Test
+    fun summarySaysWhatTheCheckFound() {
+        org.junit.Assert.assertEquals("Checking…", updateSummary(com.hhst.youtubelite.update.UpdateUi.Checking, "1.0.29", null))
+        org.junit.Assert.assertEquals("You have the latest version, 1.0.29.",
+            updateSummary(com.hhst.youtubelite.update.UpdateUi.UpToDate("1.0.29"), "1.0.29", null))
+        org.junit.Assert.assertEquals("You have 1.0.29. Press to see what's new and install.",
+            updateSummary(com.hhst.youtubelite.update.UpdateUi.Idle, "1.0.29", "1.0.30"))
+        org.junit.Assert.assertEquals("Offline", updateSummary(com.hhst.youtubelite.update.UpdateUi.Error("Offline"), "1.0.29", "1.0.30"))
+    }
+}

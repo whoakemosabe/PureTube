@@ -109,6 +109,12 @@ object UpdateWatch {
         prefs(context).edit().putString("banner_hidden", version).apply()
     }
 
+    /** Brings back a banner closed with ×, as when the user asks to check again. */
+    fun showBanner(context: Context) {
+        bannerHidden = null
+        prefs(context).edit().remove("banner_hidden").apply()
+    }
+
     /** Home's What's new window, opened from the banner. */
     var whatsNewOpen by mutableStateOf(false)
 
