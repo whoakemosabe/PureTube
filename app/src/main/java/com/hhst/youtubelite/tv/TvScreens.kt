@@ -123,6 +123,13 @@ private fun PlayerScreen(
     val video by player.video.state.collectAsStateWithLifecycle()
     val sleep by player.sleep.collectAsStateWithLifecycle()
     var panel by remember { mutableStateOf<TvPanel?>(null) }
+    /** The settings row last opened, so going back lands on it again. */
+    var settingsReturn by remember { mutableStateOf<String?>(null) }
+    val openPanel: (TvPanel?) -> Unit = { next ->
+        if (next in SETTINGS_CHILDREN) settingsReturn = next?.name
+        if (next == null) settingsReturn = null
+        panel = next
+    }
     var controlsVisible by remember { mutableStateOf(true) }
     var statsVisible by remember { mutableStateOf(false) }
     // Any key press restarts the hide timer.
@@ -150,8 +157,8 @@ private fun PlayerScreen(
     }
     BackHandler {
         when {
-            panel in SETTINGS_CHILDREN -> panel = TvPanel.Settings
-            panel != null -> panel = null
+            panel in SETTINGS_CHILDREN -> openPanel(TvPanel.Settings)
+            panel != null -> openPanel(null)
             controlsVisible -> controlsVisible = false
             else -> onStop()
         }
@@ -207,7 +214,7 @@ private fun PlayerScreen(
                 snapshot = snapshot,
                 engine = engine,
                 video = video,
-                onPanel = { panel = it },
+                onPanel = openPanel,
                 onLike = player.video::like,
                 onDislike = player.video::dislike,
                 onSubscribe = player.video::toggleSubscribe,
@@ -223,8 +230,8 @@ private fun PlayerScreen(
             )
         }
         panel?.let { open ->
-            PlayerPanel(open, snapshot, video, sleep, engine, player, statsVisible,
-                onStats = { statsVisible = !statsVisible; panel = null }, onPanel = { panel = it })
+            PlayerPanel(open, snapshot, video, sleep, engine, player, statsVisible, settingsReturn,
+                onStats = { statsVisible = !statsVisible; openPanel(null) }, onPanel = openPanel)
         }
         video.notice?.let {
             Text(
@@ -250,6 +257,7 @@ private fun PlayerPanel(
     engine: PlaybackApi,
     player: TvPlayerSession,
     statsVisible: Boolean,
+    settingsReturn: String?,
     onStats: () -> Unit,
     onPanel: (TvPanel?) -> Unit,
 ) {
@@ -265,6 +273,16 @@ private fun PlayerPanel(
                 text = page?.description.orEmpty(),
             )
         }
+        TvPanel.Comments -> TvSidePanel(listOf("Comments", video.comments.total).filter(String::isNotBlank).joinToString(" • ")) {
+            LaunchedEffect(video.videoId) { if (!video.comments.started) player.video.loadComments() }
+            TvCommentList(video.comments, onNearEnd = player.video::loadComments)
+        }
+        TvPanel.Channel -> TvSidePanel(video.video?.channel.orEmpty()) {
+            TvPanelList(listOf(TvPanelRow("unsubscribe", "Unsubscribe"))) {
+                player.video.toggleSubscribe()
+                onPanel(null)
+            }
+        }
         TvPanel.Save -> TvSidePanel("Save to") {
             val choices = video.saveChoices
             when {
@@ -277,15 +295,16 @@ private fun PlayerPanel(
             }
         }
         TvPanel.Settings -> TvSidePanel("Settings") {
-            TvPanelList(settingsRows(snapshot, sleep) + TvPanelRow(STATS, "Stats for nerds", if (statsVisible) "On" else "Off")) { row ->
+            TvPanelList(settingsRows(snapshot, sleep) + TvPanelRow(STATS, "Stats for nerds", if (statsVisible) "On" else "Off"),
+                focusKey = settingsReturn) { row ->
                 if (row.key == STATS) onStats() else onPanel(TvPanel.valueOf(row.key))
             }
         }
-        TvPanel.Quality -> TvSidePanel("Quality") { TvPanelList(qualityRows(snapshot), pick) }
-        TvPanel.Speed -> TvSidePanel("Playback speed") { TvPanelList(speedRows(snapshot), pick) }
-        TvPanel.Captions -> TvSidePanel("Captions") { TvPanelList(captionRows(snapshot), pick) }
-        TvPanel.Audio -> TvSidePanel("Audio track") { TvPanelList(audioRows(snapshot), pick) }
-        TvPanel.Sleep -> TvSidePanel("Sleep timer") { TvPanelList(sleepRows(sleep), pick) }
+        TvPanel.Quality -> TvSidePanel("Quality") { TvPanelList(qualityRows(snapshot), onPick = pick) }
+        TvPanel.Speed -> TvSidePanel("Playback speed") { TvPanelList(speedRows(snapshot), onPick = pick) }
+        TvPanel.Captions -> TvSidePanel("Captions") { TvPanelList(captionRows(snapshot), onPick = pick) }
+        TvPanel.Audio -> TvSidePanel("Audio track") { TvPanelList(audioRows(snapshot), onPick = pick) }
+        TvPanel.Sleep -> TvSidePanel("Sleep timer") { TvPanelList(sleepRows(sleep), onPick = pick) }
     }
 }
 
@@ -343,15 +362,12 @@ private fun PlayerControls(
         ) {
             Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
                 color = TvColors.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                video.video?.avatar?.takeIf(String::isNotBlank)?.let {
-                    Artwork(it, Modifier.size(40.dp).clip(CircleShape))
-                    Spacer(Modifier.width(12.dp))
-                }
-                (video.video?.channel?.takeIf(String::isNotBlank) ?: author)?.let {
-                    Text(it, style = MaterialTheme.typography.titleMedium, color = TvColors.Text.copy(alpha = 0.9f), maxLines = 1)
-                }
+            Spacer(Modifier.height(6.dp))
+            // "Channel • views • age", one line under the title, as on YouTube TV.
+            val meta = listOfNotNull(video.video?.channel?.takeIf(String::isNotBlank) ?: author,
+                video.video?.views, video.video?.age).filter(String::isNotBlank).joinToString(" • ")
+            if (meta.isNotBlank()) {
+                Text(meta, style = MaterialTheme.typography.titleSmall, color = TvColors.Text.copy(alpha = 0.9f), maxLines = 1)
             }
         }
         Column(
@@ -381,36 +397,55 @@ private fun PlayerControls(
             Box(Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.align(Alignment.Center),
-                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (canSkip) FrostButton(R.drawable.ic_player_previous, "Previous", onPrevious, size = 52.dp)
+                    if (canSkip) FrostButton(R.drawable.ic_player_previous, "Previous", onPrevious, size = 48.dp)
                     FrostButton(
                         if (snapshot.userWantsPlay) R.drawable.ic_player_pause else R.drawable.ic_player_play,
                         if (snapshot.userWantsPlay) "Pause" else "Play",
                         onPlayPause,
-                        size = 68.dp,
+                        size = 64.dp,
                     )
-                    if (canSkip) FrostButton(R.drawable.ic_player_next, "Next", onNext, size = 52.dp)
+                    if (canSkip) FrostButton(R.drawable.ic_player_next, "Next", onNext, size = 48.dp)
                 }
-                // Channel side, as on YouTube TV: subscribe and the description.
-                Row(Modifier.align(Alignment.CenterStart), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Channel side, as on YouTube TV: the channel's picture, Description, then
+                // Subscribe, or the bell once subscribed.
+                Row(
+                    Modifier.align(Alignment.CenterStart),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FrostAvatar(video.video?.avatar, video.video?.channel ?: author.orEmpty(), { onPanel(TvPanel.Description) })
+                    FrostPill("Description", { onPanel(TvPanel.Description) })
                     if (video.video?.channelId?.isNotBlank() == true) {
-                        FrostPill(if (video.subscribed) "Subscribed" else "Subscribe", onSubscribe, active = video.subscribed)
+                        if (video.subscribed) {
+                            FrostButton(AppIcon.Bell, "Subscribed", { onPanel(TvPanel.Channel) }, size = 48.dp)
+                        } else {
+                            FrostPill("Subscribe", onSubscribe)
+                        }
                     }
-                    FrostPill("Description", { onPanel(TvPanel.Description) }, active = true)
                 }
-                FrostGroup(Modifier.align(Alignment.CenterEnd)) {
-                    FrostButton(AppIcon.Like, "Like", onLike, size = 48.dp, glass = false, active = video.rating == VideoRating.Like)
-                    FrostButton(AppIcon.Dislike, "Dislike", onDislike, size = 48.dp, glass = false, active = video.rating == VideoRating.Dislike)
-                    FrostButton(AppIcon.Bookmark, "Save", { onPanel(TvPanel.Save) }, size = 48.dp, glass = false)
-                    if (snapshot.subtitleTracks.isNotEmpty()) {
-                        FrostButton(
-                            if (snapshot.subtitleEnabled) R.drawable.ic_subtitles_on else R.drawable.ic_subtitles_off,
-                            "Captions", { onPanel(TvPanel.Captions) }, size = 48.dp, glass = false,
-                        )
+                Row(
+                    Modifier.align(Alignment.CenterEnd),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FrostGroup {
+                        FrostButton(AppIcon.Like, "Like", onLike, size = 44.dp, glass = false, active = video.rating == VideoRating.Like)
+                        FrostButton(AppIcon.Dislike, "Dislike", onDislike, size = 44.dp, glass = false, active = video.rating == VideoRating.Dislike)
+                        FrostButton(AppIcon.Comment, "Comments", { onPanel(TvPanel.Comments) }, size = 44.dp, glass = false)
+                        FrostButton(AppIcon.Bookmark, "Save", { onPanel(TvPanel.Save) }, size = 44.dp, glass = false)
                     }
-                    FrostButton(AppIcon.Settings, "Settings", { onPanel(TvPanel.Settings) }, size = 48.dp, glass = false)
+                    FrostGroup {
+                        if (snapshot.subtitleTracks.isNotEmpty()) {
+                            FrostButton(
+                                if (snapshot.subtitleEnabled) R.drawable.ic_subtitles_on else R.drawable.ic_subtitles_off,
+                                "Captions", { onPanel(TvPanel.Captions) }, size = 44.dp, glass = false,
+                            )
+                        }
+                        FrostButton(AppIcon.Settings, "Settings", { onPanel(TvPanel.Settings) }, size = 44.dp, glass = false)
+                    }
                 }
             }
             snapshot.error?.let {
@@ -536,7 +571,8 @@ internal fun statsLines(snapshot: PlaybackSnapshot): List<String> {
 
 private val SETTINGS_CHILDREN = setOf(TvPanel.Quality, TvPanel.Speed, TvPanel.Captions, TvPanel.Audio, TvPanel.Sleep)
 private const val NOTICE_MS = 3_000L
-private val RELATED_HIDDEN = 236.dp
+/** How far the recommended row sits below: its label and the top of its thumbnails still show. */
+private val RELATED_HIDDEN = 150.dp
 private const val STATS = "stats"
 private const val FOCUS_TRIES = 60
 private const val CONTROLS_HIDE_MS = 5_000L

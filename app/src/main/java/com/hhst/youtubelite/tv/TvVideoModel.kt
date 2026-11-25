@@ -1,5 +1,8 @@
 package com.hhst.youtubelite.tv
 
+import com.hhst.youtubelite.comments.domain.CommentSort
+import com.hhst.youtubelite.comments.domain.CommentThread
+import com.hhst.youtubelite.comments.domain.CommentsPage
 import com.hhst.youtubelite.data.media.ContentRepositories
 import com.hhst.youtubelite.saves.domain.SaveChoice
 import com.hhst.youtubelite.watch.domain.SignInRequiredException
@@ -26,6 +29,18 @@ internal data class TvVideoState(
     /** Null until the save panel asks; then the account's playlists and whether each has the video. */
     val saveChoices: List<SaveChoice>? = null,
     val savesFailed: Boolean = false,
+    val comments: TvComments = TvComments(),
+)
+
+/** Top comments for the comments panel, paged as focus nears the end. */
+internal data class TvComments(
+    val threads: List<CommentThread> = emptyList(),
+    val total: String = "",
+    val loading: Boolean = false,
+    val failed: Boolean = false,
+    val turnedOff: Boolean = false,
+    val next: String? = null,
+    val started: Boolean = false,
 )
 
 /** The account calls the TV player makes; repositories in the app, fakes in tests. */
@@ -35,6 +50,7 @@ internal interface TvVideoOps {
     suspend fun subscribe(channelId: String, subscribed: Boolean)
     suspend fun saveChoices(videoId: String): List<SaveChoice>
     suspend fun setSaved(playlistId: String, videoId: String, contains: Boolean)
+    suspend fun comments(videoId: String, cursor: String?): CommentsPage
 }
 
 internal class RepositoryTvVideoOps(private val repos: ContentRepositories) : TvVideoOps {
@@ -44,6 +60,8 @@ internal class RepositoryTvVideoOps(private val repos: ContentRepositories) : Tv
     override suspend fun saveChoices(videoId: String) = repos.saves.choices(videoId)
     override suspend fun setSaved(playlistId: String, videoId: String, contains: Boolean) =
         repos.saves.setContaining(playlistId, videoId, contains)
+    private val commentReads by lazy { repos.comments() }
+    override suspend fun comments(videoId: String, cursor: String?) = commentReads.comments(videoId, CommentSort.Top, cursor)
 }
 
 /**
@@ -121,6 +139,41 @@ internal class TvVideoModel(private val scope: CoroutineScope, private val ops: 
             ops.setSaved(choice.id, videoId, !choice.contains)
             _state.update { state ->
                 state.copy(saveChoices = state.saveChoices?.map { if (it.id == choice.id) it.copy(contains = !choice.contains) else it })
+            }
+        }
+    }
+
+    private val seenCommentCursors = mutableSetOf<String>()
+
+    /** First page when the panel opens, then the next page each call; rows stay if a page fails. */
+    fun loadComments() {
+        val current = _state.value
+        val videoId = current.videoId ?: return
+        val comments = current.comments
+        if (comments.loading || comments.turnedOff) return
+        if (comments.started && comments.next == null && !comments.failed) return
+        val cursor = if (comments.started && !(comments.failed && comments.threads.isEmpty())) comments.next else null
+        if (cursor == null) seenCommentCursors.clear()
+        _state.update { it.copy(comments = it.comments.copy(loading = true, failed = false, started = true)) }
+        scope.launch {
+            val page = try {
+                ops.comments(videoId, cursor)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                if (_state.value.videoId == videoId) _state.update { it.copy(comments = it.comments.copy(loading = false, failed = true)) }
+                return@launch
+            }
+            if (_state.value.videoId != videoId) return@launch
+            // A cursor seen before would loop: the list ends there.
+            val following = page.nextCursor?.takeIf { seenCommentCursors.add(it) }
+            _state.update { state ->
+                val known = state.comments.threads.map(CommentThread::id).toSet()
+                state.copy(comments = state.comments.copy(
+                    threads = state.comments.threads + page.threads.filter { it.id !in known },
+                    total = page.total.ifBlank { state.comments.total },
+                    loading = false, turnedOff = page.turnedOff, next = following,
+                ))
             }
         }
     }

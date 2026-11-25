@@ -253,7 +253,8 @@ internal fun VideoTile(card: TvCard, onClick: () -> Unit, onFocused: () -> Unit 
             shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
             colors = ClickableSurfaceDefaults.colors(containerColor = Color(0xFF272727), focusedContainerColor = Color(0xFF272727)),
             border = ClickableSurfaceDefaults.border(
-                focusedBorder = Border(BorderStroke(3.dp, TvColors.Focused), shape = RoundedCornerShape(12.dp)),
+                // A clean white ring just outside the thumbnail, never over the picture.
+                focusedBorder = Border(BorderStroke(3.dp, TvColors.Focused), inset = 3.dp, shape = RoundedCornerShape(15.dp)),
             ),
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
         ) {

@@ -25,6 +25,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.Text
 import com.hhst.youtubelite.ui.design.AppIcon
+import com.hhst.youtubelite.ui.design.Artwork
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -137,7 +139,10 @@ private fun FrostShell(onClick: () -> Unit, modifier: Modifier, size: Dp, glass:
     }
 }
 
-/** A text pill in the same glass, for Subscribe and Description. */
+/**
+ * A text pill in the same glass, for Subscribe and Description. Unfocused it is always glass
+ * (dimmed text when [active], e.g. already subscribed), so only the focused pill is ever white.
+ */
 @Composable
 internal fun FrostPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, active: Boolean = false) {
     Surface(
@@ -145,19 +150,35 @@ internal fun FrostPill(text: String, onClick: () -> Unit, modifier: Modifier = M
         modifier = modifier.height(48.dp),
         shape = ClickableSurfaceDefaults.shape(CircleShape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (active) TvColors.Frost else TvColors.Text.copy(alpha = 0.9f),
-            contentColor = if (active) TvColors.Text else TvColors.OnFocused,
+            containerColor = TvColors.Frost,
+            contentColor = if (active) TvColors.Muted else TvColors.Text,
             focusedContainerColor = TvColors.Focused,
             focusedContentColor = TvColors.OnFocused,
+            pressedContainerColor = TvColors.Focused,
+            pressedContentColor = TvColors.OnFocused,
         ),
-        border = ClickableSurfaceDefaults.border(border = Border(BorderStroke(1.dp, litEdge))),
+        border = ClickableSurfaceDefaults.border(
+            border = Border(BorderStroke(1.dp, litEdge)),
+            focusedBorder = Border(BorderStroke(1.dp, litEdge)),
+        ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
     ) {
-        Box(Modifier.fillMaxHeight().padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxHeight().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
             Text(text, style = MaterialTheme.typography.titleSmall, maxLines = 1)
         }
     }
 }
+
+/** The channel's picture in a glass ring, far left of the player's bottom row. */
+@Composable
+internal fun FrostAvatar(artwork: String?, contentDescription: String, onClick: () -> Unit, modifier: Modifier = Modifier) =
+    FrostShell(onClick, modifier.semantics { this.contentDescription = contentDescription }, 48.dp, glass = true) {
+        if (artwork.isNullOrBlank()) {
+            AppIcon(AppIcon.You, Modifier.fillMaxSize().padding(12.dp), color = LocalContentColor.current)
+        } else {
+            Artwork(artwork, Modifier.fillMaxSize().padding(4.dp).clip(CircleShape))
+        }
+    }
 
 /** A pill of glass holding several [FrostButton]s, like the YouTube TV player's action groups. */
 @Composable

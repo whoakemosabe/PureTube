@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -50,7 +51,7 @@ import com.hhst.youtubelite.player.surface.PlayerUi
 import com.hhst.youtubelite.ui.design.AppIcon
 
 /** The player's side panels, one at a time, opened from its buttons. */
-internal enum class TvPanel { Description, Save, Settings, Quality, Speed, Captions, Audio, Sleep }
+internal enum class TvPanel { Description, Comments, Channel, Save, Settings, Quality, Speed, Captions, Audio, Sleep }
 
 /** One row in a panel: a label, an optional value on the right, a check when it is the current pick. */
 internal data class TvPanelRow(val key: String, val label: String, val value: String? = null, val checked: Boolean = false)
@@ -140,10 +141,12 @@ internal fun TvSidePanel(title: String, modifier: Modifier = Modifier, content: 
 }
 
 @Composable
-internal fun TvPanelList(rows: List<TvPanelRow>, onPick: (TvPanelRow) -> Unit) {
+internal fun TvPanelList(rows: List<TvPanelRow>, focusKey: String? = null, onPick: (TvPanelRow) -> Unit) {
     val first = remember { FocusRequester() }
     LaunchedEffect(rows.size) { requestFocusSoon(first) }
-    val start = rows.indexOfFirst { it.checked }.coerceAtLeast(0)
+    // Focus opens on the row the user came back from, else the current pick, else the top.
+    val start = rows.indexOfFirst { it.key == focusKey }.takeIf { it >= 0 }
+        ?: rows.indexOfFirst { it.checked }.coerceAtLeast(0)
     LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items(rows.size, key = { rows[it].key }) { index ->
             val row = rows[index]
@@ -210,6 +213,59 @@ internal fun TvDescription(meta: String, text: String) {
             if (meta.isNotBlank()) Text(meta, color = TvColors.Muted, style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(12.dp))
             Text(text.ifBlank { "No description." }, color = TvColors.Text, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
+
+/** Top comments, read-only, one focusable card each so the D-pad scrolls through them. */
+@Composable
+internal fun TvCommentList(comments: TvComments, onNearEnd: () -> Unit) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(comments.threads.isNotEmpty()) { if (comments.threads.isNotEmpty()) requestFocusSoon(first) }
+    when {
+        comments.turnedOff -> Text("Comments are turned off.", color = TvColors.Muted)
+        comments.threads.isEmpty() && comments.failed -> Text("Couldn't load comments.", color = TvColors.Muted)
+        comments.threads.isEmpty() && comments.loading -> Text("Loading…", color = TvColors.Muted)
+        comments.threads.isEmpty() -> Text("No comments yet.", color = TvColors.Muted)
+        else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(comments.threads.size, key = { comments.threads[it].id }) { index ->
+                val thread = comments.threads[index]
+                Surface(
+                    onClick = {},
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (index == 0) Modifier.focusRequester(first) else Modifier)
+                        .onFocusChanged { if (it.isFocused && index >= comments.threads.size - 3) onNearEnd() },
+                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = Color.Transparent,
+                        contentColor = TvColors.Text,
+                        focusedContainerColor = TvColors.Frost,
+                        focusedContentColor = TvColors.Text,
+                    ),
+                    border = ClickableSurfaceDefaults.border(
+                        focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(2.dp, TvColors.Focused),
+                            shape = RoundedCornerShape(12.dp)),
+                    ),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(
+                            listOf(thread.author.displayName.ifBlank { thread.author.handle }, thread.age).filter(String::isNotBlank).joinToString(" • "),
+                            style = MaterialTheme.typography.labelLarge, color = TvColors.Muted, maxLines = 1,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(thread.body, style = MaterialTheme.typography.bodyMedium, maxLines = 6, overflow = TextOverflow.Ellipsis)
+                        val counts = listOfNotNull(thread.likes.takeIf(String::isNotBlank)?.let { "$it likes" },
+                            thread.replyCount.takeIf { it > 0 }?.let { if (it == 1) "1 reply" else "$it replies" })
+                        if (counts.isNotEmpty()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(counts.joinToString(" • "), style = MaterialTheme.typography.labelMedium, color = TvColors.Muted)
+                        }
+                    }
+                }
+            }
+            if (comments.loading) item { Text("Loading…", color = TvColors.Muted, modifier = Modifier.padding(14.dp)) }
         }
     }
 }

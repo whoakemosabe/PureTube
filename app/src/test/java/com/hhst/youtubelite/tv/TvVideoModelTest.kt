@@ -1,5 +1,8 @@
 package com.hhst.youtubelite.tv
 
+import com.hhst.youtubelite.comments.domain.CommentAuthor
+import com.hhst.youtubelite.comments.domain.CommentThread
+import com.hhst.youtubelite.comments.domain.CommentsPage
 import com.hhst.youtubelite.player.SleepChoice
 import com.hhst.youtubelite.player.engine.PlaybackSnapshot
 import com.hhst.youtubelite.player.engine.SubtitleTrack
@@ -43,7 +46,16 @@ class TvVideoModelTest {
         override suspend fun subscribe(channelId: String, subscribed: Boolean) { fail?.let { throw it } }
         override suspend fun saveChoices(videoId: String) = choices
         override suspend fun setSaved(playlistId: String, videoId: String, contains: Boolean) { saved += playlistId to contains }
+        /** Pages by cursor (null is the first); a missing cursor fails. */
+        var commentPages: Map<String?, CommentsPage> = emptyMap()
+        val commentCursors = mutableListOf<String?>()
+        override suspend fun comments(videoId: String, cursor: String?): CommentsPage {
+            commentCursors += cursor
+            return commentPages[cursor] ?: throw IOException("offline")
+        }
     }
+
+    private fun thread(id: String) = CommentThread(id, CommentAuthor("Name", "@name", ""), "1 day ago", "Body $id", "3", 0)
 
     private fun TestScope.loaded(ops: FakeOps, id: String = "a"): TvVideoModel {
         val model = TvVideoModel(CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)), ops)
@@ -107,6 +119,29 @@ class TvVideoModelTest {
         model.toggleSave(model.state.value.saveChoices!!.single()); advanceUntilIdle()
         assertEquals(listOf("WL" to true), ops.saved)
         assertTrue(model.state.value.saveChoices!!.single().contains)
+    }
+
+    @Test fun aFailedCommentsPageKeepsTheRowsAndRetriesTheSameCursor() = runTest {
+        val ops = FakeOps(ready("a")).apply { commentPages = mapOf(null to CommentsPage("2", listOf(thread("1")), "c2")) }
+        val model = loaded(ops)
+        model.loadComments(); advanceUntilIdle()
+        model.loadComments(); advanceUntilIdle()
+        assertEquals(listOf("1"), model.state.value.comments.threads.map { it.id })
+        assertTrue(model.state.value.comments.failed)
+        ops.commentPages += "c2" to CommentsPage("2", listOf(thread("2")), null)
+        model.loadComments(); advanceUntilIdle()
+        assertEquals(listOf(null, "c2", "c2"), ops.commentCursors)
+        assertEquals(listOf("1", "2"), model.state.value.comments.threads.map { it.id })
+    }
+
+    @Test fun aRepeatedCommentsCursorEndsTheList() = runTest {
+        val ops = FakeOps(ready("a")).apply {
+            commentPages = mapOf(null to CommentsPage("", listOf(thread("1")), "c2"), "c2" to CommentsPage("", listOf(thread("2")), "c2"))
+        }
+        val model = loaded(ops)
+        repeat(4) { model.loadComments(); advanceUntilIdle() }
+        assertEquals(listOf(null, "c2"), ops.commentCursors)
+        assertEquals(null, model.state.value.comments.next)
     }
 
     @Test fun settingsHideTheAudioRowWithOneTrackAndCapSpeedAtTwo() {
