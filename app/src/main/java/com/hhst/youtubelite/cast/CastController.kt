@@ -35,6 +35,8 @@ data class CastDevice(
     companion object {
         const val KIND_CHROMECAST = "chromecast"
         const val KIND_DLNA = "dlna"
+        /** Another device running Puretube (a Google TV), reached over the paired link. */
+        const val KIND_PURETUBE = "puretube"
     }
 }
 

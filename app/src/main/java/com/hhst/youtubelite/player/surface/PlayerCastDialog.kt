@@ -33,6 +33,18 @@ import androidx.core.net.toUri
 import com.hhst.youtubelite.R
 import com.hhst.youtubelite.ui.theme.AppStyle
 import com.hhst.youtubelite.cast.CastDevice
+import com.hhst.youtubelite.tvlink.TvPairingPrompt
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import com.hhst.youtubelite.ui.theme.SettingsTokens
 import com.hhst.youtubelite.player.PlayerUiState
 import kotlinx.coroutines.delay
@@ -48,8 +60,14 @@ internal fun CastDialog(
     onCloseLink: () -> Unit,
     onRefresh: () -> Unit,
     onDiscovery: (Boolean) -> Unit,
+    onTvCode: (String) -> Unit = {},
+    onTvCancel: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
+    state.tvPairing?.let { prompt ->
+        TvPairingDialog(prompt, onCode = onTvCode, onCancel = onTvCancel)
+        return
+    }
     // Discovery scanning is battery-hungry: run it only while this dialog is open;
     // the 1.5 s route re-poll covers OEM ROMs that drop discovery callbacks.
     DisposableEffect(Unit) {
@@ -143,6 +161,15 @@ internal fun CastDialog(
                                 },
                                 modifier = Modifier.weight(1f),
                             )
+                            if (device.kind == CastDevice.KIND_PURETUBE) {
+                                // Brand tag: this TV runs Puretube itself.
+                                Text(
+                                    text = "Puretube",
+                                    color = PlayerUi.YtRed,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(start = 8.dp),
+                                )
+                            }
                             if (device.kind == CastDevice.KIND_DLNA) {
                                 // Brand tag, not translated prose: it names the protocol.
                                 Text(
@@ -210,6 +237,59 @@ internal fun CastDialog(
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.close))
             }
+        },
+    )
+}
+
+/** Pairing with a Puretube TV: type the six digits the TV shows. */
+@Composable
+private fun TvPairingDialog(prompt: TvPairingPrompt, onCode: (String) -> Unit, onCancel: () -> Unit) {
+    var code by remember(prompt.deviceId) { mutableStateOf("") }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    val submit = { if (code.length == 6 && !prompt.busy) onCode(code) }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        containerColor = AppStyle.Panel,
+        title = {
+            Text(
+                text = stringResource(R.string.tv_pair_title, prompt.tvName),
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium,
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = stringResource(R.string.tv_pair_hint),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = SettingsTokens.BodySize.sp,
+                )
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { typed -> code = typed.filter(Char::isDigit).take(6) },
+                    singleLine = true,
+                    enabled = !prompt.busy,
+                    textStyle = MaterialTheme.typography.headlineSmall.copy(letterSpacing = 6.sp, textAlign = TextAlign.Center),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { submit() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp)
+                        .focusRequester(focus),
+                )
+                prompt.error?.let {
+                    Text(it, color = PlayerUi.YtRed, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = submit) {
+                Text(stringResource(if (prompt.busy) R.string.tv_pair_busy else R.string.tv_pair_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
         },
     )
 }

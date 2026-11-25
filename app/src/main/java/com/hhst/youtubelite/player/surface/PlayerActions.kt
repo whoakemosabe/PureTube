@@ -60,6 +60,9 @@ interface PlayerPlaybackActions {
     fun onCastStop()
     fun onCastDevice(id: String)
     fun onCastFailureDismiss() {}
+    /** The code typed while pairing with a Puretube TV. */
+    fun onTvPairCode(code: String) {}
+    fun onTvPairCancel() {}
     fun onShareCastLink(onReady: () -> Unit = {})
     fun onCloseCastLink()
     fun onMiniClose()

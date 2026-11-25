@@ -5,6 +5,9 @@
     <!-- The optional sandbox is only loaded on API 26+; older systems use WebView. -->
     <uses-sdk tools:overrideLibrary="androidx.javascriptengine" />
     <uses-feature android:name="android.software.picture_in_picture" android:required="false" />
+    <!-- The same APK runs on Google TV: no touchscreen needed, and the TV launcher may list it. -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />
@@ -46,6 +49,7 @@
         android:enableOnBackInvokedCallback="true"
         android:fullBackupContent="@xml/backup_rules"
         android:hardwareAccelerated="true"
+        android:banner="@drawable/tv_banner"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:localeConfig="@xml/locales_config"
@@ -68,6 +72,19 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Google TV opens this instead of the phone Home: pairing code, then the TV player. -->
+        <activity
+            android:name=".tv.TvActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="keyboard|keyboardHidden|navigation|screenSize|smallestScreenSize|screenLayout|orientation"
+            android:theme="@style/Theme.App.Home">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
 

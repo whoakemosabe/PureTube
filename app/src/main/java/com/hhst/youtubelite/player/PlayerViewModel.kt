@@ -144,6 +144,8 @@ data class PlayerUiState(
     val castAvailable: Boolean = false,
     val castDevices: List<CastDevice> = emptyList(),
     val castFailure: com.hhst.youtubelite.cast.CastFailureReport? = null,
+    /** Pairing with a Puretube TV: the cast dialog asks for the code the TV shows. */
+    val tvPairing: com.hhst.youtubelite.tvlink.TvPairingPrompt? = null,
     val subtitleStyle: SubtitleStyle = SubtitleStyle(),
 )
 
@@ -167,6 +169,8 @@ class PlayerViewModel(
     private val nextVideo: (suspend (String) -> String?)? = null,
     private val reporting: com.hhst.youtubelite.data.media.PlaybackWatchReporting? = null,
     private val identityChanges: Flow<Long> = com.hhst.youtubelite.data.media.MediaSession.changes.map { it.generation },
+    /** Puretube TV route; null in unit tests, where all TV branches no-op. */
+    private val tv: com.hhst.youtubelite.tvlink.TvLinkController? = null,
 ) : ViewModel(), PlayerPlaybackActions {
 
     private val _uiState = MutableStateFlow(PlayerUiState())
@@ -228,6 +232,7 @@ class PlayerViewModel(
     /** Supersedes in-flight cast-handoff waiters when a newer play/close wins. */
     private var playbackRequestSeq = 0
     private var dlnaTransfer: kotlinx.coroutines.Job? = null
+    private var tvTransfer: kotlinx.coroutines.Job? = null
     private var castReloadJob: kotlinx.coroutines.Job? = null
     private var handledEndSeq: Int? = null
     private val autoplayRequestId = AtomicLong()
@@ -343,15 +348,19 @@ class PlayerViewModel(
         }
         viewModelScope.launch {
             val dlnaState: Flow<DlnaUiState> = dlna?.state ?: flowOf(DlnaUiState())
-            combine(cast.state, dlnaState) { c, d -> c to d }.collect { (c, d) ->
+            val tvState: Flow<com.hhst.youtubelite.tvlink.TvLinkPhoneState> =
+                tv?.state ?: flowOf(com.hhst.youtubelite.tvlink.TvLinkPhoneState())
+            combine(cast.state, dlnaState, tvState) { c, d, t -> Triple(c, d, t) }.collect { (c, d, t) ->
                 _uiState.update {
                     it.copy(
-                        casting = c.chromecastSession || d.session,
-                        castingDeviceName = c.deviceName ?: d.deviceName,
+                        casting = c.chromecastSession || d.session || t.session,
+                        castingDeviceName = t.deviceName ?: c.deviceName ?: d.deviceName,
                         castLinkUrl = c.linkUrl,
                         castLinkConnected = c.linkConnected,
-                        castAvailable = c.available || d.available,
-                        castDevices = c.devices + d.devices,
+                        castAvailable = c.available || d.available || t.available,
+                        // Puretube TVs first: they are the better route when there is one.
+                        castDevices = t.devices + c.devices + d.devices,
+                        tvPairing = t.pairing,
                         castFailure = d.failure ?: c.failure ?: it.castFailure,
                     )
                 }
@@ -374,6 +383,16 @@ class PlayerViewModel(
                 d.endSession()
                 cast.stopLink()
             }
+        }
+        tv?.initialize()
+        tv?.let { t ->
+            t.onSessionEnded = {
+                // The TV stopped (Back on its remote) or left the Wi-Fi: playback stays
+                // paused on the phone at the TV's last spot instead of starting aloud.
+                if (!userCastStop) detachCastAndResumeLocal(t.stopCasting(), resume = false)
+                t.endSession()
+            }
+            t.onSkip = { forward -> if (forward) skipToNext() else skipToPrevious() }
         }
         engine.onEnded = { onPlaybackEnded() }
         engine.onPausedAtEndOfVideo = { if (sleepTimer.onVideoEnded()) sleptAtEndSeq = playbackRequestSeq }
@@ -1257,6 +1276,14 @@ class PlayerViewModel(
     override fun onCastStop() {
         castReloadJob?.cancel()
         castReloadJob = null
+        if (tvActive() || tvTransfer?.isActive == true) {
+            userCastStop = true
+            tvTransfer?.cancel()
+            tvTransfer = null
+            detachCastAndResumeLocal(tv?.stopCasting() ?: 0L, resume = true)
+            tv?.endSession()
+            return
+        }
         if (dlnaActive() || dlnaTransfer?.isActive == true) {
             userCastStop = true
             dlnaTransfer?.cancel()
@@ -1279,6 +1306,11 @@ class PlayerViewModel(
 
     override fun onCastDevice(id: String) {
         onCastFailureDismiss()
+        if (id.startsWith(com.hhst.youtubelite.tvlink.TvLinkController.ID_PREFIX)) {
+            startTvCast(id, code = null)
+            return
+        }
+        if (tvActive() || tvTransfer?.isActive == true) onCastStop()
         if (id.startsWith(DlnaController.ID_PREFIX)) {
             startDlnaCast(id)
             return
@@ -1296,7 +1328,17 @@ class PlayerViewModel(
         _uiState.update { it.copy(castFailure = null) }
     }
 
+    override fun onTvPairCode(code: String) {
+        val prompt = tv?.state?.value?.pairing ?: return
+        startTvCast(prompt.deviceId, code)
+    }
+
+    override fun onTvPairCancel() {
+        tv?.cancelPairing()
+    }
+
     override fun onCastDiscovery(enabled: Boolean) {
+        tv?.setDiscoveryEnabled(enabled)
         cast.setDiscoveryEnabled(enabled)
         dlna?.setDiscoveryEnabled(enabled)
     }
@@ -1385,7 +1427,9 @@ class PlayerViewModel(
 
     private fun dlnaActive(): Boolean = dlna?.state?.value?.session == true
 
-    private fun isCasting(): Boolean = cast.state.value.chromecastSession || dlnaActive()
+    private fun isCasting(): Boolean = cast.state.value.chromecastSession || dlnaActive() || tvActive()
+
+    private fun tvActive(): Boolean = tv?.state?.value?.session == true
 
     /**
      * Ends whichever route is active after a receiver error. The engine has
@@ -1411,6 +1455,10 @@ class PlayerViewModel(
      */
     private suspend fun recastToActiveRoute(positionMs: Long): CastSource? {
         val token = playbackRequestSeq
+        if (tvActive()) {
+            val source = tvSource() ?: return null
+            return source.takeIf { tv?.startCasting(it.videoId, it.title, it.author, positionMs) == true && token == playbackRequestSeq }
+        }
         if (dlnaActive()) {
             val dlna = dlna ?: return null
             val source = engine.prepareMuxedCastSource() ?: return null
@@ -1421,6 +1469,80 @@ class PlayerViewModel(
         if (!cast.state.value.chromecastSession) return null
         val source = engine.prepareCastSource() ?: return null
         return source.takeIf { cast.startCasting(source, positionMs) }
+    }
+
+    /** What a Puretube TV needs to play the current video: it fetches the streams itself. */
+    private fun tvSource(): CastSource? {
+        val snapshot = engine.snapshot.value
+        val videoId = _uiState.value.videoId ?: snapshot.videoId ?: return null
+        val sameVideo = snapshot.videoId == videoId
+        return CastSource(
+            videoId = videoId,
+            title = (if (sameVideo) snapshot.title else _uiState.value.title).ifBlank { _uiState.value.title },
+            durationSec = if (sameVideo) snapshot.durationMs / 1000 else 0,
+            video = null,
+            audio = null,
+            author = if (sameVideo) snapshot.author else _uiState.value.author,
+        )
+    }
+
+    /**
+     * Puretube TV route: connect (or pair with the code the user typed), then hand over the
+     * video id and position. One active route, so Chromecast and DLNA yield first.
+     */
+    private fun startTvCast(deviceId: String, code: String?) {
+        val tv = tv ?: return
+        tvTransfer?.cancel()
+        val token = playbackRequestSeq
+        tvTransfer = viewModelScope.launch {
+            try {
+                val result = tv.connect(deviceId, code)
+                if (result != com.hhst.youtubelite.tvlink.TvLinkController.ConnectResult.Connected) {
+                    if (result is com.hhst.youtubelite.tvlink.TvLinkController.ConnectResult.Failed) {
+                        showTvFailure(deviceId, "connect", IllegalStateException(result.reason))
+                        onHint(hintCastFailed)
+                    }
+                    return@launch
+                }
+                if (token != playbackRequestSeq) { tv.endSession(); return@launch }
+                if (cast.state.value.chromecastSession) {
+                    userCastStop = true
+                    detachCastAndResumeLocal(cast.stopCasting(), resume = false)
+                    cast.endSession()
+                }
+                if (dlnaActive()) {
+                    userCastStop = true
+                    detachCastAndResumeLocal(dlna?.stopCasting() ?: 0L, resume = false)
+                    dlna?.endSession()
+                }
+                cast.stopLink()
+                val source = tvSource()
+                if (source == null) {
+                    // Nothing is open on the phone yet: the TV waits connected for the first video.
+                    return@launch
+                }
+                engine.pause()
+                if (tv.startCasting(source.videoId, source.title, source.author, _positionState.longValue)) {
+                    userCastStop = false
+                    engine.attachCastPlayer(tv.remotePlayer())
+                    engine.markReceiverSource(source)
+                } else {
+                    tv.endSession()
+                    engine.play()
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                showTvFailure(deviceId, "start", error)
+                tv.endSession()
+            }
+        }
+    }
+
+    private fun showTvFailure(deviceId: String, stage: String, error: Throwable) {
+        val device = _uiState.value.castDevices.firstOrNull { it.id == deviceId }
+        val report = com.hhst.youtubelite.cast.CastFailureReport.create("PURETUBE_TV", device, _uiState.value.videoId, stage, error)
+        _uiState.update { it.copy(castFailure = report) }
     }
 
     /**
@@ -1561,6 +1683,8 @@ class PlayerViewModel(
     private fun recastPublishedSource() {
         castReloadJob?.cancel()
         castReloadJob = null
+        // A Puretube TV picks its own formats: a local quality change has nothing to resend.
+        if (tvActive()) return
         if (dlnaActive()) {
             val dlna = dlna ?: return
             val token = playbackRequestSeq
@@ -1703,6 +1827,10 @@ class PlayerViewModel(
     /** Explicit Stop ends local and remote playback regardless of background-play preferences. */
     fun stopPlayback() {
         userCastStop = true
+        tvTransfer?.cancel()
+        tvTransfer = null
+        tv?.stopCasting()
+        tv?.endSession()
         dlnaTransfer?.cancel()
         dlnaTransfer = null
         castReloadJob?.cancel()

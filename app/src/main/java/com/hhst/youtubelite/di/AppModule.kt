@@ -258,6 +258,7 @@ val appModule = module {
     single { MiniPlayerStore(get()) }
     single { CastController(androidContext(), get(), get()) }
     single { DlnaController(androidContext()) }
+    single { com.hhst.youtubelite.tvlink.TvLinkController(androidContext()) }
     single<PlaybackNotificationController> {
         ServiceNotificationController(
             androidContext(),
@@ -280,6 +281,7 @@ val appModule = module {
                 else get<com.hhst.youtubelite.data.media.ContentRepositories>().watch.watch(id).related
                 .firstOrNull { it.id != id }?.id },
             reporting = get(),
+            tv = getOrNull(),
         )
     }
 

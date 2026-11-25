@@ -13,5 +13,7 @@
     <exclude domain="root" path="no_backup" />
     <exclude domain="root" path="no_backup/player" />
     <exclude domain="sharedpref" path="media-auth.xml" />
+    <exclude domain="sharedpref" path="tv-link-phone.xml" />
+    <exclude domain="sharedpref" path="tv-link-tv.xml" />
     <exclude domain="sharedpref" path="media-cache.xml" />
 </full-backup-content>

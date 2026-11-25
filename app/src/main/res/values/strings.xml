@@ -186,6 +186,10 @@
     <string name="segment_music_offtopic">Non-music</string>
     <string name="cast">Cast</string>
     <string name="cast_stop">Stop casting</string>
+    <string name="tv_pair_title">Pair with %1$s</string>
+    <string name="tv_pair_hint">Type the 6-digit code shown on the TV.</string>
+    <string name="tv_pair_action">Pair</string>
+    <string name="tv_pair_busy">Pairing…</string>
     <string name="cast_failed">Cast failed</string>
     <string name="casting_to">Casting to %1$s</string>
     <string name="cast_no_devices_found">No Cast devices found</string>

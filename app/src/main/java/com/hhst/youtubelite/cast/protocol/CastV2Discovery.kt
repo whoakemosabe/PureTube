@@ -19,7 +19,12 @@ import java.util.HashSet
  * listener on many Android versions, so found services resolve strictly one at a time.
  * Devices are deduped by host IP to avoid duplicate picker rows after stop/start or TXT updates.
  */
-class CastV2Discovery(context: Context) {
+class CastV2Discovery(
+    context: Context,
+    /** Puretube TVs advertise their own type; the rest of the resolve path is the same. */
+    private val serviceType: String = SERVICE_TYPE,
+    private val requireVideoOut: Boolean = true,
+) {
 
     fun interface Listener {
         /** Found and resolved on the main thread; `port` is the CASTV2 TLS port. */
@@ -101,7 +106,7 @@ class CastV2Discovery(context: Context) {
         discoveryListener = discovered
 
         try {
-            manager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discovered)
+            manager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, discovered)
         } catch (e: Exception) {
             // SecurityException without local-network access; also rare binder failures.
             AppLog.event(AppLog.Category.CAST, "discovery_failed", failure = e)
@@ -195,7 +200,7 @@ class CastV2Discovery(context: Context) {
         val name = friendlyName(serviceInfo)
         // Audio-only receivers advertise Cast and accept LOAD but cannot render video DASH;
         // dropping in discovery keeps the Listener contract untouched.
-        if (!hasVideoOut(attribute(serviceInfo, TXT_CAPABILITIES))) {
+        if (requireVideoOut && !hasVideoOut(attribute(serviceInfo, TXT_CAPABILITIES))) {
             AppLog.detail(AppLog.Category.CAST, "device_filtered", mapOf("reason" to "audio_only"))
             return
         }
@@ -213,7 +218,7 @@ class CastV2Discovery(context: Context) {
         private const val SERVICE_TYPE = "_googlecast._tcp"
 
         /** TXT record key for the user-visible friendly name. */
-        private const val TXT_FRIENDLY_NAME = "fn"
+        const val TXT_FRIENDLY_NAME = "fn"
 
         /** TXT record key for the decimal capabilities bitmask; bit 0 = VIDEO_OUT. */
         private const val TXT_CAPABILITIES = "ca"

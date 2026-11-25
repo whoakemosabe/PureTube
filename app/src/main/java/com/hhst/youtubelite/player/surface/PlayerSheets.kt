@@ -326,6 +326,8 @@ fun PlayerDialogHost(
             onCloseLink = callbacks::onCloseCastLink,
             onRefresh = onRefreshCastState,
             onDiscovery = callbacks::onCastDiscovery,
+            onTvCode = callbacks::onTvPairCode,
+            onTvCancel = callbacks::onTvPairCancel,
             onDismiss = onDismiss,
         )
     }
