@@ -189,6 +189,10 @@
     <string name="tv_pair_title">Pair with %1$s</string>
     <string name="tv_pair_hint">Type the 6-digit code shown on the TV.</string>
     <string name="tv_pair_action">Pair</string>
+    <string name="tv_address_open">Puretube TV not listed? Type its address</string>
+    <string name="tv_address_hint">Open Puretube on the TV and go to Phone in its menu. Type the address shown there.</string>
+    <string name="tv_address_wrong">That isn\'t an address like 192.168.1.20.</string>
+    <string name="tv_address_connect">Connect</string>
     <string name="tv_pair_busy">Pairing…</string>
     <string name="cast_failed">Cast failed</string>
     <string name="casting_to">Casting to %1$s</string>

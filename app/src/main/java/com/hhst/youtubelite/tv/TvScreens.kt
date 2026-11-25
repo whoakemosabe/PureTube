@@ -2,7 +2,12 @@ package com.hhst.youtubelite.tv
 
 import android.view.SurfaceView
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -78,7 +83,7 @@ import kotlinx.coroutines.delay
 
 @Composable
 internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, browse: TvBrowseModels, player: TvPlayerSession,
-    account: String?, settings: TvSettingsStore, version: String, chat: LiveChatViewModel,
+    account: String?, accountPhoto: String?, settings: TvSettingsStore, version: String, chat: LiveChatViewModel,
     onSignOut: () -> Unit, openSignIn: () -> TvSignInSession, onOpenDownloads: () -> Unit,
     onDownload: (videoId: String, title: String, author: String?, artwork: String?) -> Unit, onExit: () -> Unit) {
     var signingIn by remember { mutableStateOf(false) }
@@ -128,7 +133,7 @@ internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, browse: TvBrowseMo
         } else if (signingIn) {
             TvSignInScreen(openSignIn, onClose = { signingIn = false })
         } else {
-            TvBrowse(browse, link, account, settings, version, onPlay = play, onForgetPhones = receiver.server::forgetPhones,
+            TvBrowse(browse, link, account, accountPhoto, settings, version, onPlay = play, onForgetPhones = receiver.server::forgetPhones,
                 onSignOut = onSignOut, onSignIn = { signingIn = true }, onOpenDownloads = onOpenDownloads, onExit = onExit)
             if (tvUpdateWaiting()) TvUpdatePanel()
         }
@@ -243,7 +248,8 @@ private fun PlayerScreen(
                         val handled = when (event.key) {
                             Key.DirectionLeft -> { engine.seekRelative(-seekStep(event.nativeKeyEvent.repeatCount)); true }
                             Key.DirectionRight -> { engine.seekRelative(seekStep(event.nativeKeyEvent.repeatCount)); true }
-                            Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { engine.playOrPause(); true }
+                            // OK brings the controls up and leaves the video playing, as on YouTube TV.
+                            Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> true
                             Key.DirectionUp, Key.DirectionDown -> true
                             else -> false
                         }
@@ -262,7 +268,11 @@ private fun PlayerScreen(
         if (snapshot.isBuffering && !controlsVisible) {
             Text("Loading…", color = TvColors.Text, modifier = Modifier.align(Alignment.Center))
         }
-        if (controlsVisible && panel == null) {
+        AnimatedVisibility(
+            visible = controlsVisible && panel == null,
+            enter = fadeIn(tween(FADE_IN_MS)),
+            exit = fadeOut(tween(FADE_OUT_MS)),
+        ) {
             PlayerControls(
                 snapshot = snapshot,
                 engine = engine,
@@ -283,7 +293,15 @@ private fun PlayerScreen(
                 hasChat = chatKey != null,
             )
         }
-        panel?.let { open ->
+        // The last panel stays drawn while it fades out.
+        var shownPanel by remember { mutableStateOf<TvPanel?>(null) }
+        if (panel != null) shownPanel = panel
+        AnimatedVisibility(
+            visible = panel != null,
+            enter = fadeIn(tween(FADE_IN_MS)),
+            exit = fadeOut(tween(FADE_OUT_MS)),
+        ) {
+          shownPanel?.let { open ->
             PlayerPanel(open, snapshot, video, sleep, engine, player, statsVisible, settingsReturn, chatState,
                 onStats = { statsVisible = !statsVisible; openPanel(null) }, onPanel = openPanel,
                 onOpenChannel = onOpenChannel,
@@ -292,6 +310,7 @@ private fun PlayerScreen(
                     if (id != null) onDownload(id, page?.title ?: snapshot.title, page?.channel ?: snapshot.author, page?.artwork)
                     openPanel(null)
                 })
+          }
         }
         video.notice?.let {
             Text(
@@ -336,13 +355,13 @@ private fun PlayerPanel(
                 text = page?.description.orEmpty(),
             )
         }
-        TvPanel.Comments -> TvSidePanel(listOf("Comments", video.comments.total).filter(String::isNotBlank).joinToString(" • ")) {
+        TvPanel.Comments -> TvSidePanel(listOf("Comments", video.comments.total).filter(String::isNotBlank).joinToString(" • "), wide = true) {
             LaunchedEffect(video.videoId) { if (!video.comments.started) player.video.loadComments() }
             TvCommentList(video.comments, onNearEnd = player.video::loadComments,
                 onReplies = player.video::loadReplies,
                 onMoreReplies = { video.comments.replyThread?.let(player.video::loadReplies) })
         }
-        TvPanel.Chat -> TvSidePanel("Live chat") { TvChatList(chat) }
+        TvPanel.Chat -> TvSidePanel("Live chat", wide = true) { TvChatList(chat) }
         TvPanel.Channel -> TvSidePanel(video.video?.channel.orEmpty()) {
             val channelId = video.video?.channelId.orEmpty()
             TvPanelList(listOf(
@@ -436,9 +455,9 @@ private fun PlayerControls(
                 .fillMaxWidth()
                 .align(Alignment.TopStart)
                 .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)))
-                .padding(start = 58.dp, end = 58.dp, top = 40.dp, bottom = 48.dp),
+                .padding(start = 48.dp, end = 48.dp, top = 26.dp, bottom = 36.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
+            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
                 color = TvColors.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(6.dp))
             // "Channel • views • age", one line under the title, as on YouTube TV.
@@ -454,10 +473,10 @@ private fun PlayerControls(
                 .align(Alignment.BottomCenter)
                 .offset(y = lift)
                 .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))))
-                .padding(top = 64.dp, bottom = 24.dp),
+                .padding(top = 44.dp, bottom = 14.dp),
         ) {
           Column(Modifier.padding(horizontal = 48.dp)) {
-            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
+            Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.Bottom) {
                 val chapter = currentChapter(snapshot)
                 Text(
                     PlayerUi.formatTime(snapshot.positionMs) + (chapter?.let { " • $it" } ?: ""),
@@ -471,7 +490,7 @@ private fun PlayerControls(
                 )
             }
             Scrubber(snapshot, engine, Modifier.focusRequester(playFocus))
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(12.dp))
             Box(Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.align(Alignment.Center),
@@ -536,7 +555,7 @@ private fun PlayerControls(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
                 color = TvColors.Text,
-                modifier = Modifier.padding(start = 48.dp, top = 22.dp, bottom = 12.dp),
+                modifier = Modifier.padding(start = 48.dp, top = 14.dp, bottom = 8.dp),
             )
             RelatedRow(related, onPlay = onPlayCard, modifier = Modifier.onFocusChanged { relatedOpen = it.hasFocus })
         }
@@ -553,24 +572,103 @@ private fun currentChapter(snapshot: PlaybackSnapshot): String? =
 @Composable
 private fun Scrubber(snapshot: PlaybackSnapshot, engine: PlaybackApi, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }
-    Box(
-        modifier
-            .fillMaxWidth()
-            .height(24.dp)
-            .onFocusChanged { focused = it.isFocused }
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.DirectionLeft -> { engine.seekRelative(-seekStep(event.nativeKeyEvent.repeatCount)); true }
-                    Key.DirectionRight -> { engine.seekRelative(seekStep(event.nativeKeyEvent.repeatCount)); true }
-                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { engine.playOrPause(); true }
-                    else -> false
+    // Left and right move a target with a preview frame over it, as on YouTube TV; the video
+    // jumps there once the presses stop, instead of seeking on every press.
+    var target by remember { mutableStateOf<Long?>(null) }
+    var presses by remember { mutableIntStateOf(0) }
+    LaunchedEffect(presses) {
+        val pending = target ?: return@LaunchedEffect
+        delay(SCRUB_SETTLE_MS)
+        engine.seekTo(pending)
+        // Keep the playhead on the target until the player reports the new spot.
+        delay(SCRUB_HOLD_MS)
+        target = null
+    }
+    val duration = snapshot.durationMs.coerceAtLeast(1)
+    Column(modifier.fillMaxWidth()) {
+        val shown = target
+        if (shown != null && !snapshot.isLive) {
+            ScrubPreview(snapshot, shown, duration)
+        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .onFocusChanged { focused = it.isFocused }
+                .onKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    val step = seekStep(event.nativeKeyEvent.repeatCount)
+                    when (event.key) {
+                        Key.DirectionLeft, Key.DirectionRight -> {
+                            val from = target ?: snapshot.positionMs
+                            val delta = if (event.key == Key.DirectionLeft) -step else step
+                            target = (from + delta).coerceIn(0L, if (snapshot.durationMs > 0) snapshot.durationMs else Long.MAX_VALUE)
+                            presses++
+                            true
+                        }
+                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                            target?.let { engine.seekTo(it); target = null } ?: engine.playOrPause()
+                            true
+                        }
+                        else -> false
+                    }
                 }
+                .focusable(),
+            contentAlignment = Alignment.Center,
+        ) {
+            ProgressBar(snapshot, thick = focused, headMs = target)
+        }
+    }
+}
+
+/** The frame at the scrub target and its time, floating over that spot on the bar. */
+@Composable
+private fun ScrubPreview(snapshot: PlaybackSnapshot, targetMs: Long, durationMs: Long) {
+    val fraction = (targetMs.toFloat() / durationMs).coerceIn(0f, 1f)
+    val frame = snapshot.storyboard?.frame(targetMs, durationMs)
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        val width = PREVIEW_WIDTH
+        val left = (maxWidth * fraction - width / 2).coerceIn(0.dp, (maxWidth - width).coerceAtLeast(0.dp))
+        Column(Modifier.offset(x = left).width(width), horizontalAlignment = Alignment.CenterHorizontally) {
+            frame?.let { StoryboardFrameImage(it, width) }
+            Text(
+                PlayerUi.formatTime(targetMs),
+                color = TvColors.Text,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+        }
+    }
+}
+
+/** One cell of YouTube's preview sheet; the last sheet stays up while the next one loads. */
+@Composable
+private fun StoryboardFrameImage(frame: com.hhst.youtubelite.extractor.StoryboardFrame, width: androidx.compose.ui.unit.Dp) {
+    var sheet by remember { mutableStateOf<Pair<String, android.graphics.Bitmap>?>(null) }
+    LaunchedEffect(frame.url) {
+        com.hhst.youtubelite.core.YoutubeThumbnail.await(frame.url)?.let { sheet = frame.url to it }
+    }
+    val height = width * frame.height / frame.width.coerceAtLeast(1)
+    val loaded = sheet?.second
+    Box(Modifier.size(width, height).clip(RoundedCornerShape(10.dp)).background(Color.Black)) {
+        if (loaded != null) {
+            val image = remember(loaded) { loaded.asImageBitmap() }
+            // The frame from the newest sheet when it's in, else the same cell of the last one.
+            Canvas(Modifier.fillMaxSize()) {
+                val cellW = image.width / frame.columns.coerceAtLeast(1)
+                val cellH = image.height / frame.rows.coerceAtLeast(1)
+                drawImage(
+                    image,
+                    srcOffset = androidx.compose.ui.unit.IntOffset(frame.column * cellW, frame.row * cellH),
+                    srcSize = androidx.compose.ui.unit.IntSize(cellW, cellH),
+                    dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()),
+                )
             }
-            .focusable(),
-        contentAlignment = Alignment.Center,
-    ) {
-        ProgressBar(snapshot, thick = focused)
+        }
     }
 }
 
@@ -589,23 +687,25 @@ internal suspend fun requestFocusSoon(requester: FocusRequester) {
     }
 }
 
-/** Played in white, buffered in grey, split at chapters, with skipped sponsor parts in yellow. */
+/** Played in white, buffered in grey, split at chapters, with SponsorBlock parts coloured by kind. */
 @Composable
-private fun ProgressBar(snapshot: PlaybackSnapshot, thick: Boolean = false) {
+private fun ProgressBar(snapshot: PlaybackSnapshot, thick: Boolean = false, headMs: Long? = null) {
     val duration = snapshot.durationMs.coerceAtLeast(1)
-    val played = (snapshot.positionMs.toFloat() / duration).coerceIn(0f, 1f)
+    val played = ((headMs ?: snapshot.positionMs).toFloat() / duration).coerceIn(0f, 1f)
     val buffered = (snapshot.bufferedPositionMs.toFloat() / duration).coerceIn(played, 1f)
     val chapterStarts = snapshot.chapters.map { it.startSeconds * 1000f / duration }.filter { it > 0f && it < 1f }
-    val sponsors = snapshot.sponsorSegments.map { (it.startMs.toFloat() / duration).coerceIn(0f, 1f) to (it.endMs.toFloat() / duration).coerceIn(0f, 1f) }
+    val sponsors = snapshot.sponsorSegments.map { it to ((it.startMs.toFloat() / duration).coerceIn(0f, 1f) to (it.endMs.toFloat() / duration).coerceIn(0f, 1f)) }
     Canvas(Modifier.fillMaxWidth().height(if (thick) 10.dp else 5.dp)) {
         val h = size.height
         val corner = CornerRadius(h / 2, h / 2)
         drawRoundRect(Color.White.copy(alpha = 0.3f), size = size, cornerRadius = corner)
         drawRoundRect(Color.White.copy(alpha = 0.5f), size = Size(size.width * buffered, h), cornerRadius = corner)
-        sponsors.forEach { (start, end) ->
-            drawRect(TvColors.Sponsor, topLeft = Offset(size.width * start, 0f), size = Size(size.width * (end - start), h))
-        }
         drawRoundRect(TvColors.Text, size = Size(size.width * played, h), cornerRadius = corner)
+        // SponsorBlock parts in their usual colours, over the played part too, as on the phone.
+        sponsors.forEach { (segment, range) ->
+            val (start, end) = range
+            drawRect(PlayerUi.segmentColor(segment.category), topLeft = Offset(size.width * start, 0f), size = Size(size.width * (end - start), h))
+        }
         // Chapter gaps, as in the YouTube TV bar.
         chapterStarts.forEach { start ->
             drawRect(Color.Black, topLeft = Offset(size.width * start - 2f, 0f), size = Size(4f, h))
@@ -653,6 +753,11 @@ private const val NOTICE_MS = 3_000L
 /** How far the recommended row sits below: its label and the top of its thumbnails still show. */
 private val RELATED_HIDDEN = 150.dp
 private const val STATS = "stats"
+private const val FADE_IN_MS = 220
+private const val SCRUB_SETTLE_MS = 650L
+private const val SCRUB_HOLD_MS = 400L
+private val PREVIEW_WIDTH = 240.dp
+private const val FADE_OUT_MS = 320
 private const val DOWNLOAD = "download"
 private const val GO_TO_CHANNEL = "channel"
 private const val SUBSCRIBE = "subscribe"

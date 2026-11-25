@@ -16,9 +16,6 @@ internal sealed interface TvOpen {
     data class Channel(val model: TvChannelModel) : TvOpen
 }
 
-/** Explore's categories, as on the phone. */
-internal val EXPLORE_CATEGORIES = listOf("Music", "Gaming", "News", "Sports")
-
 /**
  * The lists behind every TV section, kept for the activity's life so going back to a
  * section shows the rows (and the spot) it had.
@@ -31,8 +28,6 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
     val opened: StateFlow<List<TvOpen>> = _opened.asStateFlow()
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
-    private val _exploreCategory = MutableStateFlow(EXPLORE_CATEGORIES.first())
-    val exploreCategory: StateFlow<String> = _exploreCategory.asStateFlow()
 
     /** Bumped when the TV signs in or out, so screens drop rows read as the old identity. */
     private val _identity = MutableStateFlow(0L)
@@ -41,7 +36,6 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
     val signedIn: Boolean get() = source.signedIn
 
     private val lists = mutableMapOf<TvSection, TvListModel>()
-    private val exploreLists = mutableMapOf<String, TvListModel>()
     private var relatedFor: String? = null
     private var relatedList: TvListModel? = null
 
@@ -52,7 +46,6 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
     fun identityChanged(generation: Long) {
         if (generation == _identity.value) return
         lists.clear()
-        exploreLists.clear()
         relatedFor = null
         relatedList = null
         _opened.value = emptyList()
@@ -64,7 +57,6 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
     /** A setting that changes what lists show (Hide Shorts, Hide watched): read them again. */
     fun reloadLists() {
         lists.values.forEach(TvListModel::reload)
-        exploreLists.values.forEach(TvListModel::reload)
     }
 
     fun select(section: TvSection) {
@@ -83,17 +75,9 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
                 TvSection.History -> source.history(cursor)
                 TvSection.Playlists -> source.playlists(cursor)
                 TvSection.WatchLater -> source.playlist(RepositoryTvBrowseSource.WATCH_LATER, cursor)
-                else -> TvPage(emptyList())
+                else -> section.explore?.let { source.explore(it, cursor) } ?: TvPage(emptyList())
             }
         }
-    }
-
-    fun selectExplore(category: String) {
-        if (category in EXPLORE_CATEGORIES) _exploreCategory.value = category
-    }
-
-    fun explore(category: String): TvListModel = exploreLists.getOrPut(category) {
-        TvListModel(scope) { cursor -> source.explore(category, cursor) }
     }
 
     fun search(query: String) {
@@ -123,6 +107,14 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
 
     private fun push(page: TvOpen) = _opened.update { (it + page).takeLast(MAX_OPEN) }
 
+    private val _channelSort = MutableStateFlow(TvChannelSort.AToZ)
+    val channelSort: StateFlow<TvChannelSort> = _channelSort.asStateFlow()
+    private val _channelFilter = MutableStateFlow("")
+    val channelFilter: StateFlow<String> = _channelFilter.asStateFlow()
+
+    fun sortChannels(sort: TvChannelSort) { _channelSort.value = sort }
+    fun filterChannels(text: String) { _channelFilter.value = text }
+
     /** Back: closes the top page. False when nothing was open. */
     fun closeTop(): Boolean {
         if (_opened.value.isEmpty()) return false
@@ -143,6 +135,21 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
     private companion object {
         /** Channel to playlist to channel… stays this deep; older pages drop off. */
         const val MAX_OPEN = 8
+    }
+}
+
+/** How the Channels section orders your subscriptions. */
+internal enum class TvChannelSort(val label: String) { AToZ("A–Z"), Recent("Recently active"), New("New videos") }
+
+/** Your subscriptions as Channels shows them: filtered by name, then ordered. */
+internal fun arrangeChannels(cards: List<TvCard>, sort: TvChannelSort, filter: String): List<TvCard> {
+    val words = filter.trim().lowercase().split(' ').filter(String::isNotBlank)
+    val matching = cards.filter { card -> words.all { card.title.lowercase().contains(it) } }
+    return when (sort) {
+        TvChannelSort.AToZ -> matching.sortedBy { it.title.lowercase() }
+        // The server lists channels by recent activity already.
+        TvChannelSort.Recent -> matching
+        TvChannelSort.New -> matching.filter(TvCard::fresh)
     }
 }
 

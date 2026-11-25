@@ -17,7 +17,10 @@ import com.hhst.youtubelite.tvlink.TvLinkMessage
 import com.hhst.youtubelite.tvlink.TvLinkStore
 import java.io.IOException
 import java.net.ServerSocket
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import java.net.Socket
+import com.hhst.youtubelite.tvlink.TvLinkController
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +35,8 @@ data class TvLinkUiState(
     val connectedPhone: String? = null,
     val pairedPhones: List<String> = emptyList(),
     val listening: Boolean = false,
+    /** This TV's address on the Wi-Fi, for typing into the phone when it isn't listed. */
+    val address: String = "",
 )
 
 /**
@@ -68,7 +73,8 @@ internal class TvLinkServer(
         val pool = Executors.newCachedThreadPool { r -> Thread(r, "TvLink").apply { isDaemon = true } }
         io = pool
         pool.execute {
-            val socket = try {
+            // The fixed port first, so the phone needs only the address; any free port if it's taken.
+            val socket = runCatching { ServerSocket(TvLinkController.DEFAULT_PORT) }.getOrNull() ?: try {
                 ServerSocket(0)
             } catch (error: IOException) {
                 AppLog.event(AppLog.Category.CAST, "tv_link_listen_failed", failure = error)
@@ -76,7 +82,13 @@ internal class TvLinkServer(
             }
             server = socket
             main.post { register(socket.localPort) }
-            _state.update { it.copy(listening = true) }
+            val host = localAddress()
+            val address = when {
+                host == null -> ""
+                socket.localPort == TvLinkController.DEFAULT_PORT -> host
+                else -> "$host:${socket.localPort}"
+            }
+            _state.update { it.copy(listening = true, address = address) }
             while (!socket.isClosed) {
                 val client = try { socket.accept() } catch (_: IOException) { break }
                 pool.execute { serve(client) }
@@ -178,6 +190,15 @@ internal class TvLinkServer(
     }
 
     private fun pairedNames() = store.peers().map { it.name }
+
+    /** The TV's IPv4 address on the home network, or null when it has none. */
+    private fun localAddress(): String? = runCatching {
+        NetworkInterface.getNetworkInterfaces().toList()
+            .filter { it.isUp && !it.isLoopback }
+            .flatMap { it.inetAddresses.toList() }
+            .filterIsInstance<Inet4Address>()
+            .firstOrNull { it.isSiteLocalAddress }?.hostAddress
+    }.getOrNull()
 
     private fun tvName(): String =
         runCatching { Settings.Global.getString(appContext.contentResolver, Settings.Global.DEVICE_NAME) }.getOrNull()

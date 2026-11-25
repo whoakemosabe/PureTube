@@ -1344,6 +1344,12 @@ class PlayerViewModel(
         startTvCast(prompt.deviceId, code)
     }
 
+    override fun onTvAddress(address: String): Boolean {
+        val id = tv?.addAddress(address) ?: return false
+        onCastDevice(id)
+        return true
+    }
+
     override fun onTvPairCancel() {
         tv?.cancelPairing()
     }

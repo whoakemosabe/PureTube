@@ -85,7 +85,27 @@ class TvLinkController internal constructor(
 
     fun initialize() {
         if (discovery == null) discovery = CastV2Discovery(appContext, TvLinkServer.SERVICE_TYPE, requireVideoOut = false)
+        // A TV typed in by its address stays in the list, for Wi-Fi that hides the TV's announcement.
+        typedAddress()?.let { add(it, remember = false) }
     }
+
+    /**
+     * Adds a Puretube TV by the address its Phone screen shows ("192.168.1.20", or with
+     * ":port"). Returns the device id to connect to, or null when it isn't an address.
+     */
+    fun addAddress(text: String): String? = parseAddress(text)?.let { add(it, remember = true) }
+
+    private fun add(address: Pair<String, Int>, remember: Boolean): String {
+        val (host, port) = address
+        val id = ID_PREFIX + "$host:$port"
+        if (endpoints.values.none { it.host == host && it.port == port }) endpoints[id] = Endpoint("Puretube TV ($host)", host, port)
+        if (remember) appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(TYPED, "$host:$port").apply()
+        publishDevices()
+        return endpoints.entries.first { it.value.host == host && it.value.port == port }.key
+    }
+
+    private fun typedAddress(): Pair<String, Int>? =
+        appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(TYPED, null)?.let(::parseAddress)
 
     fun setDiscoveryEnabled(enabled: Boolean) {
         val discovery = discovery ?: return
@@ -282,6 +302,21 @@ class TvLinkController internal constructor(
 
     companion object {
         const val ID_PREFIX = "tv:"
+        /** The port a Puretube TV listens on first, so an address alone is enough to reach it. */
+        const val DEFAULT_PORT = 48765
+        private const val PREFS = "puretube_tv_link_phone"
+        private const val TYPED = "typed_address"
+
+        /** "192.168.1.20" or "192.168.1.20:48765" to host and port; null for anything else. */
+        internal fun parseAddress(text: String): Pair<String, Int>? {
+            val trimmed = text.trim()
+            val match = Regex("""^(\d{1,3}(?:\.\d{1,3}){3})(?::(\d{1,5}))?$""").matchEntire(trimmed) ?: return null
+            val host = match.groupValues[1]
+            if (host.split('.').any { it.toInt() > 255 }) return null
+            val port = match.groupValues[2].takeIf(String::isNotEmpty)?.toInt() ?: DEFAULT_PORT
+            if (port !in 1..65535) return null
+            return host to port
+        }
         private const val MAX_ACCOUNT_NAME = 80
         private const val CONNECT_TIMEOUT_MS = 4_000
         private const val HANDSHAKE_TIMEOUT_MS = 10_000

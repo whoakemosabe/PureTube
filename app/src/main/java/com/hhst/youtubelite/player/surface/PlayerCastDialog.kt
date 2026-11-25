@@ -61,6 +61,7 @@ internal fun CastDialog(
     onRefresh: () -> Unit,
     onDiscovery: (Boolean) -> Unit,
     onTvCode: (String) -> Unit = {},
+    onTvAddress: (String) -> Boolean = { false },
     onTvCancel: () -> Unit = {},
     onTvSignIn: () -> Unit = {},
     onTvSignOut: () -> Unit = {},
@@ -185,6 +186,7 @@ internal fun CastDialog(
                         }
                     }
                 }
+                TvAddressRow(onTvAddress)
                 // Link-cast is a separate mode from a Chromecast session (the proxy
                 // serves the receiver's manifest), so the link section is hidden here.
                 if (!state.casting) {
@@ -264,6 +266,39 @@ private fun TvAccountRow(state: PlayerUiState, onSignIn: () -> Unit, onSignOut: 
         }
         if (state.tvSignedIn == true) {
             TextButton(onClick = onSignOut) { Text(stringResource(R.string.tv_account_sign_out)) }
+        }
+    }
+}
+
+/**
+ * For Wi-Fi that hides the TV's announcement, and for telling a Puretube TV apart from the
+ * same TV's built-in Chromecast: type the address Puretube's Phone screen shows on the TV.
+ */
+@Composable
+private fun TvAddressRow(onConnect: (String) -> Boolean) {
+    var open by remember { mutableStateOf(false) }
+    var text by remember { mutableStateOf("") }
+    var wrong by remember { mutableStateOf(false) }
+    if (!open) {
+        TextButton(onClick = { open = true }, modifier = Modifier.padding(top = 4.dp)) {
+            Text(stringResource(R.string.tv_address_open), color = PlayerUi.YtRed, fontSize = 13.sp)
+        }
+        return
+    }
+    Column(Modifier.padding(top = 8.dp)) {
+        Text(stringResource(R.string.tv_address_hint), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it; wrong = false },
+            singleLine = true,
+            placeholder = { Text("192.168.1.20") },
+            isError = wrong,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        )
+        if (wrong) Text(stringResource(R.string.tv_address_wrong), color = PlayerUi.YtRed, fontSize = 12.sp)
+        TextButton(onClick = { wrong = !onConnect(text) }) {
+            Text(stringResource(R.string.tv_address_connect), color = PlayerUi.YtRed)
         }
     }
 }

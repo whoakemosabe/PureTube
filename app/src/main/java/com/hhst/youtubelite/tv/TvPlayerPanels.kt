@@ -48,6 +48,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import com.hhst.youtubelite.ui.design.Artwork
+import androidx.compose.ui.unit.sp
 import com.hhst.youtubelite.player.SleepChoice
 import com.hhst.youtubelite.watch.chat.LiveChatContent
 import com.hhst.youtubelite.watch.chat.LiveChatUiState
@@ -131,11 +132,11 @@ private const val MAX_TV_SPEED = 2f
 
 /** A frosted panel down the right of the player, like the YouTube TV settings sheet. */
 @Composable
-internal fun TvSidePanel(title: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+internal fun TvSidePanel(title: String, modifier: Modifier = Modifier, wide: Boolean = false, content: @Composable () -> Unit) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
         Column(
             Modifier
-                .width(460.dp)
+                .width(if (wide) 560.dp else 460.dp)
                 .fillMaxHeight()
                 .background(Brush.horizontalGradient(listOf(Color(0xE6161616), Color(0xF5161616))))
                 .padding(horizontal = 28.dp, vertical = 36.dp),
@@ -244,6 +245,7 @@ internal fun TvCommentList(comments: TvComments, onNearEnd: () -> Unit, onReplie
                 val item = comments.threads[index]
                 CommentCard(
                     author = item.author.displayName.ifBlank { item.author.handle },
+                    avatar = item.author.artwork,
                     age = item.age, body = item.body, likes = item.likes,
                     replies = item.replyCount,
                     onClick = { if (item.replyCount > 0) onReplies(item) },
@@ -264,13 +266,13 @@ private fun TvReplies(thread: CommentThread, comments: TvComments, onMore: () ->
     LaunchedEffect(thread.id) { requestFocusSoon(first) }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item(key = "top") {
-            CommentCard(thread.author.displayName.ifBlank { thread.author.handle }, thread.age, thread.body, thread.likes, 0, {},
-                Modifier.focusRequester(first), maxLines = 12)
+            CommentCard(thread.author.displayName.ifBlank { thread.author.handle }, thread.author.artwork, thread.age, thread.body,
+                thread.likes, 0, {}, Modifier.focusRequester(first), maxLines = 12)
         }
         items(comments.replies.size, key = { comments.replies[it].id }) { index ->
             val reply = comments.replies[index]
-            CommentCard(reply.author.displayName.ifBlank { reply.author.handle }, reply.age, reply.body, reply.likes, 0, {},
-                Modifier.padding(start = 28.dp).onFocusChanged { if (it.isFocused && index >= comments.replies.size - 3) onMore() })
+            CommentCard(reply.author.displayName.ifBlank { reply.author.handle }, reply.author.artwork, reply.age, reply.body,
+                reply.likes, 0, {}, Modifier.padding(start = 36.dp), small = true, focusModifier = Modifier.onFocusChanged { if (it.isFocused && index >= comments.replies.size - 3) onMore() })
         }
         when {
             comments.repliesLoading -> item { Text("Loading…", color = TvColors.Muted, modifier = Modifier.padding(start = 42.dp, top = 8.dp)) }
@@ -282,6 +284,7 @@ private fun TvReplies(thread: CommentThread, comments: TvComments, onMore: () ->
 @Composable
 private fun CommentCard(
     author: String,
+    avatar: String,
     age: String,
     body: String,
     likes: String,
@@ -289,10 +292,12 @@ private fun CommentCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     maxLines: Int = 6,
+    small: Boolean = false,
+    focusModifier: Modifier = Modifier,
 ) {
     Surface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().then(focusModifier),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
@@ -306,16 +311,39 @@ private fun CommentCard(
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
     ) {
-        Column(Modifier.padding(14.dp)) {
-            Text(listOf(author, age).filter(String::isNotBlank).joinToString(" • "),
-                style = MaterialTheme.typography.labelLarge, color = TvColors.Muted, maxLines = 1)
-            Spacer(Modifier.height(4.dp))
-            Text(body, style = MaterialTheme.typography.bodyMedium, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
-            val counts = listOfNotNull(likes.takeIf(String::isNotBlank)?.let { "$it likes" },
-                replies.takeIf { it > 0 }?.let { if (it == 1) "1 reply" else "$it replies" })
-            if (counts.isNotEmpty()) {
+        // As on YouTube: the round picture, then name and age, the comment, and its counts.
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.Top) {
+            val picture = if (small) 28.dp else 36.dp
+            Box(Modifier.size(picture).clip(CircleShape).background(TvColors.Frost), contentAlignment = Alignment.Center) {
+                if (avatar.isNotBlank()) Artwork(avatar, Modifier.fillMaxSize().clip(CircleShape))
+                else AppIcon(AppIcon.You, Modifier.size(picture * 0.6f), color = TvColors.Muted)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(author, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = TvColors.Text,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (age.isNotBlank()) {
+                        Text("  $age", style = MaterialTheme.typography.labelMedium, color = TvColors.Muted, maxLines = 1)
+                    }
+                }
                 Spacer(Modifier.height(4.dp))
-                Text(counts.joinToString(" • "), style = MaterialTheme.typography.labelMedium, color = TvColors.Muted)
+                Text(body, style = MaterialTheme.typography.bodyMedium, color = TvColors.Text, maxLines = maxLines,
+                    overflow = TextOverflow.Ellipsis, lineHeight = 20.sp)
+                if (likes.isNotBlank() || replies > 0) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (likes.isNotBlank()) {
+                            AppIcon(AppIcon.Like, Modifier.size(14.dp), color = TvColors.Muted)
+                            Text(" $likes", style = MaterialTheme.typography.labelMedium, color = TvColors.Muted)
+                        }
+                        if (replies > 0) {
+                            if (likes.isNotBlank()) Spacer(Modifier.width(18.dp))
+                            Text(if (replies == 1) "1 reply" else "$replies replies", style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium, color = TvColors.FocusedLink)
+                        }
+                    }
+                }
             }
         }
     }

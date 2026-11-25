@@ -61,6 +61,8 @@ internal interface TvVideoOps {
     suspend fun setSaved(playlistId: String, videoId: String, contains: Boolean)
     suspend fun comments(videoId: String, cursor: String?): CommentsPage
     suspend fun replies(videoId: String, thread: CommentThread, cursor: String?): RepliesPage
+    /** The channel's picture when the watch page left it out; null when it can't be found. */
+    suspend fun avatar(channelId: String): String? = null
 }
 
 internal class RepositoryTvVideoOps(private val repos: ContentRepositories) : TvVideoOps {
@@ -72,6 +74,7 @@ internal class RepositoryTvVideoOps(private val repos: ContentRepositories) : Tv
         repos.saves.setContaining(playlistId, videoId, contains)
     private val commentReads by lazy { repos.comments() }
     override suspend fun comments(videoId: String, cursor: String?) = commentReads.comments(videoId, CommentSort.Top, cursor)
+    override suspend fun avatar(channelId: String): String? = repos.avatars.cached(channelId) ?: repos.avatars.avatar(channelId)
     override suspend fun replies(videoId: String, thread: CommentThread, cursor: String?) =
         commentReads.repliesPage(CommentTarget.Video(videoId), thread, cursor)
 }
@@ -96,6 +99,11 @@ internal class TvVideoModel(private val scope: CoroutineScope, private val ops: 
             if (_state.value.videoId != videoId) return@launch
             _state.update { it.copy(video = video, rating = video.rating, subscribed = video.subscribed) }
             onVideo?.invoke(video)
+            // The watch page often leaves the channel picture out; the phone looks it up the same way.
+            if (video.avatar.isNullOrBlank() && video.channelId.startsWith("UC")) {
+                val avatar = attempt { ops.avatar(video.channelId) }?.takeIf(String::isNotBlank) ?: return@launch
+                if (_state.value.videoId == videoId) _state.update { state -> state.copy(video = state.video?.copy(avatar = avatar)) }
+            }
         }
     }
 

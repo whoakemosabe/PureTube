@@ -51,6 +51,7 @@ class TvActivity : ComponentActivity() {
     private lateinit var browse: TvBrowseModels
     private lateinit var player: TvPlayerSession
     private val account = MutableStateFlow<String?>(null)
+    private val accountPhoto = MutableStateFlow<String?>(null)
     private val prefs: ExtensionManager by inject()
     private lateinit var settings: ExtensionTvSettings
     private val chat: LiveChatViewModel by lazy {
@@ -86,13 +87,15 @@ class TvActivity : ComponentActivity() {
                 browse.identityChanged(identity.generation)
                 chat.updateSession(identity.signedIn, identity.generation)
                 account.value = if (identity.signedIn) MediaSession.selectedAccount()?.let { it.name ?: it.email } ?: "your account" else null
+                accountPhoto.value = if (identity.signedIn) MediaSession.selectedAccount()?.photo else null
             }
         }
         TvHomeRows.videoOf(intent)?.let { receiver.playLocal(it, "", null) }
         setContent {
             val signedInAs by account.collectAsStateWithLifecycle()
+            val photo by accountPhoto.collectAsStateWithLifecycle()
             TvTheme {
-                TvApp(receiver = receiver, engine = engine, browse = browse, player = player, account = signedInAs,
+                TvApp(receiver = receiver, engine = engine, browse = browse, player = player, account = signedInAs, accountPhoto = photo,
                     settings = settings, version = Updater.installedVersion(this), chat = chat,
                     onSignOut = MediaSession::signOut,
                     openSignIn = { TvSignInSession(MediaSignInService(get<OkHttpClient>(), PreferencesAuthStore(this))) },

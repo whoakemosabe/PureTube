@@ -13,6 +13,12 @@ import com.hhst.youtubelite.search.domain.SearchChannel
 import com.hhst.youtubelite.search.domain.SearchFilters
 import com.hhst.youtubelite.search.domain.SearchResult
 import com.hhst.youtubelite.shorts.domain.ShortItem
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeoutOrNull
 import com.hhst.youtubelite.subscriptions.data.SubscriptionsFilter
 import com.hhst.youtubelite.watch.domain.WatchRelated
 
@@ -32,22 +38,30 @@ data class TvCard(
     val channelId: String? = null,
     /** A Short: a tall tile, and the player keeps going through its list. */
     val short: Boolean = false,
+    /** A subscribed channel with videos you haven't seen. */
+    val fresh: Boolean = false,
 )
 
 /** One page of tiles and the cursor for the next, if the list goes on. */
 data class TvPage(val cards: List<TvCard>, val next: String? = null)
 
-/** The TV's sections, in sidebar order. */
-enum class TvSection(val label: String, val needsAccount: Boolean = false) {
+/**
+ * The TV's sections, in sidebar order, laid out like SmartTube's: your feeds first, then
+ * the topic feeds, then this TV's own pages. [explore] names a topic's Explore category.
+ */
+enum class TvSection(val label: String, val needsAccount: Boolean = false, val explore: String? = null) {
     Search("Search"),
     Home("Home"),
     Shorts("Shorts"),
-    Explore("Explore"),
     Subscriptions("Subscriptions", needsAccount = true),
     Channels("Channels", needsAccount = true),
     History("History", needsAccount = true),
     Playlists("Playlists", needsAccount = true),
     WatchLater("Watch later", needsAccount = true),
+    Music("Music", explore = "Music"),
+    Gaming("Gaming", explore = "Gaming"),
+    News("News", explore = "News"),
+    Sports("Sports", explore = "Sports"),
     Downloads("Downloads"),
     Phone("Phone"),
     Settings("Settings"),
@@ -122,8 +136,24 @@ internal class RepositoryTvBrowseSource(
     private val shortsFeed by lazy { repos.shorts(null, null) }
 
     override suspend fun shorts(cursor: String?): TvPage {
-        val page = if (cursor == null) shortsFeed.shorts() else shortsFeed.shortsNext(cursor)
-        return TvPage(page.items.map(::shortCard), page.nextKey)
+        var page = if (cursor == null) shortsFeed.shorts() else shortsFeed.shortsNext(cursor)
+        // The feed's first answer can be an empty seed with only a cursor; read on to real Shorts.
+        var skips = 0
+        while (page.items.isEmpty() && skips++ < EMPTY_SHORTS_SKIPS) page = shortsFeed.shortsNext(page.nextKey ?: break)
+        // The feed sends ids with no title or picture (the phone fills them in as you swipe);
+        // a tile needs both, so fill them in here, a few at a time.
+        val items = coroutineScope {
+            val gate = Semaphore(HYDRATE_PARALLEL)
+            page.items.map { item ->
+                async {
+                    if (item.title.isNotBlank() && item.artwork.isNotBlank()) item
+                    else gate.withPermit {
+                        withTimeoutOrNull(HYDRATE_TIMEOUT_MS) { runCatching { shortsFeed.hydrate(item.id) }.getOrNull() }
+                    }?.item?.let { found -> found.copy(artwork = found.artwork.ifBlank { item.artwork }) } ?: item
+                }
+            }.awaitAll()
+        }
+        return TvPage(items.map(::shortCard), page.nextKey)
     }
 
     override suspend fun explore(category: String, cursor: String?): TvPage {
@@ -138,7 +168,8 @@ internal class RepositoryTvBrowseSource(
     override suspend fun channels(cursor: String?): TvPage {
         val page = repos.subscriptions.subscribedChannelsPage(cursor)
         return TvPage(page.channels.map { channel ->
-            TvCard("c-${channel.channelId}", channel.name, channel.metadata, channel.avatar, channelId = channel.channelId)
+            TvCard("c-${channel.channelId}", channel.name, channel.metadata, channel.avatar, channelId = channel.channelId,
+                fresh = channel.hasNewContent)
         }, page.nextKey)
     }
 
@@ -203,6 +234,9 @@ internal class RepositoryTvBrowseSource(
 
     companion object {
         const val WATCH_LATER = "WL"
+        private const val EMPTY_SHORTS_SKIPS = 2
+        private const val HYDRATE_PARALLEL = 4
+        private const val HYDRATE_TIMEOUT_MS = 8_000L
         /** Keys of playlist entries; a list of only these plays in order. */
         const val ENTRY_PREFIX = "e-"
 
@@ -222,7 +256,9 @@ internal class RepositoryTvBrowseSource(
 
         internal fun shortCard(item: ShortItem) = TvCard(
             key = "s-${item.id}", title = item.title, subtitle = listOf(item.author, item.views).filter(String::isNotBlank).joinToString(" • "),
-            artwork = item.artwork, videoId = item.id, author = item.author, short = true,
+            // The tall frame YouTube keeps for every Short, when the feed sent no picture.
+            artwork = item.artwork.ifBlank { "https://i.ytimg.com/vi/${item.id}/oar2.jpg" },
+            videoId = item.id, author = item.author, short = true,
         )
 
         internal fun videoCard(video: FeedItem.Video) = TvCard(

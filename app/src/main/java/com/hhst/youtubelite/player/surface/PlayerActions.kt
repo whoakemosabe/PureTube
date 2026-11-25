@@ -62,6 +62,8 @@ interface PlayerPlaybackActions {
     fun onCastFailureDismiss() {}
     /** The code typed while pairing with a Puretube TV. */
     fun onTvPairCode(code: String) {}
+    /** Connects to a Puretube TV by the address its Phone screen shows. */
+    fun onTvAddress(address: String): Boolean = false
     fun onTvPairCancel() {}
     fun onTvSignIn() {}
     fun onTvSignOut() {}

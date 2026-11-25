@@ -51,6 +51,8 @@ internal object TvColors {
     val Frost = Color(0x29FFFFFF)
     val FrostEdge = Color(0x8CFFFFFF)
     val FrostSelected = Color(0x59FFFFFF)
+    /** "3 replies": YouTube's link blue, readable on dark glass. */
+    val FocusedLink = Color(0xFF3EA6FF)
     val Focused = Color(0xFFF1F1F1)
     val OnFocused = Color(0xFF0F0F0F)
     val Sponsor = Color(0xFFF2C94C)

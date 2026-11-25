@@ -84,12 +84,15 @@ private val TvSection.icon: AppIcon get() = when (this) {
     TvSection.Search -> AppIcon.Search
     TvSection.Home -> AppIcon.Home
     TvSection.Shorts -> AppIcon.Shorts
-    TvSection.Explore -> AppIcon.Explore
     TvSection.Subscriptions -> AppIcon.Subscriptions
     TvSection.Channels -> AppIcon.ChannelGrid
     TvSection.History -> AppIcon.Clock
     TvSection.Playlists -> AppIcon.Playlist
     TvSection.WatchLater -> AppIcon.Bookmark
+    TvSection.Music -> AppIcon.Mix
+    TvSection.Gaming -> AppIcon.Sparkle
+    TvSection.News -> AppIcon.Globe
+    TvSection.Sports -> AppIcon.Trending
     TvSection.Downloads -> AppIcon.Download
     TvSection.Phone -> AppIcon.Device
     TvSection.Settings -> AppIcon.Settings
@@ -104,6 +107,7 @@ internal fun TvBrowse(
     browse: TvBrowseModels,
     link: TvLinkUiState,
     account: String?,
+    accountPhoto: String?,
     settings: TvSettingsStore,
     version: String,
     onPlay: (TvCard, List<TvCard>) -> Unit,
@@ -116,7 +120,14 @@ internal fun TvBrowse(
     val identity by browse.identity.collectAsStateWithLifecycle()
     val section by browse.section.collectAsStateWithLifecycle()
     val opened by browse.opened.collectAsStateWithLifecycle()
-    var sidebarOpen by remember { mutableStateOf(false) }
+    // The sidebar is open while it holds focus, except just after a pick: it closes at once,
+    // even if the new section has nothing to focus yet.
+    var sidebarFocused by remember { mutableStateOf(false) }
+    var picked by remember { mutableStateOf(false) }
+    val sidebarOpen = sidebarFocused && !picked
+    // The section now on screen, so focus moves only once the new tiles exist.
+    var shown by remember { mutableStateOf<TvSection?>(null) }
+    var typeSearch by remember { mutableStateOf(false) }
     val sidebarFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
     val blur by animateDpAsState(if (sidebarOpen) 18.dp else 0.dp, label = "sidebarBlur")
@@ -126,7 +137,10 @@ internal fun TvBrowse(
     BackHandler {
         when {
             opened.isNotEmpty() -> browse.closeTop()
-            !sidebarOpen -> runCatching { sidebarFocus.requestFocus() }
+            !sidebarOpen -> {
+                picked = false
+                runCatching { sidebarFocus.requestFocus() }
+            }
             else -> onExit()
         }
     }
@@ -140,13 +154,18 @@ internal fun TvBrowse(
                 .focusRequester(contentFocus),
         ) {
           key(identity) {
+            androidx.compose.runtime.SideEffect { shown = section }
             when (val top = opened.lastOrNull()) {
                 is TvOpen.Playlist -> key(top) { CardGrid(top.title, top.list, onPlay = onPlay, onOpen = browse::open) }
                 is TvOpen.Channel -> key(top) { ChannelScreen(top.model, onPlay = onPlay, onOpen = browse::open) }
                 null -> when (section) {
-                    TvSection.Search -> SearchSection(browse, onPlay)
-                    TvSection.Explore -> ExploreSection(browse, onPlay)
+                    TvSection.Search -> SearchSection(browse, onPlay, typeNow = typeSearch, onTyping = { typeSearch = false })
+                    TvSection.Home -> HomeSection(browse, onPlay, browse::open, onSearch = {
+                        typeSearch = true
+                        browse.select(TvSection.Search)
+                    })
                     TvSection.Downloads -> DownloadsSection(onOpenDownloads)
+                    TvSection.Channels -> if (browse.signedIn) ChannelsSection(browse) else NeedsAccount(section, onSignIn)
                     TvSection.Phone -> PhoneSection(link)
                     TvSection.Settings -> SettingsSection(link, account, settings, version, onForgetPhones, onSignOut, onSignIn)
                     else -> {
@@ -166,16 +185,49 @@ internal fun TvBrowse(
         }
         val focusManager = LocalFocusManager.current
         val scope = rememberCoroutineScope()
+        // Close the sidebar now, wait for the picked section to be on screen, then step into it.
+        val pick: (TvSection) -> Unit = { target ->
+            picked = true
+            browse.select(target)
+            scope.launch {
+                repeat(ENTER_TRIES) {
+                    withFrameNanos { }
+                    if (shown == target) {
+                        withFrameNanos { }
+                        enterContent(focusManager) { !sidebarFocused }
+                        return@launch
+                    }
+                }
+            }
+        }
         Sidebar(
             selected = section,
             open = sidebarOpen,
             focus = sidebarFocus,
+            account = account,
+            accountPhoto = accountPhoto,
+            // Signed out, the picture signs in; signed in, it opens the account in Settings.
+            onProfile = { if (account == null) onSignIn() else pick(TvSection.Settings) },
             // Moving through the sidebar only highlights; pressing picks the section and goes into it.
-            onSelect = {
-                browse.select(it)
-                scope.launch { enterContent(focusManager) }
-            },
-            modifier = Modifier.onFocusChanged { sidebarOpen = it.hasFocus },
+            onSelect = pick,
+            modifier = Modifier
+                .onFocusChanged {
+                    if (it.hasFocus != sidebarFocused) picked = false
+                    sidebarFocused = it.hasFocus
+                }
+                // Still in the closed sidebar after a pick (the section had nothing to focus):
+                // up or down opens it again, right tries the section once more.
+                .onPreviewKeyEvent { event ->
+                    if (!picked || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        Key.DirectionRight -> {
+                            scope.launch { enterContent(focusManager) { !sidebarFocused } }
+                            true
+                        }
+                        Key.DirectionUp, Key.DirectionDown -> { picked = false; true }
+                        else -> false
+                    }
+                },
         )
     }
 }
@@ -186,6 +238,9 @@ private fun Sidebar(
     selected: TvSection,
     open: Boolean,
     focus: FocusRequester,
+    account: String?,
+    accountPhoto: String?,
+    onProfile: () -> Unit,
     onSelect: (TvSection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -201,6 +256,8 @@ private fun Sidebar(
             .focusRestorer(focus),
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {
+        ProfileButton(account, accountPhoto, open, onProfile)
+        Spacer(Modifier.height(10.dp))
         TvSection.entries.forEach { section ->
             val isSelected = section == selected
             Surface(
@@ -229,6 +286,37 @@ private fun Sidebar(
                         Text(section.label, style = MaterialTheme.typography.titleMedium, maxLines = 1)
                     }
                 }
+            }
+        }
+    }
+}
+
+/** The top of the sidebar: your picture, or a silhouette when signed out. */
+@Composable
+private fun ProfileButton(account: String?, photo: String?, open: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(52.dp),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(26.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            contentColor = TvColors.Text,
+            focusedContainerColor = TvColors.Focused,
+            focusedContentColor = TvColors.OnFocused,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+    ) {
+        Row(Modifier.fillMaxSize().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(36.dp).clip(CircleShape).background(TvColors.Frost), contentAlignment = Alignment.Center) {
+                if (account != null && !photo.isNullOrBlank()) {
+                    Artwork(photo, Modifier.fillMaxSize().clip(CircleShape))
+                } else {
+                    AppIcon(AppIcon.You, Modifier.size(22.dp), color = androidx.tv.material3.LocalContentColor.current)
+                }
+            }
+            if (open) {
+                Spacer(Modifier.width(14.dp))
+                Text(account ?: "Sign in", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -345,6 +433,10 @@ private fun ChannelTile(card: TvCard, onClick: () -> Unit, onFocused: () -> Unit
         ) {
             Artwork(card.artwork, Modifier.fillMaxSize().clip(CircleShape))
         }
+        if (card.fresh) {
+            // A small blue dot, as YouTube marks channels with new videos.
+            Box(Modifier.padding(top = 6.dp).size(8.dp).background(androidx.compose.ui.graphics.Color(0xFF3EA6FF), CircleShape))
+        }
         Text(card.title, color = TvColors.Text, style = MaterialTheme.typography.titleSmall, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
         if (card.subtitle.isNotBlank()) {
@@ -373,11 +465,18 @@ internal fun RelatedRow(model: TvListModel, onPlay: (TvCard, List<TvCard>) -> Un
 }
 
 @Composable
-private fun SearchSection(browse: TvBrowseModels, onPlay: (TvCard, List<TvCard>) -> Unit) {
+private fun SearchSection(browse: TvBrowseModels, onPlay: (TvCard, List<TvCard>) -> Unit, typeNow: Boolean = false, onTyping: () -> Unit = {}) {
     val query by browse.query.collectAsStateWithLifecycle()
     var typed by remember { mutableStateOf(query) }
     val field = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+    // From Home's search bar: straight into the field, keyboard up.
+    LaunchedEffect(typeNow) {
+        if (typeNow) {
+            requestFocusSoon(field)
+            onTyping()
+        }
+    }
     Column(Modifier.fillMaxSize()) {
         Surface(
             onClick = { runCatching { field.requestFocus() } },
@@ -447,7 +546,8 @@ private fun PhoneSection(link: TvLinkUiState) {
             Text("Pair a phone", style = MaterialTheme.typography.titleLarge, color = TvColors.Text)
             Spacer(Modifier.height(8.dp))
             Text(
-                "On your phone, open a video in Puretube, tap Cast and pick ${link.tvName}. Then type this code:",
+                "On your phone, open a video in Puretube and tap Cast. Pick ${link.tvName} with the red Puretube tag, " +
+                    "not the plain one (that's the TV's Chromecast). Then type this code:",
                 style = MaterialTheme.typography.bodyLarge,
                 color = TvColors.Muted,
             )
@@ -459,28 +559,92 @@ private fun PhoneSection(link: TvLinkUiState) {
                 fontWeight = FontWeight.Bold,
                 color = TvColors.Text,
             )
+            if (link.address.isNotBlank()) {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Not in the list? Tap \"Puretube TV not listed?\" under the devices and type ${link.address}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TvColors.Muted,
+                )
+            }
         }
         }
     }
 }
 
-/** Explore: Music, Gaming, News and Sports as pills over the category's tiles. */
+/**
+ * Your subscriptions: a name filter and A–Z, Recently active or New videos, over round
+ * channel pictures. Every page is read so the order and filter cover all of them.
+ */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun ExploreSection(browse: TvBrowseModels, onPlay: (TvCard, List<TvCard>) -> Unit) {
-    val category by browse.exploreCategory.collectAsStateWithLifecycle()
+private fun ChannelsSection(browse: TvBrowseModels) {
+    val model = browse.list(TvSection.Channels)
+    val state by model.state.collectAsStateWithLifecycle()
+    val sort by browse.channelSort.collectAsStateWithLifecycle()
+    val filter by browse.channelFilter.collectAsStateWithLifecycle()
+    LaunchedEffect(model) { model.loadFirst() }
+    // Keep reading pages until the list ends, so A–Z and the filter see every channel.
+    LaunchedEffect(state.cards.size, state.done, state.appending, state.appendFailed) {
+        if (!state.done && !state.appending && !state.appendFailed && state.cards.isNotEmpty()) model.loadMore()
+    }
+    val shown = remember(state.cards, sort, filter) { arrangeChannels(state.cards, sort, filter) }
+    val focusManager = LocalFocusManager.current
     Column(Modifier.fillMaxSize()) {
-        Text("Explore", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TvColors.Text,
-            modifier = Modifier.padding(start = 40.dp, top = 28.dp))
-        Row(
-            Modifier.padding(start = 40.dp, top = 14.dp, bottom = 4.dp).focusRestorer(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            EXPLORE_CATEGORIES.forEach { name ->
-                FrostPill(name, { browse.selectExplore(name) }, selected = name == category)
+        Row(Modifier.padding(start = 40.dp, top = 28.dp, end = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Channels", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TvColors.Text)
+            if (state.cards.isNotEmpty()) {
+                Text("  ${state.cards.size}${if (state.done) "" else "+"}", style = MaterialTheme.typography.titleMedium, color = TvColors.Muted)
             }
         }
-        key(category) { CardGrid(null, browse.explore(category), onPlay = onPlay, onOpen = browse::open) }
+        Row(
+            Modifier.padding(start = 40.dp, top = 14.dp, end = 48.dp, bottom = 6.dp).focusRestorer(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = filter,
+                onValueChange = browse::filterChannels,
+                placeholder = { androidx.compose.material3.Text("Find a channel", color = TvColors.Muted) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TvColors.Text, unfocusedTextColor = TvColors.Text,
+                    focusedBorderColor = TvColors.Focused, unfocusedBorderColor = TvColors.Frost,
+                    cursorColor = TvColors.Red,
+                ),
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.width(300.dp).onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyUp && (event.key == Key.Back || event.key == Key.Escape)) {
+                        focusManager.clearFocus()
+                        true
+                    } else false
+                },
+            )
+            Spacer(Modifier.width(6.dp))
+            TvChannelSort.entries.forEach { option ->
+                FrostPill(option.label, { browse.sortChannels(option) }, selected = option == sort)
+            }
+        }
+        when {
+            state.loading -> Message("Loading…")
+            state.failed -> RetryMessage("Couldn't load your channels.", model::reload)
+            shown.isEmpty() && filter.isNotBlank() -> Message("No channel matches \"$filter\".")
+            shown.isEmpty() && sort == TvChannelSort.New -> Message("No new videos from your channels.")
+            shown.isEmpty() -> Message("You don't subscribe to any channels yet.")
+            else -> LazyVerticalGrid(
+                columns = GridCells.Fixed(CHANNEL_COLUMNS),
+                contentPadding = PaddingValues(start = 40.dp, end = 48.dp, top = 16.dp, bottom = 48.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+                modifier = Modifier.fillMaxSize().focusRestorer(),
+            ) {
+                itemsIndexed(shown, key = { _, card -> card.key }) { _, card ->
+                    ChannelTile(card, { browse.open(card) }, {})
+                }
+            }
+        }
     }
 }
 
@@ -506,13 +670,13 @@ private fun NeedsAccount(section: TvSection, onSignIn: () -> Unit) {
 }
 
 @Composable
-private fun Message(text: String) {
+internal fun Message(text: String) {
     Text(text, color = TvColors.Muted, style = MaterialTheme.typography.titleMedium,
         modifier = Modifier.padding(start = 40.dp, top = 24.dp, end = 48.dp).widthIn(max = 720.dp))
 }
 
 @Composable
-private fun RetryMessage(text: String, onRetry: () -> Unit) {
+internal fun RetryMessage(text: String, onRetry: () -> Unit) {
     Column(Modifier.padding(start = 40.dp, top = 24.dp)) {
         Text(text, color = TvColors.Muted, style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(12.dp))
@@ -524,16 +688,18 @@ private fun RetryMessage(text: String, onRetry: () -> Unit) {
  * After a section is picked its tiles compose a frame or two later: keep stepping right
  * until focus leaves the sidebar, or give up and stay on it.
  */
-private suspend fun enterContent(focusManager: androidx.compose.ui.focus.FocusManager) {
+private suspend fun enterContent(focusManager: androidx.compose.ui.focus.FocusManager, entered: () -> Boolean) {
     repeat(ENTER_TRIES) {
+        if (entered()) return
+        focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Right)
         withFrameNanos { }
-        if (focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Right)) return
     }
 }
 
-private const val ENTER_TRIES = 30
+private const val ENTER_TRIES = 90
 private val SIDEBAR_COLLAPSED = 72.dp
 private val SIDEBAR_OPEN = 260.dp
 private const val PREFETCH_ROWS = 2
 private const val COLUMNS = 4
 private const val TALL_COLUMNS = 6
+private const val CHANNEL_COLUMNS = 6
