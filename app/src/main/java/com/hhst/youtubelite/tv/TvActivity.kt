@@ -10,6 +10,9 @@ import androidx.lifecycle.lifecycleScope
 import com.hhst.youtubelite.App
 import com.hhst.youtubelite.data.media.ContentRepositories
 import com.hhst.youtubelite.data.media.MediaSession
+import com.hhst.youtubelite.data.media.PreferencesAuthStore
+import com.hhst.youtubelite.account.data.MediaSignInService
+import okhttp3.OkHttpClient
 import com.hhst.youtubelite.player.engine.PlaybackApi
 import com.hhst.youtubelite.tv.browse.RepositoryTvBrowseSource
 import com.hhst.youtubelite.tv.browse.TvBrowseModels
@@ -51,7 +54,9 @@ class TvActivity : ComponentActivity() {
             val signedInAs by account.collectAsStateWithLifecycle()
             TvTheme {
                 TvApp(receiver = receiver, engine = engine, browse = browse, account = signedInAs,
-                    onSignOut = MediaSession::signOut, onExit = ::finish)
+                    onSignOut = MediaSession::signOut,
+                    openSignIn = { TvSignInSession(MediaSignInService(get<OkHttpClient>(), PreferencesAuthStore(this))) },
+                    onExit = ::finish)
             }
         }
     }

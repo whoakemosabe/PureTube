@@ -61,7 +61,9 @@ import com.hhst.youtubelite.tv.browse.TvListModel
 import kotlinx.coroutines.delay
 
 @Composable
-internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, browse: TvBrowseModels, account: String?, onSignOut: () -> Unit, onExit: () -> Unit) {
+internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, browse: TvBrowseModels, account: String?, onSignOut: () -> Unit,
+    openSignIn: () -> TvSignInSession, onExit: () -> Unit) {
+    var signingIn by remember { mutableStateOf(false) }
     val snapshot by receiver.snapshot.collectAsStateWithLifecycle()
     val link by receiver.server.state.collectAsStateWithLifecycle()
     val nowPlaying by receiver.nowPlaying.collectAsStateWithLifecycle()
@@ -85,8 +87,11 @@ internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, browse: TvBrowseMo
                 onPlayCard = play,
                 onStop = receiver::stopPlayback,
             )
+        } else if (signingIn) {
+            TvSignInScreen(openSignIn, onClose = { signingIn = false })
         } else {
-            TvBrowse(browse, link, account, onPlay = play, onForgetPhones = receiver.server::forgetPhones, onSignOut = onSignOut, onExit = onExit)
+            TvBrowse(browse, link, account, onPlay = play, onForgetPhones = receiver.server::forgetPhones,
+                onSignOut = onSignOut, onSignIn = { signingIn = true }, onExit = onExit)
         }
     }
 }

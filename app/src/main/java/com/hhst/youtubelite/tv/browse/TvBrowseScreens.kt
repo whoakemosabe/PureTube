@@ -93,6 +93,7 @@ internal fun TvBrowse(
     onPlay: (TvCard) -> Unit,
     onForgetPhones: () -> Unit,
     onSignOut: () -> Unit,
+    onSignIn: () -> Unit,
     onExit: () -> Unit,
 ) {
     val identity by browse.identity.collectAsStateWithLifecycle()
@@ -126,11 +127,11 @@ internal fun TvBrowse(
             } else when (section) {
                 TvSection.Search -> SearchSection(browse, onPlay)
                 TvSection.Phone -> PhoneSection(link)
-                TvSection.Settings -> SettingsSection(link, account, onForgetPhones, onSignOut)
+                TvSection.Settings -> SettingsSection(link, account, onForgetPhones, onSignOut, onSignIn)
                 else -> {
                     val list = browse.list(section)
                     if (section.needsAccount && !browse.signedIn) {
-                        NeedsAccount(section)
+                        NeedsAccount(section, onSignIn)
                     } else {
                         CardGrid(section.label, list, onPlay = onPlay, onOpen = browse::openPlaylist)
                     }
@@ -220,7 +221,7 @@ internal fun CardGrid(title: String, model: TvListModel, onPlay: (TvCard) -> Uni
         )
         when {
             state.loading -> Message("Loading…")
-            state.failed && state.needsAccount -> Message("Sign this TV in from your phone's Cast menu to see this here.")
+            state.failed && state.needsAccount -> Message("Sign in from Settings to see this here.")
             state.failed -> RetryMessage("Couldn't load this.", model::reload)
             state.cards.isEmpty() -> Message("Nothing here yet.")
             else -> LazyVerticalGrid(
@@ -389,7 +390,7 @@ private fun PhoneSection(link: TvLinkUiState) {
 }
 
 @Composable
-private fun SettingsSection(link: TvLinkUiState, account: String?, onForgetPhones: () -> Unit, onSignOut: () -> Unit) {
+private fun SettingsSection(link: TvLinkUiState, account: String?, onForgetPhones: () -> Unit, onSignOut: () -> Unit, onSignIn: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(start = 40.dp, top = 28.dp, end = 48.dp)) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TvColors.Text)
         Spacer(Modifier.height(16.dp))
@@ -398,12 +399,9 @@ private fun SettingsSection(link: TvLinkUiState, account: String?, onForgetPhone
             Spacer(Modifier.height(12.dp))
             Button(onClick = onSignOut) { Text("Sign out on this TV") }
         } else {
-            Text(
-                "Not signed in. On your phone, connect to this TV from the Cast menu and tap Use my account on the TV.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = TvColors.Muted,
-                modifier = Modifier.widthIn(max = 720.dp),
-            )
+            Text("Not signed in.", style = MaterialTheme.typography.titleMedium, color = TvColors.Text)
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = onSignIn) { Text("Sign in") }
         }
         Spacer(Modifier.height(28.dp))
         Text("This TV: ${link.tvName}", style = MaterialTheme.typography.titleMedium, color = TvColors.Text)
@@ -421,10 +419,12 @@ private fun SettingsSection(link: TvLinkUiState, account: String?, onForgetPhone
 }
 
 @Composable
-private fun NeedsAccount(section: TvSection) {
+private fun NeedsAccount(section: TvSection, onSignIn: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(start = 40.dp, top = 28.dp)) {
         Text(section.label, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TvColors.Text)
-        Message("On your phone, connect to this TV from the Cast menu and tap Use my account on the TV.")
+        Message("Sign in to see your ${section.label.lowercase()} here.")
+        Spacer(Modifier.height(16.dp))
+        Button(onClick = onSignIn, modifier = Modifier.padding(start = 40.dp)) { Text("Sign in") }
     }
 }
 
