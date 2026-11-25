@@ -2,6 +2,7 @@ package com.hhst.youtubelite.tv
 
 import android.view.SurfaceView
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -13,9 +14,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -32,6 +32,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -46,94 +47,47 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.material3.Button
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.hhst.youtubelite.R
 import com.hhst.youtubelite.player.engine.PlaybackApi
 import com.hhst.youtubelite.player.engine.PlaybackSnapshot
 import com.hhst.youtubelite.player.surface.PlayerUi
+import com.hhst.youtubelite.tv.browse.RelatedRow
+import com.hhst.youtubelite.tv.browse.TvBrowse
+import com.hhst.youtubelite.tv.browse.TvBrowseModels
+import com.hhst.youtubelite.tv.browse.TvCard
+import com.hhst.youtubelite.tv.browse.TvListModel
 import kotlinx.coroutines.delay
 
 @Composable
-internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, onExit: () -> Unit) {
+internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, browse: TvBrowseModels, onExit: () -> Unit) {
     val snapshot by receiver.snapshot.collectAsStateWithLifecycle()
     val link by receiver.server.state.collectAsStateWithLifecycle()
     val nowPlaying by receiver.nowPlaying.collectAsStateWithLifecycle()
+    val play: (TvCard) -> Unit = { card -> card.videoId?.let { receiver.playLocal(it, card.title, card.author) } }
     Box(Modifier.fillMaxSize().background(TvColors.Background)) {
-        if (snapshot.videoId != null) {
-            PlayerScreen(snapshot, nowPlaying, engine, canSkip = link.connectedPhone != null, onSkip = receiver::skip, onStop = receiver::stopPlayback)
-        } else {
-            ReadyScreen(link, onForgetPhones = receiver.server::forgetPhones)
-            BackHandler(onBack = onExit)
-        }
-    }
-}
-
-@Composable
-private fun ReadyScreen(link: TvLinkUiState, onForgetPhones: () -> Unit) {
-    val glow = Brush.radialGradient(listOf(TvColors.Red.copy(alpha = 0.18f), Color.Transparent))
-    Box(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().background(glow))
-        Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 58.dp, vertical = 40.dp),
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text("Puretube", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, color = TvColors.Text)
-            Text(link.tvName, style = MaterialTheme.typography.titleLarge, color = TvColors.Muted)
-            Spacer(Modifier.height(36.dp))
-            val connected = link.connectedPhone
-            if (connected != null) {
-                Text(
-                    "Connected to $connected. Pick a video on your phone and tap Cast.",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = TvColors.Text,
-                    modifier = Modifier.widthIn(max = 640.dp),
-                )
-                Spacer(Modifier.height(28.dp))
-            }
-            PairingPanel(link)
-            if (link.pairedPhones.isNotEmpty()) {
-                val focus = remember { FocusRequester() }
-                Spacer(Modifier.height(28.dp))
-                Text(
-                    "Paired phones: " + link.pairedPhones.joinToString(", "),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = TvColors.Muted,
-                )
-                Spacer(Modifier.height(12.dp))
-                Button(onClick = onForgetPhones, modifier = Modifier.focusRequester(focus)) {
-                    Text("Forget paired phones")
+        val videoId = snapshot.videoId
+        if (videoId != null) {
+            val hasPhone = link.connectedPhone != null
+            val related = browse.related(videoId)
+            // Watching on the TV alone, the next recommended video follows, like YouTube's autoplay.
+            LaunchedEffect(videoId, snapshot.ended, hasPhone) {
+                if (snapshot.ended && !hasPhone) {
+                    related.state.value.cards.firstOrNull { it.videoId != null && it.videoId != videoId }?.let(play)
                 }
-                LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
             }
+            PlayerScreen(
+                snapshot, nowPlaying, engine,
+                canSkip = hasPhone,
+                related = related,
+                onSkip = receiver::skip,
+                onPlayCard = play,
+                onStop = receiver::stopPlayback,
+            )
+        } else {
+            TvBrowse(browse, link, onPlay = play, onForgetPhones = receiver.server::forgetPhones, onExit = onExit)
         }
-    }
-}
-
-@Composable
-private fun PairingPanel(link: TvLinkUiState) {
-    Column(
-        Modifier
-            .widthIn(max = 640.dp)
-            .background(TvColors.Frost, RoundedCornerShape(20.dp))
-            .padding(horizontal = 32.dp, vertical = 24.dp),
-    ) {
-        Text("Pair a phone", style = MaterialTheme.typography.titleLarge, color = TvColors.Text)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "On your phone, open a video in Puretube, tap Cast and pick ${link.tvName}. Then type this code:",
-            style = MaterialTheme.typography.bodyLarge,
-            color = TvColors.Muted,
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            if (link.listening) link.code.chunked(3).joinToString(" ") else "Starting…",
-            fontSize = 56.sp,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold,
-            color = TvColors.Text,
-        )
     }
 }
 
@@ -143,7 +97,9 @@ private fun PlayerScreen(
     nowPlaying: TvNowPlaying?,
     engine: PlaybackApi,
     canSkip: Boolean,
+    related: TvListModel,
     onSkip: (Boolean) -> Unit,
+    onPlayCard: (TvCard) -> Unit,
     onStop: () -> Unit,
 ) {
     var controlsVisible by remember { mutableStateOf(true) }
@@ -211,6 +167,8 @@ private fun PlayerScreen(
                 onNext = { onSkip(true) },
                 onStats = { statsVisible = !statsVisible },
                 onStop = onStop,
+                related = related,
+                onPlayCard = onPlayCard,
             )
         }
     }
@@ -249,7 +207,12 @@ private fun PlayerControls(
     onNext: () -> Unit,
     onStats: () -> Unit,
     onStop: () -> Unit,
+    related: TvListModel,
+    onPlayCard: (TvCard) -> Unit,
 ) {
+    // Down from the buttons slides the recommended row up from below, as on YouTube TV.
+    var relatedOpen by remember { mutableStateOf(false) }
+    val lift by animateDpAsState(if (relatedOpen) 0.dp else RELATED_HIDDEN, label = "relatedLift")
     Box(Modifier.fillMaxSize()) {
         Column(
             Modifier
@@ -268,9 +231,11 @@ private fun PlayerControls(
             Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))))
-                .padding(start = 48.dp, end = 48.dp, top = 64.dp, bottom = 36.dp),
+                .offset(y = lift)
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))))
+                .padding(top = 64.dp, bottom = 24.dp),
         ) {
+          Column(Modifier.padding(horizontal = 48.dp)) {
             Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
                 val chapter = currentChapter(snapshot)
                 Text(
@@ -310,6 +275,15 @@ private fun PlayerControls(
             snapshot.error?.let {
                 Text(it, color = TvColors.Red, modifier = Modifier.padding(top = 12.dp), maxLines = 2)
             }
+          }
+            Text(
+                "Recommended",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = TvColors.Text,
+                modifier = Modifier.padding(start = 48.dp, top = 22.dp, bottom = 12.dp),
+            )
+            RelatedRow(related, onPlay = onPlayCard, modifier = Modifier.onFocusChanged { relatedOpen = it.hasFocus })
         }
     }
 }
@@ -374,5 +348,6 @@ internal fun statsLines(snapshot: PlaybackSnapshot): List<String> {
     )
 }
 
+private val RELATED_HIDDEN = 236.dp
 private const val CONTROLS_HIDE_MS = 5_000L
 private const val SEEK_STEP_MS = 10_000L

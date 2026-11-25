@@ -73,6 +73,14 @@ internal class TvReceiver(context: Context, private val engine: PlaybackApi, sto
         publish(TvLinkMessage.Status())
     }
 
+    /** A video picked on the TV itself, from a row or a search. */
+    fun playLocal(videoId: String, title: String, author: String?) {
+        _nowPlaying.value = TvNowPlaying(videoId, title, author)
+        pendingStart = null
+        engine.setVideoVisible(true)
+        engine.play(videoId)
+    }
+
     /** Next or previous on the TV: the phone's queue decides what comes next. */
     fun skip(forward: Boolean) = server.send(TvLinkMessage.Skip(forward))
 
