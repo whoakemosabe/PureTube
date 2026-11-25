@@ -7,7 +7,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.layout
@@ -71,21 +70,38 @@ fun Modifier.navigationGlass(backdrop: LayerBackdrop): Modifier =
 
 /**
  * The header's glass, matching the tab bar (Matt, 2026-11-23): the same clear tint and blur.
- * The chip strip is the header's lower pane, so it carries the rounded, refracting rim along
- * its bottom edge; the top bar above it is the same glass without a rim, so the two read as
- * one pane while the header slides away on scroll.
+ * The top bar and the chip strip sit on one pane (Matt, 2026-11-25): two panes showed a seam,
+ * because the lens bends every edge of a pane, so the chip strip's own sides and top edge
+ * read as a pill inside the header. The one pane has the rounded, refracting rim along its
+ * bottom edge and reaches [RefractionHeight][NavigationGlass.RefractionHeight] above the top
+ * bar, where the screen clips it, so its top edge is never bent on screen.
  */
 object HeaderGlass {
     val BottomRadius = NavigationGlass.TopRadius
     val Shape = androidx.compose.foundation.shape.RoundedCornerShape(bottomStart = BottomRadius, bottomEnd = BottomRadius)
+
+    /**
+     * The pane's top and bottom in dp, for a top bar [topBarHeight] tall over a chip strip
+     * [chipHeight] tall, while the header is [hidden] (0 shown, 1 hidden) of the way out.
+     * The top bar slides up by its own height and the chips by [chipTravel], so the pane
+     * runs from above the top bar's top to the chips' bottom.
+     */
+    fun pane(topBarHeight: Float, chipHeight: Float, chipTravel: Float, hidden: Float): ClosedFloatingPointRange<Float> {
+        val top = -topBarHeight * hidden - NavigationGlass.RefractionHeight.value
+        val bottom = topBarHeight + chipHeight - chipTravel * hidden
+        return top..maxOf(top, bottom)
+    }
+
+    /** How much of the chip strip's top, in dp, has slid up behind the top bar. */
+    fun chipsBehindTopBar(topBarHeight: Float, chipTravel: Float, hidden: Float): Float =
+        ((chipTravel - topBarHeight) * hidden).coerceAtLeast(0f)
 }
 
 @Composable
-fun Modifier.headerGlass(backdrop: LayerBackdrop, rim: Boolean): Modifier =
-    if (rim) clearGlass(backdrop, HeaderGlass.Shape, rim = GlassRim.Bottom)
-    else clearGlass(backdrop, RectangleShape, rim = GlassRim.None)
+fun Modifier.headerGlass(backdrop: LayerBackdrop): Modifier =
+    clearGlass(backdrop, HeaderGlass.Shape, rim = GlassRim.Bottom)
 
-enum class GlassRim { Top, Bottom, None }
+enum class GlassRim { Top, Bottom }
 
 @Composable
 private fun Modifier.clearGlass(backdrop: LayerBackdrop, shape: androidx.compose.ui.graphics.Shape, rim: GlassRim): Modifier {
@@ -101,10 +117,8 @@ private fun Modifier.clearGlass(backdrop: LayerBackdrop, shape: androidx.compose
         effects = {
             colorControls(saturation = 1.4f)
             blur(NavigationGlass.Blur.toPx())
-            // The lens bends every edge of a rounded pane; a rimless pane stays flat so it can
-            // butt against its neighbour. A no-op before Android 13 (no runtime shaders).
-            if (rim != GlassRim.None)
-                lens(NavigationGlass.RefractionHeight.toPx(), NavigationGlass.RefractionAmount.toPx())
+            // The lens bends every edge of a rounded pane. A no-op before Android 13 (no runtime shaders).
+            lens(NavigationGlass.RefractionHeight.toPx(), NavigationGlass.RefractionAmount.toPx())
         },
         onDrawSurface = {
             drawRect(tint)
@@ -116,9 +130,8 @@ private fun Modifier.clearGlass(backdrop: LayerBackdrop, shape: androidx.compose
                 GlassRim.Bottom -> drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(
                     0f to Color.Transparent, 1f to light.copy(alpha = light.alpha * 0.5f),
                     startY = size.height - band, endY = size.height))
-                GlassRim.None -> Unit
             }
-            if (rim != GlassRim.None) drawOutline(shape.createOutline(size, layoutDirection, this), edge,
+            drawOutline(shape.createOutline(size, layoutDirection, this), edge,
                 style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
         },
     )

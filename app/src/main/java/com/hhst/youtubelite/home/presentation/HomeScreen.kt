@@ -5,6 +5,12 @@ import com.hhst.youtubelite.ui.design.labelResource
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import com.hhst.youtubelite.ui.design.headerGlass
+import com.hhst.youtubelite.ui.design.HeaderGlass
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
+import kotlin.math.roundToInt
 import com.hhst.youtubelite.ui.design.navigationGlass
 import com.hhst.youtubelite.ui.design.extendBelow
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -223,8 +229,22 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
                                 }
                             }
                             }
-                            Box(Modifier.graphicsLayer { translationY = (48f - chromeTravel * chromeOffset) * density }.headerGlass(glass, rim = true)) { ChipStrip(state.selectedChip, state.chips, content.page.catalog != null, onAction) }
-                            Box(Modifier.graphicsLayer { translationY = -48f * chromeOffset * density }.headerGlass(glass, rim = false)) { HomeTopBar(onAction) }
+                            // One glass pane behind the top bar and the chips, so the header reads as one piece.
+                            val topBarHeight = DesignTokens.TopBarHeight.value
+                            Box(Modifier.fillMaxWidth().layout { measurable, constraints ->
+                                val pane = HeaderGlass.pane(topBarHeight, 48f + chipExtraHeight.value, chromeTravel, chromeOffset)
+                                val height = ((pane.endInclusive - pane.start) * density).roundToInt()
+                                val placeable = measurable.measure(Constraints.fixed(constraints.maxWidth, height))
+                                layout(constraints.maxWidth, 0) { placeable.place(0, (pane.start * density).roundToInt()) }
+                            }.headerGlass(glass))
+                            // The chips slide up faster than the top bar, so the part behind it is hidden.
+                            Box(Modifier.graphicsLayer { translationY = (topBarHeight - chromeTravel * chromeOffset) * density }
+                                .drawWithContent {
+                                    clipRect(top = HeaderGlass.chipsBehindTopBar(topBarHeight, chromeTravel, chromeOffset) * density) {
+                                        this@drawWithContent.drawContent()
+                                    }
+                                }) { ChipStrip(state.selectedChip, state.chips, content.page.catalog != null, onAction) }
+                            Box(Modifier.graphicsLayer { translationY = -topBarHeight * chromeOffset * density }) { HomeTopBar(onAction) }
                         }
                     }
                     val refreshAnchor = if (state.content is HomeContent.Feed)
