@@ -86,6 +86,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
+            <!-- Tiles Puretube puts on the Google TV home screen open the video here. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="puretube-tv" android:host="watch" />
+            </intent-filter>
         </activity>
 
         <!-- Route external playback links before composing or loading the home feed. -->

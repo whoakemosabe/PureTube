@@ -27,6 +27,7 @@ upnpcast = "v1.3.0"
 msc = "v1.0.0"
 coil = "3.3.0"
 tvMaterial = "1.1.0"
+tvProvider = "1.0.0"
 leakcanary = "2.14"
 turbine = "1.2.1"
 
@@ -78,6 +79,7 @@ media3-exoplayer-hls = { group = "androidx.media3", name = "media3-exoplayer-hls
 media3-datasource = { group = "androidx.media3", name = "media3-datasource", version.ref = "media3" }
 media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 androidx-tv-material = { group = "androidx.tv", name = "tv-material", version.ref = "tvMaterial" }
+androidx-tvprovider = { group = "androidx.tvprovider", name = "tvprovider", version.ref = "tvProvider" }
 media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 media3-extractor = { group = "androidx.media3", name = "media3-extractor", version.ref = "media3" }
 media3-muxer = { group = "androidx.media3", name = "media3-muxer", version.ref = "media3" }

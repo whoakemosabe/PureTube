@@ -1,5 +1,6 @@
 package com.hhst.youtubelite.tv
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -87,6 +88,7 @@ class TvActivity : ComponentActivity() {
                 account.value = if (identity.signedIn) MediaSession.selectedAccount()?.let { it.name ?: it.email } ?: "your account" else null
             }
         }
+        TvHomeRows.videoOf(intent)?.let { receiver.playLocal(it, "", null) }
         setContent {
             val signedInAs by account.collectAsStateWithLifecycle()
             TvTheme {
@@ -107,6 +109,23 @@ class TvActivity : ComponentActivity() {
         player.start()
         // The TV has no Home screen of the phone's, so it asks about updates here.
         UpdateWatch.onHomeShown(this)
+        refreshHomeRows()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        TvHomeRows.videoOf(intent)?.let { receiver.playLocal(it, "", null) }
+    }
+
+    /** Puts fresh Home picks and half-watched videos on the Google TV home screen. */
+    private fun refreshHomeRows() {
+        val source = RepositoryTvBrowseSource(get<ContentRepositories>()) { FeedVisibility.fromPreferences(prefs) }
+        lifecycleScope.launch {
+            val home = runCatching { source.home(null).cards }.getOrDefault(emptyList())
+            val watching = if (source.signedIn) runCatching { source.history(null).cards.filter(TvHomeRows::inProgress) }.getOrDefault(emptyList())
+                else emptyList()
+            TvHomeRows.publish(this@TvActivity, home, watching)
+        }
     }
 
     override fun onDestroy() {

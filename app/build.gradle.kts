@@ -212,6 +212,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     // Puretube TV screens: D-pad focus, TV typography and focus scaling.
     implementation(libs.androidx.tv.material)
+    implementation(libs.androidx.tvprovider)
     implementation(libs.androidx.webkit)
     implementation(libs.androidx.javascriptengine)
     implementation(libs.kotlinx.coroutines.android)
