@@ -9,7 +9,8 @@ internal object DlnaProtocol {
     /** Byte seeks (OP=01), not transcoded (CI=0), streaming transfer with background/connection stalling allowed. */
     const val FEATURES = "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000"
 
-    fun protocolInfo(mimeType: String) = "http-get:*:$mimeType:$FEATURES"
+    /** The third field is the bare MIME; the player answer's `; codecs="..."` part puts quotes and commas there, which renderers reject. */
+    fun protocolInfo(mimeType: String) = "http-get:*:${mimeType.substringBefore(';').trim().ifBlank { "video/mp4" }}:$FEATURES"
 
     /** Sent on every stream reply; renderers that ask with getcontentFeatures.dlna.org read it. */
     val streamHeaders = mapOf(
