@@ -113,10 +113,12 @@ internal fun FrostButton(
     size: Dp = 56.dp,
     glass: Boolean = true,
     active: Boolean = false,
+    /** False where the name is already written under the button. */
+    focusLabel: Boolean = true,
 ) {
     var focused by remember { mutableStateOf(false) }
     FrostShell(onClick, modifier.onFocusChanged { focused = it.isFocused }.semantics { this.contentDescription = contentDescription },
-        size, glass, label = contentDescription.takeIf { focused }) {
+        size, glass, label = contentDescription.takeIf { focused && focusLabel }) {
         AppIcon(
             icon,
             Modifier.fillMaxSize().padding(size * 0.25f),

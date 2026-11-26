@@ -306,10 +306,18 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
 }
 
 /** How the Channels section orders your subscriptions. */
-internal enum class TvChannelSort(val label: String) { AToZ("A–Z"), Recent("Recently active"), New("New videos") }
+internal enum class TvChannelSort(val label: String) {
+    AToZ("A–Z"), MostWatched("Most watched"), Watched("Recently watched"), Recent("Recently active"), New("New videos"),
+}
 
 /** Your subscriptions as Channels shows them: filtered by name, then ordered. */
-internal fun arrangeChannels(cards: List<TvCard>, sort: TvChannelSort, filter: String): List<TvCard> {
+internal fun arrangeChannels(
+    cards: List<TvCard>,
+    sort: TvChannelSort,
+    filter: String,
+    /** Plays per channel on this TV, for the two "watched" orders. */
+    watched: Map<String, com.hhst.youtubelite.tv.ChannelWatch> = emptyMap(),
+): List<TvCard> {
     val words = filter.trim().lowercase().split(' ').filter(String::isNotBlank)
     val matching = cards.filter { card -> words.all { card.title.lowercase().contains(it) } }
     return when (sort) {
@@ -317,8 +325,35 @@ internal fun arrangeChannels(cards: List<TvCard>, sort: TvChannelSort, filter: S
         // The server lists channels by recent activity already.
         TvChannelSort.Recent -> matching
         TvChannelSort.New -> matching.filter(TvCard::fresh)
+        // Channels you've watched first, then the rest A–Z.
+        TvChannelSort.MostWatched -> matching.sortedWith(compareByDescending<TvCard> { watchOf(it, watched).count }
+            .thenByDescending { watchOf(it, watched).lastAt }.thenBy { it.title.lowercase() })
+        TvChannelSort.Watched -> matching.sortedWith(compareByDescending<TvCard> { watchOf(it, watched).lastAt }
+            .thenBy { it.title.lowercase() })
     }
 }
+
+/**
+ * This TV's plays plus YouTube's watch history: each history video adds a play to its
+ * channel, newest first, ranked just behind anything played on this TV.
+ */
+internal fun withHistory(
+    local: Map<String, com.hhst.youtubelite.tv.ChannelWatch>,
+    history: List<TvCard>,
+): Map<String, com.hhst.youtubelite.tv.ChannelWatch> {
+    val merged = local.toMutableMap()
+    history.forEachIndexed { index, card ->
+        val id = card.ownerId?.takeIf(String::isNotBlank) ?: return@forEachIndexed
+        val before = merged[id] ?: com.hhst.youtubelite.tv.ChannelWatch()
+        // History has no times: order stands in for them, all older than any play here.
+        val at = (history.size - index).toLong()
+        merged[id] = com.hhst.youtubelite.tv.ChannelWatch(before.count + 1, maxOf(before.lastAt, at))
+    }
+    return merged
+}
+
+private fun watchOf(card: TvCard, watched: Map<String, com.hhst.youtubelite.tv.ChannelWatch>) =
+    card.channelId?.let(watched::get) ?: com.hhst.youtubelite.tv.ChannelWatch()
 
 internal data class TvChannelState(
     val header: TvChannelHeader? = null,

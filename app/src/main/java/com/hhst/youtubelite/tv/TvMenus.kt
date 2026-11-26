@@ -163,9 +163,15 @@ internal fun TvSwitch(on: Boolean) {
 /** Whether the clock is dimmed: the player dims it while its controls are hidden. */
 internal val LocalClockDimmed = compositionLocalOf<MutableState<Boolean>> { mutableStateOf(false) }
 
-/** The time, top right, on every screen. It fades a little while a video plays with no controls. */
+/** A line the screen adds under the date: the player puts when the video ends there. */
+internal val LocalClockNote = compositionLocalOf<MutableState<String?>> { mutableStateOf(null) }
+
+/**
+ * The time and date, top right, on every screen; the player adds when the video ends.
+ * It fades a little while a video plays with no controls.
+ */
 @Composable
-internal fun TvClock(dimmed: Boolean, modifier: Modifier = Modifier) {
+internal fun TvClock(dimmed: Boolean, modifier: Modifier = Modifier, note: String? = null) {
     val context = LocalContext.current
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -175,16 +181,18 @@ internal fun TvClock(dimmed: Boolean, modifier: Modifier = Modifier) {
             delay(MINUTE_MS - now % MINUTE_MS + 50)
         }
     }
-    val text = remember(now) { DateFormat.getTimeFormat(context).format(Date(now)) }
+    val time = remember(now) { DateFormat.getTimeFormat(context).format(Date(now)) }
+    val date = remember(now / MINUTE_MS) {
+        DateFormat.format(DateFormat.getBestDateTimePattern(java.util.Locale.getDefault(), "EEEMMMd"), now).toString()
+    }
     val alpha by animateFloatAsState(if (dimmed) DIMMED_ALPHA else 1f, tween(CLOCK_FADE_MS), label = "clock")
-    Text(
-        text,
-        modifier = modifier.alpha(alpha),
-        color = TvColors.Text,
-        style = MaterialTheme.typography.titleLarge.merge(
-            TextStyle(fontWeight = FontWeight.Medium, shadow = Shadow(Color.Black.copy(alpha = 0.6f), blurRadius = 8f)),
-        ),
-    )
+    val shadow = Shadow(Color.Black.copy(alpha = 0.6f), blurRadius = 8f)
+    Column(modifier.alpha(alpha), horizontalAlignment = Alignment.End) {
+        Text(time, color = TvColors.Text,
+            style = MaterialTheme.typography.titleLarge.merge(TextStyle(fontWeight = FontWeight.Medium, shadow = shadow)))
+        Text(listOfNotNull(date, note).joinToString(" · "), color = TvColors.Text.copy(alpha = 0.8f),
+            style = MaterialTheme.typography.bodyMedium.merge(TextStyle(shadow = shadow)))
+    }
 }
 
 private const val MINUTE_MS = 60_000L

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -411,6 +412,10 @@ private fun PlayerScreen(
                 related = related,
                 onPlayCard = onPlayCard,
                 hasChat = chatKey != null,
+                onDownload = {
+                    val id = video.videoId ?: snapshot.videoId
+                    if (id != null) onDownload(id, page?.title ?: snapshot.title, page?.channel ?: snapshot.author, page?.artwork)
+                },
             )
         }
         // The last panel stays drawn while it fades out.
@@ -532,7 +537,7 @@ private fun PlayerPanel(
         TvPanel.Quality -> TvSidePanel("Quality", eyebrow = "Settings") { TvPanelList(qualityRows(snapshot), onPick = pick) }
         TvPanel.Speed -> TvSidePanel("Playback speed", eyebrow = "Settings") { TvPanelList(speedRows(snapshot), onPick = pick) }
         TvPanel.Captions -> TvSidePanel("Captions", eyebrow = "Settings") {
-            TvPanelList(captionRows(snapshot) + TvPanelRow(CAPTION_STYLE, "Caption style", captionSummary(captionStyle), icon = AppIcon.Palette, opens = true)) { row ->
+            TvPanelList(listOf(TvPanelRow(CAPTION_STYLE, "Caption style", captionSummary(captionStyle), icon = AppIcon.Palette, opens = true)) + captionRows(snapshot)) { row ->
                 if (row.key == CAPTION_STYLE) onPanel(TvPanel.CaptionStyle) else pick(row)
             }
         }
@@ -587,96 +592,80 @@ private fun PlayerControls(
     related: TvListModel,
     onPlayCard: (TvCard, List<TvCard>) -> Unit,
     hasChat: Boolean,
+    onDownload: () -> Unit,
 ) {
     // Down from the buttons slides the recommended row up from below, as on YouTube TV.
     var relatedOpen by remember { mutableStateOf(false) }
     val lift by animateDpAsState(if (relatedOpen) 0.dp else RELATED_HIDDEN, label = "relatedLift")
+    // The clock in the corner adds when this video ends, while the controls are up.
+    val clockNote = LocalClockNote.current
+    val endsAt = endsAtText(snapshot)
+    androidx.compose.runtime.SideEffect { clockNote.value = endsAt }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { clockNote.value = null } }
     Box(Modifier.fillMaxSize()) {
-        // With the recommended row up, the title gives it the room, as on YouTube TV.
-        if (!relatedOpen) Column(
-            Modifier
-                .fillMaxWidth()
-                .align(Alignment.TopStart)
-                .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)))
-                .padding(start = 48.dp, end = 48.dp, top = 26.dp, bottom = 36.dp),
-        ) {
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
-                color = TvColors.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(6.dp))
-            // "Channel • views • age", one line under the title, as on YouTube TV.
-            val meta = listOfNotNull(video.video?.channel?.takeIf(String::isNotBlank) ?: author,
-                video.video?.views, video.video?.age).filter(String::isNotBlank).joinToString(" • ")
-            if (meta.isNotBlank()) {
-                Text(meta, style = MaterialTheme.typography.titleSmall, color = TvColors.Text.copy(alpha = 0.9f), maxLines = 1)
-            }
-        }
         Column(
             Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .offset(y = lift)
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))))
-                .padding(top = 44.dp, bottom = 14.dp),
+                .background(Brush.verticalGradient(0f to Color.Transparent, 0.25f to Color.Black.copy(alpha = 0.7f), 1f to Color.Black.copy(alpha = 0.94f)))
+                .padding(top = 60.dp, bottom = 14.dp),
         ) {
           Column(Modifier.padding(horizontal = 48.dp)) {
-            TimeRow(live)
+            // 1. About the video: channel, title, then the numbers and what's streaming.
+            if (!relatedOpen) {
+                VideoInfo(snapshot, video, title, author, onChannel = { onPanel(TvPanel.Channel) }, onSubscribe = onSubscribe)
+                Spacer(Modifier.height(18.dp))
+            }
+            // 2. Where you are: chapter names over their parts of the bar, then the times.
+            ChapterLabels(live)
             Scrubber(live, engine, Modifier.focusRequester(playFocus))
-            Spacer(Modifier.height(12.dp))
-            Box(Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (canSkip) FrostButton(R.drawable.ic_player_previous, "Previous", onPrevious, size = 48.dp)
-                    FrostButton(
-                        if (snapshot.userWantsPlay) R.drawable.ic_player_pause else R.drawable.ic_player_play,
-                        if (snapshot.userWantsPlay) "Pause" else "Play",
-                        onPlayPause,
-                        size = 64.dp,
-                    )
-                    if (canSkip) FrostButton(R.drawable.ic_player_next, "Next", onNext, size = 48.dp)
-                }
-                // Channel side, as on YouTube TV: the channel's picture, Description, then
-                // Subscribe, or the bell once subscribed.
-                Row(
-                    Modifier.align(Alignment.CenterStart),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    FrostAvatar(video.video?.avatar, video.video?.channel ?: author.orEmpty(), { onPanel(TvPanel.Channel) })
-                    FrostPill("Description", { onPanel(TvPanel.Description) })
-                    if (video.video?.channelId?.isNotBlank() == true) {
-                        if (video.subscribed) {
-                            FrostButton(AppIcon.Bell, "Subscribed", { onPanel(TvPanel.Channel) }, size = 48.dp)
-                        } else {
-                            FrostPill("Subscribe", onSubscribe)
-                        }
+            TimeRow(live)
+            Spacer(Modifier.height(14.dp))
+            // 3. The buttons, in three groups: playback, the player, this video.
+            Row(verticalAlignment = Alignment.Top) {
+                Row(horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP), verticalAlignment = Alignment.Top) {
+                    if (canSkip) Control("Previous") { FrostButton(R.drawable.ic_player_previous, "Previous", onPrevious, size = 52.dp) }
+                    Control(if (snapshot.userWantsPlay) "Pause" else "Play") {
+                        FrostButton(if (snapshot.userWantsPlay) R.drawable.ic_player_pause else R.drawable.ic_player_play,
+                            if (snapshot.userWantsPlay) "Pause" else "Play", onPlayPause, size = 60.dp)
                     }
+                    if (canSkip) Control("Next") { FrostButton(R.drawable.ic_player_next, "Next", onNext, size = 52.dp) }
                 }
+                Spacer(Modifier.width(GROUP_GAP))
+                Row(horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP), verticalAlignment = Alignment.Top) {
+                    if (snapshot.subtitleTracks.isNotEmpty()) Control("Captions") {
+                        FrostButton(if (snapshot.subtitleEnabled) R.drawable.ic_subtitles_on else R.drawable.ic_subtitles_off,
+                            "Captions", { onPanel(TvPanel.Captions) }, size = 52.dp)
+                    }
+                    Control("Quality") { FrostButton(AppIcon.Sparkle, "Quality", { onPanel(TvPanel.Quality) }, size = 52.dp, focusLabel = false) }
+                    Control("Speed") { FrostButton(AppIcon.Clock, "Speed", { onPanel(TvPanel.Speed) }, size = 52.dp, focusLabel = false) }
+                    Control("Loop") {
+                        FrostButton(AppIcon.Refresh, "Loop", { engine.setLoopMode(toggledLoop(snapshot.loopMode)) }, size = 52.dp,
+                            active = snapshot.loopMode == com.hhst.youtubelite.player.engine.LoopMode.LOOP_ONE, focusLabel = false)
+                    }
+                    Control("Settings") { FrostButton(AppIcon.Settings, "Settings", { onPanel(TvPanel.Settings) }, size = 52.dp, focusLabel = false) }
+                }
+                Spacer(Modifier.width(GROUP_GAP))
                 Row(
-                    Modifier.align(Alignment.CenterEnd),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    Modifier.alpha(if (video.busy) 0.55f else 1f),
+                    horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP),
+                    verticalAlignment = Alignment.Top,
                 ) {
-                    FrostGroup(Modifier.alpha(if (video.busy) 0.55f else 1f)) {
-                        // Pressed thumbs fill in white, as on YouTube, instead of turning red;
-                        // dimmed while YouTube is still answering.
-                        FrostButton(if (video.rating == VideoRating.Like) AppIcon.LikeFilled else AppIcon.Like, "Like", onLike, size = 44.dp, glass = false)
-                        FrostButton(if (video.rating == VideoRating.Dislike) AppIcon.DislikeFilled else AppIcon.Dislike, "Dislike", onDislike, size = 44.dp, glass = false)
+                    // Pressed thumbs fill in white, as on YouTube; dimmed while YouTube is still answering.
+                    Control("Like") {
+                        FrostButton(if (video.rating == VideoRating.Like) AppIcon.LikeFilled else AppIcon.Like, "Like", onLike, size = 52.dp, focusLabel = false)
+                    }
+                    Control("Dislike") {
+                        FrostButton(if (video.rating == VideoRating.Dislike) AppIcon.DislikeFilled else AppIcon.Dislike, "Dislike", onDislike, size = 52.dp, focusLabel = false)
+                    }
+                    Control("Save") { FrostButton(AppIcon.Bookmark, "Save", { onPanel(TvPanel.Save) }, size = 52.dp, focusLabel = false) }
+                    Control(if (hasChat) "Live chat" else "Comments") {
                         FrostButton(AppIcon.Comment, if (hasChat) "Live chat" else "Comments",
-                            { onPanel(if (hasChat) TvPanel.Chat else TvPanel.Comments) }, size = 44.dp, glass = false)
-                        FrostButton(AppIcon.Bookmark, "Save", { onPanel(TvPanel.Save) }, size = 44.dp, glass = false)
+                            { onPanel(if (hasChat) TvPanel.Chat else TvPanel.Comments) }, size = 52.dp, focusLabel = false)
                     }
-                    FrostGroup {
-                        if (snapshot.subtitleTracks.isNotEmpty()) {
-                            FrostButton(
-                                if (snapshot.subtitleEnabled) R.drawable.ic_subtitles_on else R.drawable.ic_subtitles_off,
-                                "Captions", { onPanel(TvPanel.Captions) }, size = 44.dp, glass = false,
-                            )
-                        }
-                        FrostButton(AppIcon.Settings, "Settings", { onPanel(TvPanel.Settings) }, size = 44.dp, glass = false)
-                    }
+                    Control("Description") { FrostButton(AppIcon.Info, "Description", { onPanel(TvPanel.Description) }, size = 52.dp, focusLabel = false) }
+                    Control("Download") { FrostButton(AppIcon.Download, "Download", onDownload, size = 52.dp, focusLabel = false) }
                 }
             }
             snapshot.error?.let {
@@ -695,6 +684,109 @@ private fun PlayerControls(
                 modifier = Modifier.padding(start = 48.dp, top = 14.dp, bottom = 8.dp),
             )
             RelatedRow(related, onPlay = onPlayCard, modifier = Modifier.onFocusChanged { relatedOpen = it.hasFocus })
+        }
+    }
+}
+
+/** A player button with its name written small underneath, always shown. */
+@Composable
+private fun Control(label: String, button: @Composable () -> Unit) {
+    Column(Modifier.width(CONTROL_WIDTH), horizontalAlignment = Alignment.CenterHorizontally) {
+        button()
+        Text(label, style = MaterialTheme.typography.labelMedium, color = TvColors.Text.copy(alpha = 0.72f),
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+    }
+}
+
+/**
+ * Channel picture, name and Subscribe; the title; then views, date, likes and dislikes, with
+ * what's streaming (quality, frame rate, codec, captions) as small badges on the right.
+ */
+@Composable
+private fun VideoInfo(
+    snapshot: PlaybackSnapshot,
+    video: TvVideoState,
+    title: String,
+    author: String?,
+    onChannel: () -> Unit,
+    onSubscribe: () -> Unit,
+) {
+    val page = video.video
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val channel = page?.channel?.takeIf(String::isNotBlank) ?: author.orEmpty()
+            FrostAvatar(page?.avatar, channel, onChannel, Modifier.size(40.dp))
+            Text(channel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium, color = TvColors.Text, maxLines = 1)
+            if (page?.channelId?.isNotBlank() == true) {
+                if (video.subscribed) FrostPill("Subscribed", onChannel) else FrostPill("Subscribe", onSubscribe)
+            }
+        }
+        Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Medium,
+            color = TvColors.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val likes = video.votes?.likes?.let(::compactCount) ?: page?.likes?.takeIf(String::isNotBlank)
+            val dislikes = video.votes?.dislikes?.let(::compactCount)
+            val meta = listOfNotNull(page?.views, page?.age, likes?.let { "$it likes" }, dislikes?.let { "$it dislikes" })
+                .filter(String::isNotBlank).joinToString("  •  ")
+            Text(meta, style = MaterialTheme.typography.titleSmall, color = TvColors.Text.copy(alpha = 0.85f), maxLines = 1,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            streamBadges(snapshot).forEach { badge ->
+                Spacer(Modifier.width(8.dp))
+                Text(badge, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = TvColors.Text,
+                    modifier = Modifier.border(1.dp, TvColors.Text.copy(alpha = 0.4f), RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 2.dp))
+            }
+        }
+    }
+}
+
+/** "2160p", "60 fps", "VP9", "CC": what's playing right now. */
+internal fun streamBadges(snapshot: PlaybackSnapshot): List<String> {
+    val d = snapshot.diagnostics
+    val fps = (d.renderedFps ?: d.nominalFps)?.takeIf { it > 0 }?.let { "%.0f fps".format(it) }
+    val codec = d.videoCodec?.substringBefore('.')?.uppercase()?.let {
+        when {
+            it.startsWith("AVC") -> "H.264"
+            it.startsWith("HEV") || it.startsWith("HVC") -> "HEVC"
+            it.startsWith("VP09") || it == "VP9" -> "VP9"
+            it.startsWith("AV01") -> "AV1"
+            else -> it.take(6)
+        }
+    }
+    return listOfNotNull(snapshot.activeQuality, fps, codec, "CC".takeIf { snapshot.subtitleEnabled && snapshot.subtitleKey != null })
+}
+
+/** "ends 1:01 AM" at normal speed, for the clock; null for live or before the length is known. */
+@Composable
+private fun endsAtText(snapshot: PlaybackSnapshot): String? {
+    if (snapshot.isLive || snapshot.durationMs <= 0) return null
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val leftMs = ((snapshot.durationMs - snapshot.positionMs).coerceAtLeast(0) / snapshot.speed.coerceAtLeast(0.25f)).toLong()
+    // To the minute, so it doesn't change every second.
+    val at = (System.currentTimeMillis() + leftMs) / 60_000L * 60_000L
+    return remember(at) { "ends " + android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(at)) }
+}
+
+/** Each chapter's name over its own part of the bar; the one playing is bold. */
+@Composable
+private fun ChapterLabels(live: () -> PlaybackSnapshot) {
+    val snapshot = live()
+    val duration = snapshot.durationMs
+    val chapters = snapshot.chapters
+    if (chapters.size < 2 || duration <= 0 || snapshot.isLive) return
+    val current = chapters.indexOfLast { it.startSeconds * 1000L <= snapshot.positionMs }
+    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+        chapters.forEachIndexed { index, chapter ->
+            val end = chapters.getOrNull(index + 1)?.startSeconds?.times(1000L) ?: duration
+            val share = ((end - chapter.startSeconds * 1000L).toFloat() / duration).coerceAtLeast(0.001f)
+            Text(
+                chapter.title,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (index == current) FontWeight.Bold else FontWeight.Normal,
+                color = if (index == current) TvColors.Text else TvColors.Text.copy(alpha = 0.6f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(share).padding(end = 6.dp),
+            )
         }
     }
 }
@@ -766,6 +858,9 @@ internal fun chapterAt(snapshot: PlaybackSnapshot, positionMs: Long): String? =
     snapshot.chapters.lastOrNull { it.startSeconds * 1000L <= positionMs }?.title?.takeIf { it.isNotBlank() }
 
 private val CHAPTER_GAP = 3.dp
+private val CONTROL_WIDTH = 68.dp
+private val CONTROL_GAP = 4.dp
+private val GROUP_GAP = 28.dp
 
 /**
  * The progress bar takes focus first when the controls come up, as on YouTube TV: left and

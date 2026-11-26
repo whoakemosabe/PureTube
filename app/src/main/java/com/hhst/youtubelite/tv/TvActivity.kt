@@ -102,12 +102,14 @@ class TvActivity : ComponentActivity() {
             }
         }
         TvHomeRows.videoOf(intent)?.let { receiver.playLocal(it, "", null) }
+        ChannelWatchStats.init(this)
         setContent {
             val signedInAs by account.collectAsStateWithLifecycle()
             val photo by accountPhoto.collectAsStateWithLifecycle()
             TvTheme {
               val clockDimmed = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-              androidx.compose.runtime.CompositionLocalProvider(LocalClockDimmed provides clockDimmed) {
+              val clockNote = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+              androidx.compose.runtime.CompositionLocalProvider(LocalClockDimmed provides clockDimmed, LocalClockNote provides clockNote) {
                androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
                 TvApp(receiver = receiver, engine = engine, browse = browse, player = player, account = signedInAs, accountPhoto = photo,
                     settings = settings, version = Updater.installedVersion(this@TvActivity), chat = chat, captions = captions,
@@ -116,7 +118,7 @@ class TvActivity : ComponentActivity() {
                     onOpenDownloads = { DownloadUi.openManager(this@TvActivity) },
                     onDownload = { id, title, author, artwork -> DownloadUi.showSingleConfirm(this@TvActivity, id, title, author, artwork) },
                     onExit = ::finish)
-                TvClock(clockDimmed.value, androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.TopEnd)
+                TvClock(clockDimmed.value, note = clockNote.value, modifier = androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.TopEnd)
                     .padding(top = 24.dp, end = 40.dp))
                }
               }

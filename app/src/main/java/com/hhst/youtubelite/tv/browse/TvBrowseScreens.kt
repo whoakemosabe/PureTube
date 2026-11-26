@@ -780,7 +780,15 @@ private fun ChannelsSection(browse: TvBrowseModels) {
     LaunchedEffect(state.cards.size, state.done, state.appending, state.appendFailed) {
         if (!state.done && !state.appending && !state.appendFailed && state.cards.isNotEmpty()) model.loadMore()
     }
-    val shown = remember(state.cards, sort, filter) { arrangeChannels(state.cards, sort, filter) }
+    // Plays on this TV, plus your YouTube history so the orders mean something from day one.
+    val wantsHistory = sort == TvChannelSort.MostWatched || sort == TvChannelSort.Watched
+    val history = browse.list(TvSection.History)
+    val historyState by history.state.collectAsStateWithLifecycle()
+    LaunchedEffect(wantsHistory) { if (wantsHistory) history.loadFirst() }
+    // Read again each time the order changes, so a channel just watched counts.
+    val local = remember(sort) { com.hhst.youtubelite.tv.ChannelWatchStats.all() }
+    val watched = remember(local, historyState.cards) { withHistory(local, historyState.cards) }
+    val shown = remember(state.cards, sort, filter, watched) { arrangeChannels(state.cards, sort, filter, watched) }
     val focusManager = LocalFocusManager.current
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(start = 40.dp, top = 28.dp, end = 48.dp), verticalAlignment = Alignment.CenterVertically) {

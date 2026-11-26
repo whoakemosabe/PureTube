@@ -78,10 +78,10 @@ internal data class TvPanelRow(
 )
 
 internal fun settingsRows(snapshot: PlaybackSnapshot, sleep: SleepChoice): List<TvPanelRow> = listOfNotNull(
+    TvPanelRow(TvPanel.Captions.name, "Captions", captionLabel(snapshot), icon = AppIcon.Feedback, opens = true),
     TvPanelRow(TvPanel.Quality.name, "Quality", snapshot.qualityLabel ?: snapshot.activeQuality?.let { "Auto ($it)" } ?: "Auto",
         icon = AppIcon.Sparkle, opens = true),
     TvPanelRow(TvPanel.Speed.name, "Playback speed", speedLabel(snapshot.speed), icon = AppIcon.Clock, opens = true),
-    TvPanelRow(TvPanel.Captions.name, "Captions", captionLabel(snapshot), icon = AppIcon.Feedback, opens = true),
     TvPanelRow(TvPanel.Audio.name, "Audio track", snapshot.audioTracks.firstOrNull { it.key == snapshot.audioTrackKey }?.label ?: "Default",
         icon = AppIcon.Voice, opens = true)
         .takeIf { snapshot.audioTracks.size > 1 },

@@ -32,7 +32,10 @@ internal class TvPlayerSession(
         private set
 
     init {
-        video.onVideo = { reporting?.publish(it.toReportingVideo()) }
+        video.onVideo = {
+            reporting?.publish(it.toReportingVideo())
+            ChannelWatchStats.record(it.channelId)
+        }
     }
 
     fun setSleep(choice: SleepChoice) = timer.set(choice)

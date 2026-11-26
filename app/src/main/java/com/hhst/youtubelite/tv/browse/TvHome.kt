@@ -96,6 +96,8 @@ internal fun HomeSection(
     val recommended = browse.list(TvSection.Home)
     val first by recommended.state.collectAsStateWithLifecycle()
     var focused by remember { mutableStateOf<TvCard?>(null) }
+    // The row the focused tile is in, named over the hero.
+    var focusedRow by remember { mutableStateOf("Recommended") }
     // The big picture follows focus only once it rests, so holding the D-pad doesn't load one per tile.
     var hero by remember { mutableStateOf<TvCard?>(null) }
     LaunchedEffect(focused) {
@@ -137,8 +139,12 @@ internal fun HomeSection(
     Box(Modifier.fillMaxSize()) {
         Hero(shownHero, dataSaver)
         Column(Modifier.fillMaxSize()) {
-            SearchBar(onSearch)
-            HeroText(shownHero, Modifier.height(HERO_HEIGHT))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SearchBar(onSearch)
+                Spacer(Modifier.width(12.dp))
+                VoiceButton { heard -> browse.search(heard); browse.select(TvSection.Search) }
+            }
+            HeroText(shownHero, if (hero == null) "Recommended" else focusedRow, Modifier.height(HERO_HEIGHT))
             when {
                 first.loading && first.cards.isEmpty() -> Message("Loading…")
                 first.failed && first.cards.isEmpty() -> RetryMessage("Couldn't load Home.", recommended::reload)
@@ -152,7 +158,7 @@ internal fun HomeSection(
                         item(key = shelf.section.name) {
                             Shelf(shelf, browse.list(shelf.section), onPlay, onOpen,
                                 // Remembered with its row: the same video can sit in two rows.
-                                onFocused = { focused = it; lastFocus.value = shelf.section.name + "|" + it.key },
+                                onFocused = { focused = it; focusedRow = shelf.title; lastFocus.value = shelf.section.name + "|" + it.key },
                                 restoreKey = saved?.focusedKey?.takeIf { it.startsWith(shelf.section.name + "|") }?.substringAfter('|'),
                                 firstTile = firstTile.takeIf { shelf.section == TvSection.Home },
                                 rowFocus = recommendedRow.takeIf { shelf.section == TvSection.Home },
@@ -214,11 +220,13 @@ private fun Hero(card: TvCard?, dataSaver: Boolean) {
 }
 
 @Composable
-private fun HeroText(card: TvCard?, modifier: Modifier) {
+private fun HeroText(card: TvCard?, row: String, modifier: Modifier) {
     Column(modifier.fillMaxWidth().padding(start = 40.dp, top = 18.dp, end = 48.dp), verticalArrangement = Arrangement.Top) {
         if (card == null) return@Column
         val title = rememberDeArrowTitle(card.videoId, card.title)
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Where this video comes from: "RECOMMENDED", "CONTINUE WATCHING"…
+            Text(row.uppercase(), fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = HERO_EYEBROW)
             val tag = when {
                 card.live -> "LIVE"
                 card.short -> "SHORTS"
@@ -233,10 +241,23 @@ private fun HeroText(card: TvCard?, modifier: Modifier) {
         }
         Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = TvColors.Text,
             maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp).widthIn(max = 560.dp))
-        val details = listOf(card.subtitle, card.duration).filter(String::isNotBlank).joinToString(" • ")
-        if (details.isNotBlank()) {
-            Text(details, style = MaterialTheme.typography.titleSmall, color = TvColors.Muted, maxLines = 1,
+        if (card.subtitle.isNotBlank()) {
+            Text(card.subtitle, style = MaterialTheme.typography.titleSmall, color = TvColors.Text.copy(alpha = 0.85f), maxLines = 1,
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp).widthIn(max = 560.dp))
+        }
+        // Length, then how far you got and what's left, as YouTube TV shows it.
+        val local = com.hhst.youtubelite.ui.design.LocalWatchProgress.current
+        val progress = (card.videoId?.let(local::get) ?: card.progress)?.takeIf { it > 0f && it < 1f }
+        Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (card.duration.isNotBlank()) HeroBadge(card.duration)
+            if (progress != null) {
+                Box(Modifier.width(140.dp).height(4.dp).background(Color.White.copy(alpha = 0.25f), RoundedCornerShape(2.dp))) {
+                    Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(TvColors.Red, RoundedCornerShape(2.dp)))
+                }
+                minutesLeft(card.duration, progress)?.let {
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = TvColors.Muted)
+                }
+            }
         }
     }
 }
@@ -351,7 +372,23 @@ internal const val HOME_PLACE = "home"
 private const val SHELF_RETRIES = 2
 private const val SHELF_RETRY_MS = 2_500L
 private const val HERO_SETTLE_MS = 300L
-private val HERO_HEIGHT = 170.dp
+@Composable
+private fun HeroBadge(text: String) {
+    Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TvColors.Text,
+        modifier = Modifier.background(Color.White.copy(alpha = 0.16f), RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 2.dp))
+}
+
+/** "26 min left" from a "30:12" length and how far you got; null when the length can't be read. */
+internal fun minutesLeft(duration: String, progress: Float): String? {
+    val parts = duration.split(':').map { it.trim().toIntOrNull() ?: return null }
+    if (parts.isEmpty() || parts.size > 3) return null
+    val seconds = parts.fold(0) { total, part -> total * 60 + part }
+    val left = (seconds * (1f - progress.coerceIn(0f, 1f)) / 60f).toInt()
+    return if (left < 1) "Less than a minute left" else "$left min left"
+}
+
+private val HERO_EYEBROW = Color(0xFFFF6B85)
+private val HERO_HEIGHT = 186.dp
 private val WIDE_TILE = 250.dp
 private val TALL_TILE = 136.dp
 private const val HERO_FADE_MS = 350
