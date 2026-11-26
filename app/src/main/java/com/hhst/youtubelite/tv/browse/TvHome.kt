@@ -1,6 +1,17 @@
 package com.hhst.youtubelite.tv.browse
 
 import androidx.compose.animation.Crossfade
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import com.hhst.youtubelite.tv.FrostPill
+import com.hhst.youtubelite.tv.requestFocusSoon
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -53,10 +64,10 @@ import com.hhst.youtubelite.ui.design.Artwork
 internal data class TvHomeShelf(val title: String, val section: TvSection, val tall: Boolean = false)
 
 /** Home's shelves, top to bottom, as YouTube on TV orders them. Account shelves drop when signed out. */
-internal fun homeShelves(signedIn: Boolean): List<TvHomeShelf> = listOfNotNull(
+internal fun homeShelves(signedIn: Boolean, hideShorts: Boolean = false): List<TvHomeShelf> = listOfNotNull(
     TvHomeShelf("Recommended", TvSection.Home),
     TvHomeShelf("Continue watching", TvSection.History).takeIf { signedIn },
-    TvHomeShelf("Shorts", TvSection.Shorts, tall = true),
+    TvHomeShelf("Shorts", TvSection.Shorts, tall = true).takeIf { !hideShorts },
     TvHomeShelf("Latest from your subscriptions", TvSection.Subscriptions).takeIf { signedIn },
     TvHomeShelf("Watch later", TvSection.WatchLater).takeIf { signedIn },
     TvHomeShelf("Music", TvSection.Music),
@@ -76,29 +87,95 @@ internal fun HomeSection(
     onPlay: (TvCard, List<TvCard>) -> Unit,
     onOpen: (TvCard) -> Unit,
     onSearch: () -> Unit,
+    hideShorts: Boolean = false,
+    /** Data saver: the big picture reuses the tile's thumbnail instead of a 1280 px one. */
+    dataSaver: Boolean = false,
 ) {
-    val shelves = remember(browse.signedIn) { homeShelves(browse.signedIn) }
+    val shelves = remember(browse.signedIn, hideShorts) { homeShelves(browse.signedIn, hideShorts) }
+    val homeFilter by browse.homeFilter.collectAsStateWithLifecycle()
     val recommended = browse.list(TvSection.Home)
     val first by recommended.state.collectAsStateWithLifecycle()
     var focused by remember { mutableStateOf<TvCard?>(null) }
-    val hero = focused ?: first.cards.firstOrNull { it.videoId != null }
+    // The big picture follows focus only once it rests, so holding the D-pad doesn't load one per tile.
+    var hero by remember { mutableStateOf<TvCard?>(null) }
+    LaunchedEffect(focused) {
+        if (focused != null) delay(HERO_SETTLE_MS)
+        hero = focused
+    }
+    val shownHero = hero ?: first.cards.firstOrNull { it.videoId != null }
+    val places = LocalTvPlaces.current
+    val saved = remember { places[HOME_PLACE] }
+    val column = rememberLazyListState(saved?.index ?: 0, saved?.offset ?: 0)
+    val lastFocus = remember { mutableStateOf(saved?.focusedKey) }
+    DisposableEffect(Unit) {
+        onDispose { places[HOME_PLACE] = TvPlace(column.firstVisibleItemIndex, column.firstVisibleItemScrollOffset, lastFocus.value) }
+    }
+    val scope = rememberCoroutineScope()
+    val firstTile = remember { FocusRequester() }
+    // Home starts on the first video, as YouTube TV does, not on the search bar.
+    LaunchedEffect(first.cards.isNotEmpty()) {
+        if (first.cards.isNotEmpty() && saved?.focusedKey == null) {
+            withFrameNanos { }
+            requestFocusSoon(firstTile)
+        }
+    }
+    BackHandler(enabled = column.firstVisibleItemIndex > 0) {
+        scope.launch {
+            column.scrollToItem(0)
+            requestFocusSoon(firstTile)
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
-        Hero(hero)
+        Hero(shownHero, dataSaver)
         Column(Modifier.fillMaxSize()) {
-            SearchBar(onSearch)
-            HeroText(hero, Modifier.height(HERO_HEIGHT))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SearchBar(onSearch)
+                val filters = browse.homeFilters
+                if (filters.size > 1) {
+                    androidx.compose.foundation.lazy.LazyRow(
+                        contentPadding = PaddingValues(start = 16.dp, end = 48.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.padding(top = 22.dp).focusRestorer(),
+                    ) {
+                        items(filters.size) { index ->
+                            val filter = filters[index]
+                            FrostPill(filter, { browse.filterHome(filter) }, selected = filter == homeFilter)
+                        }
+                    }
+                }
+            }
+            HeroText(shownHero, Modifier.height(HERO_HEIGHT))
             when {
                 first.loading && first.cards.isEmpty() -> Message("Loading…")
                 first.failed && first.cards.isEmpty() -> RetryMessage("Couldn't load Home.", recommended::reload)
                 else -> LazyColumn(
+                    state = column,
                     modifier = Modifier.fillMaxSize().focusRestorer(),
                     contentPadding = PaddingValues(bottom = 48.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
-                    shelves.forEach { shelf ->
-                        item(key = shelf.section.name) {
-                            Shelf(shelf, browse.list(shelf.section), onPlay, onOpen, onFocused = { focused = it })
+                    // YouTube's Home arrives as its own shelves ("Recommended", then others that are
+                    // often general). Shown by name, as YouTube TV does, they don't blur into one row.
+                    val groups = homeGroups(first.cards)
+                    val youtubeShelves = groups.size > 1
+                    shelves.filterNot { youtubeShelves && it.section in TOPIC_SHELVES }.forEach { shelf ->
+                        if (shelf.section == TvSection.Home && youtubeShelves) {
+                            groups.forEachIndexed { index, (title, _) ->
+                                item(key = "home-$homeFilter-$title") {
+                                    Shelf(shelf.copy(title = title), recommended, onPlay, onOpen,
+                                        onFocused = { focused = it; lastFocus.value = it.key },
+                                        restoreKey = saved?.focusedKey,
+                                        firstTile = firstTile.takeIf { index == 0 },
+                                        select = { cards -> homeGroups(cards).firstOrNull { it.first == title }?.second.orEmpty() },
+                                        loadsMore = index == groups.lastIndex)
+                                }
+                            }
+                        } else item(key = shelf.section.name + if (shelf.section == TvSection.Home) homeFilter else "") {
+                            Shelf(shelf, browse.list(shelf.section), onPlay, onOpen,
+                                onFocused = { focused = it; lastFocus.value = it.key },
+                                restoreKey = saved?.focusedKey,
+                                firstTile = firstTile.takeIf { shelf.section == TvSection.Home })
                         }
                     }
                 }
@@ -136,12 +213,12 @@ private fun SearchBar(onClick: () -> Unit) {
 
 /** The focused tile's picture, filling the top right and fading into the page. */
 @Composable
-private fun Hero(card: TvCard?) {
+private fun Hero(card: TvCard?, dataSaver: Boolean) {
     Box(Modifier.fillMaxWidth().height(HERO_HEIGHT + 150.dp)) {
         Crossfade(card?.key, animationSpec = tween(HERO_FADE_MS), label = "hero") { key ->
             val shown = card?.takeIf { it.key == key } ?: return@Crossfade
             Box(Modifier.fillMaxSize()) {
-                val big = shown.videoId?.takeUnless { shown.short }?.let { "https://i.ytimg.com/vi/$it/maxresdefault.jpg" }
+                val big = shown.videoId?.takeUnless { shown.short || dataSaver }?.let { "https://i.ytimg.com/vi/$it/maxresdefault.jpg" }
                 Artwork(big ?: shown.artwork, Modifier.align(Alignment.TopEnd).fillMaxWidth(0.68f).fillMaxHeight(),
                     fallback = shown.artwork.takeIf { big != null })
             }
@@ -190,12 +267,42 @@ private fun Shelf(
     onPlay: (TvCard, List<TvCard>) -> Unit,
     onOpen: (TvCard) -> Unit,
     onFocused: (TvCard) -> Unit,
+    restoreKey: String? = null,
+    firstTile: FocusRequester? = null,
+    /** Which of the list's tiles this shelf shows (one YouTube shelf of Home). */
+    select: (List<TvCard>) -> List<TvCard> = { it },
+    /** Whether reaching the end of the row reads the next page. */
+    loadsMore: Boolean = true,
 ) {
     val state by model.state.collectAsStateWithLifecycle()
+    // A shelf reads its list only once it scrolls into view (it keeps its height while it
+    // loads), so Home doesn't ask for every shelf at once.
     LaunchedEffect(model) { model.loadFirst() }
-    // Channel cards have no place on a shelf of videos.
-    val cards = state.cards.filter { it.videoId != null || it.playlistId != null }
-    if (cards.isEmpty()) return
+    // A shelf whose first read failed (Shorts often does while Home loads everything else)
+    // tries again on its own a couple of times, instead of staying empty until you visit its section.
+    var retries by remember(model) { mutableStateOf(0) }
+    LaunchedEffect(state.failed, retries) {
+        if (state.failed && retries < SHELF_RETRIES) {
+            delay(SHELF_RETRY_MS * (retries + 1))
+            retries++
+            model.reload()
+        }
+    }
+    // Channel cards have no place on a shelf of videos; Continue watching keeps only videos you're part way through.
+    val cards = shelfCards(shelf, select(state.cards))
+    if (cards.isEmpty()) {
+        if (state.loading || (!state.failed && !state.done && state.cards.isEmpty())) {
+            Box(Modifier.fillMaxWidth().height(if (shelf.tall) TALL_TILE * 16 / 9 + 60.dp else WIDE_TILE * 9 / 16 + 60.dp))
+        }
+        return
+    }
+    val restore = remember { FocusRequester() }
+    LaunchedEffect(cards.any { it.key == restoreKey }) {
+        if (restoreKey != null && cards.any { it.key == restoreKey }) {
+            withFrameNanos { }
+            requestFocusSoon(restore)
+        }
+    }
     Column(Modifier.fillMaxWidth()) {
         Text(shelf.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = TvColors.Text,
             modifier = Modifier.padding(start = 40.dp, bottom = 10.dp))
@@ -210,9 +317,13 @@ private fun Shelf(
                     onClick = { if (card.videoId != null) onPlay(card, cards) else onOpen(card) },
                     onFocused = {
                         onFocused(card)
-                        if (index >= cards.size - SHELF_PREFETCH) model.loadMore()
+                        if (loadsMore && index >= cards.size - SHELF_PREFETCH) model.loadMore()
                     },
-                    modifier = Modifier.width(if (shelf.tall) TALL_TILE else WIDE_TILE),
+                    modifier = Modifier.width(if (shelf.tall) TALL_TILE else WIDE_TILE).then(when {
+                        card.key == restoreKey -> Modifier.focusRequester(restore)
+                        index == 0 && firstTile != null -> Modifier.focusRequester(firstTile)
+                        else -> Modifier
+                    }),
                     tall = shelf.tall,
                 )
             }
@@ -220,6 +331,32 @@ private fun Shelf(
     }
 }
 
+/** The tiles a shelf shows: no channel cards, and Continue watching only what's part watched. */
+internal fun shelfCards(shelf: TvHomeShelf, cards: List<TvCard>): List<TvCard> =
+    cards.filter { it.videoId != null || it.playlistId != null }
+        .let { list -> if (shelf.section == TvSection.History) list.filter(com.hhst.youtubelite.tv.TvHomeRows::inProgress) else list }
+
+/**
+ * Home's tiles split by the YouTube shelf they came in, in order. Tiles with no shelf stay with
+ * the one before them; the first shelf is "Recommended" when YouTube gave it no name.
+ */
+internal fun homeGroups(cards: List<TvCard>): List<Pair<String, List<TvCard>>> {
+    val groups = LinkedHashMap<String, MutableList<TvCard>>()
+    var current = RECOMMENDED
+    cards.forEach { card ->
+        current = card.group?.trim()?.takeIf(String::isNotEmpty) ?: current
+        groups.getOrPut(current) { mutableListOf() } += card
+    }
+    return groups.map { it.key to it.value.toList() }
+}
+
+/** Our own topic shelves; YouTube's Home shelves already cover them when it sends shelves. */
+private val TOPIC_SHELVES = setOf(TvSection.Music, TvSection.Gaming, TvSection.News, TvSection.Sports)
+private const val RECOMMENDED = "Recommended"
+private const val HOME_PLACE = "home"
+private const val SHELF_RETRIES = 2
+private const val SHELF_RETRY_MS = 2_500L
+private const val HERO_SETTLE_MS = 300L
 private val HERO_HEIGHT = 170.dp
 private val WIDE_TILE = 250.dp
 private val TALL_TILE = 136.dp

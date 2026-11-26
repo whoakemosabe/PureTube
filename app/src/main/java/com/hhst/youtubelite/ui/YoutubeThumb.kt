@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,15 +42,39 @@ fun YoutubeThumb(
     contentScale: ContentScale = ContentScale.Crop,
     placeholderColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     fallbackUrl: String? = null,
+    /**
+     * The decode size in pixels when the caller knows it (TV grids). The slot isn't measured
+     * first then, which spares each tile a subcomposition.
+     */
+    decodePx: Int? = null,
     placeholder: @Composable BoxScope.() -> Unit = {},
 ) {
+    if (decodePx != null) {
+        Box(modifier.background(placeholderColor), contentAlignment = Alignment.Center) {
+            ThumbContent(url, artworkDecodeDimension(decodePx.coerceAtLeast(128)), fallbackUrl, contentDescription, contentScale, placeholder)
+        }
+        return
+    }
     BoxWithConstraints(modifier.background(placeholderColor), contentAlignment = Alignment.Center) {
-        val cacheVersion by YoutubeThumbnail.version.collectAsState()
         // Size-aware decode: small slots (avatars) don't decode cover-sized bitmaps.
         // Unbounded constraints (wrap-content) fall back to the full decode size.
         val maxDim = with(LocalDensity.current) {
             artworkDecodeDimension(maxOf(maxWidth, maxHeight).toPx().toInt().coerceAtLeast(128))
         }
+        ThumbContent(url, maxDim, fallbackUrl, contentDescription, contentScale, placeholder)
+    }
+}
+
+@Composable
+private fun BoxScope.ThumbContent(
+    url: String?,
+    maxDim: Int,
+    fallbackUrl: String?,
+    contentDescription: String?,
+    contentScale: ContentScale,
+    placeholder: @Composable BoxScope.() -> Unit,
+) {
+        val cacheVersion by YoutubeThumbnail.version.collectAsState()
         val sources = remember(url, fallbackUrl, maxDim) {
             (artworkSources(url, maxDim) + artworkSources(fallbackUrl, maxDim)).distinct()
         }
@@ -102,9 +127,8 @@ fun YoutubeThumb(
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {
-                    placeholder()
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { placeholder() }
                 }
             }
         }
-    }
 }

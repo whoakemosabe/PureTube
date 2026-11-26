@@ -39,6 +39,8 @@ sealed interface FeedItem {
         @kotlinx.serialization.Transient val feedbackGeneration: Long? = null,
         @kotlinx.serialization.Transient val menuEndpoint: FeedMenuEndpoint? = null,
         val short: Boolean = false,
+        /** The YouTube shelf it came in on Home ("Recommended", "Trending"…), when Home had shelves. */
+        @kotlinx.serialization.Transient val group: String? = null,
     ) : FeedItem
     data class Mix(override val id: String, val title: String, val authors: String, val artwork: String, val palette: ThumbnailPalette) : FeedItem
     data class Playlist(val summary: com.hhst.youtubelite.playlist.domain.PlaylistSummary) : FeedItem {

@@ -121,7 +121,11 @@ class AboutActivity : ComponentActivity() {
                         get<MemCache>(MemCache::class.java).clear()
                         val kv = get<com.hhst.youtubelite.core.PreferenceStore>(com.hhst.youtubelite.core.PreferenceStore::class.java)
                         kv.keys().filter { it.startsWith("extractor:metadata:") || it.startsWith("extractor:stream:") || it.startsWith("extractor:segment:") }.forEach(kv::remove)
-                        listOf("gallery", "thumbnails").forEach { File(cacheDir, it).deleteRecursively() }
+                        listOf("gallery", "thumbnails", "updates", "diagnostic-exports").forEach { File(cacheDir, it).deleteRecursively() }
+                        // Stream and page data the player keeps per video, and the played video.
+                        (get<com.hhst.youtubelite.core.JsonCache>(com.hhst.youtubelite.core.JsonCache::class.java)
+                            as? com.hhst.youtubelite.core.PreferenceJsonCache)?.sweepExpired()
+                        runCatching { com.hhst.youtubelite.player.datasource.PlayerDataSource.clearCache(this@AboutActivity) }
                         AppLog.event(AppLog.Category.STORAGE, "cache_cleared", mapOf(
                             "owners" to "image_memory,display_decoration,avatar_directory,page_snapshots,mem_cache,watch_cache,gallery_files"))
                     }

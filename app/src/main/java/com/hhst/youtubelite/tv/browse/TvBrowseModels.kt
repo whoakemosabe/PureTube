@@ -9,6 +9,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.hhst.youtubelite.search.domain.SearchFilters
+import com.hhst.youtubelite.subscriptions.data.SubscriptionsFilter
+
+/** A list's scroll spot and focused tile. */
+internal data class TvPlace(val index: Int, val offset: Int, val focusedKey: String?)
 
 /** A page opened from a tile, over the section it came from; Back closes the top one. */
 internal sealed interface TvOpen {
@@ -54,9 +59,40 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
         _identity.value = generation
     }
 
-    /** A setting that changes what lists show (Hide Shorts, Hide watched): read them again. */
+    /**
+     * A setting that changes what lists show (Hide Shorts, Hide watched): the section on
+     * screen reads again now, the rest when they are next shown, so the TV isn't asked for
+     * every list at once.
+     */
     fun reloadLists() {
-        lists.values.forEach(TvListModel::reload)
+        val showing = _section.value
+        lists.forEach { (section, list) -> if (section == showing) list.reload() else list.markStale() }
+        places.clear()
+    }
+
+    /** Reads a section again from the top; Home also refreshes every shelf on it. */
+    fun refresh(section: TvSection) {
+        val sections = if (section == TvSection.Home) homeShelves(signedIn).map(TvHomeShelf::section) else listOf(section)
+        sections.forEach { lists[it]?.reload() }
+        sections.forEach { places.remove(it.name) }
+        if (section == TvSection.Home) places.remove("home")
+        if (section == TvSection.Channels) _channelFilter.value = ""
+    }
+
+    /** Where each screen's list was scrolled and which tile had focus, to come back to after a video. */
+    val places = mutableMapOf<String, TvPlace>()
+
+    /** The paged list these cards were read from, so a playlist keeps paging while it plays. */
+    fun sourceOf(cards: List<TvCard>): TvListModel? {
+        if (cards.isEmpty()) return null
+        val candidates = lists.values + searchResults + _opened.value.flatMap { page ->
+            when (page) {
+                is TvOpen.Playlist -> listOf(page.list)
+                is TvOpen.Channel -> page.model.openLists()
+            }
+        }
+        return candidates.firstOrNull { it.state.value.cards === cards }
+            ?: candidates.firstOrNull { model -> model.state.value.cards.map(TvCard::key) == cards.map(TvCard::key) }
     }
 
     fun select(section: TvSection) {
@@ -68,9 +104,9 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
     fun list(section: TvSection): TvListModel = lists.getOrPut(section) {
         TvListModel(scope) { cursor ->
             when (section) {
-                TvSection.Home -> source.home(cursor)
+                TvSection.Home -> source.home(_homeFilter.value, cursor)
                 TvSection.Shorts -> source.shorts(cursor)
-                TvSection.Subscriptions -> source.subscriptions(cursor)
+                TvSection.Subscriptions -> source.subscriptions(_subscriptionsFilter.value, cursor)
                 TvSection.Channels -> source.channels(cursor)
                 TvSection.History -> source.history(cursor)
                 TvSection.Playlists -> source.playlists(cursor)
@@ -80,11 +116,82 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
         }
     }
 
+    private val _homeFilter = MutableStateFlow(RepositoryTvBrowseSource.HOME_ALL)
+    val homeFilter: StateFlow<String> = _homeFilter.asStateFlow()
+    val homeFilters: List<String> get() = source.homeFilters
+    private val _subscriptionsFilter = MutableStateFlow(SubscriptionsFilter.All)
+    val subscriptionsFilter: StateFlow<SubscriptionsFilter> = _subscriptionsFilter.asStateFlow()
+    private val _searchFilters = MutableStateFlow(SearchFilters())
+    val searchFilters: StateFlow<SearchFilters> = _searchFilters.asStateFlow()
+    private val _notice = MutableStateFlow<String?>(null)
+    /** A short line over the screen after a tile's menu action. */
+    val notice: StateFlow<String?> = _notice.asStateFlow()
+    fun clearNotice() { _notice.value = null }
+
+    /** A Home chip: Recommended reads again for it. */
+    fun filterHome(filter: String) {
+        if (filter == _homeFilter.value) return
+        _homeFilter.value = filter
+        lists.remove(TvSection.Home)
+        places.remove(TvSection.Home.name)
+    }
+
+    fun filterSubscriptions(filter: SubscriptionsFilter) {
+        if (filter == _subscriptionsFilter.value) return
+        _subscriptionsFilter.value = filter
+        lists.remove(TvSection.Subscriptions)
+        places.remove(TvSection.Subscriptions.name)
+    }
+
     fun search(query: String) {
         val trimmed = query.trim()
         if (trimmed.isEmpty() || trimmed == _query.value) return
         _query.value = trimmed
-        searchResults = TvListModel(scope) { cursor -> source.search(trimmed, cursor) }
+        source.recordSearch(trimmed)
+        searchResults = searchList(trimmed, _searchFilters.value)
+    }
+
+    fun filterSearch(filters: SearchFilters) {
+        if (filters == _searchFilters.value) return
+        _searchFilters.value = filters
+        val query = _query.value
+        if (query.isNotBlank()) searchResults = searchList(query, filters)
+    }
+
+    private fun searchList(query: String, filters: SearchFilters) = TvListModel(scope) { cursor -> source.search(query, filters, cursor) }
+
+    suspend fun searchRows(text: String) = source.searchRows(text)
+
+    /** A tile's menu: Save to Watch later. Says so once the server took it. */
+    fun saveToWatchLater(card: TvCard) {
+        val videoId = card.videoId ?: return
+        scope.launch {
+            _notice.value = try {
+                source.saveToWatchLater(videoId)
+                lists[TvSection.WatchLater]?.markStale()
+                "Saved to Watch later"
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (error is SignInRequiredException) "Sign in to save videos." else "Couldn't save that. Try again."
+            }
+        }
+    }
+
+    /** A tile's menu: Not interested. The tile leaves Home only after YouTube took it. */
+    fun notInterested(card: TvCard) {
+        scope.launch {
+            _notice.value = try {
+                if (source.notInterested(card)) {
+                    lists[TvSection.Home]?.remove(card.key)
+                    "Got it. You'll see fewer like this."
+                } else "That isn't available for this video."
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                "That didn't go through. Try again."
+            }
+        }
     }
 
     /** Opens what a tile points at that isn't a video: a playlist or a channel. */
@@ -193,6 +300,9 @@ internal class TvChannelModel(private val scope: CoroutineScope, private val sou
     }
 
     fun selectTab(tab: TvChannelTab) = _state.update { it.copy(tab = tab) }
+
+    /** The tab lists read so far. */
+    fun openLists(): List<TvListModel> = tabs.values.toList()
 
     /** The tab's list; empty until the header is in. */
     fun list(tab: TvChannelTab): TvListModel {

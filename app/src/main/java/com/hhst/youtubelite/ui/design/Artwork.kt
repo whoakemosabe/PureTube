@@ -31,11 +31,13 @@ internal fun artworkSource(asset: String): ArtworkSource {
 }
 
 @Composable
-fun Artwork(asset: String, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop, fallback: String? = null) {
+fun Artwork(asset: String, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop, fallback: String? = null,
+    /** Known decode size in pixels; see [com.hhst.youtubelite.ui.YoutubeThumb]. */
+    decodePx: Int? = null) {
     when (val source = artworkSource(asset)) {
         is ArtworkSource.Remote -> com.hhst.youtubelite.ui.YoutubeThumb(source.url,
             modifier, contentScale = contentScale, placeholderColor = DesignTokens.Surface,
-            fallbackUrl = fallback?.let { (artworkSource(it) as? ArtworkSource.Remote)?.url })
+            fallbackUrl = fallback?.let { (artworkSource(it) as? ArtworkSource.Remote)?.url }, decodePx = decodePx)
         is ArtworkSource.Sample -> Image(
             painterResource(when (source.id) {
                 "dream" -> R.drawable.sample_dream

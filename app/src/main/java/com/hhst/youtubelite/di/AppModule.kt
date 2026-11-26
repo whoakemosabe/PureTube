@@ -111,6 +111,9 @@ val appModule = module {
     }
     single {
         DiagnosticNetwork.install(OkHttpClient.Builder())
+            // Connections to YouTube stay open for 5 minutes, so the next video or page
+            // skips a new TLS handshake.
+            .connectionPool(okhttp3.ConnectionPool(CONNECTION_POOL_IDLE, 5, TimeUnit.MINUTES))
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(45, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -356,3 +359,5 @@ val appModule = module {
         )
     }
 }
+
+private const val CONNECTION_POOL_IDLE = 8

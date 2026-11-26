@@ -35,11 +35,16 @@ import kotlinx.coroutines.flow.asStateFlow
 
 object YoutubeThumbnail {
     private val http by lazy { DiagnosticNetwork.install(OkHttpClient.Builder()).followRedirects(false).followSslRedirects(false)
+        // Thumbnails on disk, so a cold start or a scroll back doesn't download them again.
+        // Bounded; "Clear cache" in About removes this folder.
+        .apply { if (::context.isInitialized) cache(okhttp3.Cache(java.io.File(context.cacheDir, "thumbnails"), DISK_CACHE_BYTES)) }
         .connectTimeout(5, TimeUnit.SECONDS).readTimeout(5, TimeUnit.SECONDS)
         .callTimeout(10, TimeUnit.SECONDS).build() }
     const val HOST = "i.ytimg.com"
     private const val CACHE_BYTES = 24 * 1024 * 1024
     private const val MAX_DOWNLOAD_BYTES = 4 * 1024 * 1024
+    private const val PARALLEL_LOADS = 6
+    private const val DISK_CACHE_BYTES = 48L * 1024 * 1024
 
     private val cache = MemoryCache.Builder().maxSizeBytes(CACHE_BYTES.toLong())
         // Clearing memory must also drop entries still owned by visible views.
@@ -58,7 +63,8 @@ object YoutubeThumbnail {
 
     private data class Key(val url: String, val dimension: Int, val generation: Long)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val requests = ArtworkRequests<Key, Bitmap?>(scope) { key ->
+    // A TV row shows 5 or 6 tiles and the hero at once; two at a time made them trickle in.
+    private val requests = ArtworkRequests<Key, Bitmap?>(scope, parallelism = PARALLEL_LOADS) { key ->
         cached(key.url, key.dimension) ?: load(key.url, key.dimension, key.generation)
     }
     private val requestLock = Any()

@@ -38,13 +38,24 @@ internal class TvListModel(
     private var generation = 0L
     private var job: Job? = null
 
+    /** Set when a setting changed what the list shows; the next [loadFirst] reads it again. */
+    private var stale = false
+
     fun loadFirst() {
         if (_state.value.loading) return
+        if (stale) { reload(); return }
         if (_state.value.cards.isNotEmpty() && !_state.value.failed) return
         reload()
     }
 
+    /** Drops one tile (Not interested) without reading the list again. */
+    fun remove(key: String) = _state.update { it.copy(cards = it.cards.filterNot { card -> card.key == key }) }
+
+    /** Read again the next time the list comes on screen, instead of now. */
+    fun markStale() { stale = true }
+
     fun reload() {
+        stale = false
         job?.cancel()
         val request = ++generation
         next = null

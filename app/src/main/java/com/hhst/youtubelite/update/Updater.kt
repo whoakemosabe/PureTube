@@ -182,6 +182,20 @@ object Updater {
         }
 
     /**
+     * Deletes a downloaded update once it is installed (or older than what is), and any
+     * half-finished download. The APK stayed in the cache after installing otherwise.
+     */
+    fun cleanup(context: Context) {
+        val dir = File(context.cacheDir, "updates")
+        if (!dir.isDirectory) return
+        File(dir, "puretube-part.apk").delete()
+        val apk = File(dir, "puretube.apk")
+        if (!apk.isFile) return
+        val version = runCatching { context.packageManager.getPackageArchiveInfo(apk.path, 0)?.versionName }.getOrNull()
+        if (version == null || !isNewer(version, installedVersion(context))) apk.delete()
+    }
+
+    /**
      * Checks the downloaded file is a whole APK of this app and the version it should be,
      * before the system installer sees it (it would only say "problem parsing the package").
      * The installer still checks the signature itself.
@@ -196,7 +210,7 @@ object Updater {
         }
         if (info.packageName != context.packageName) {
             apk.delete()
-            throw IOException("The download isn't this PureTube")
+            throw IOException("The download isn't this Puretube")
         }
         val v = info.versionName.orEmpty()
         if (isNewer(expected, v) || !isNewer(v, installedVersion(context))) {

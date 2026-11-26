@@ -31,11 +31,20 @@ object CodecCapabilities {
         val decoders = mime?.let(::decoders)
             ?: return !av1 && format.height <= 1080
         if (format.width <= 0 || format.height <= 0) return !av1 && format.height <= 1080 && decoders.isNotEmpty()
+        // On a TV, a software decoder drops frames (VP9 at 1080p60 on a weak chip): take a
+        // format only with a hardware decoder, as long as H.264 has one to fall back on,
+        // which YouTube always offers up to 1080p.
+        val softwareOk = !av1 && format.height <= 1080 && !(preferHardware && hasHardware(MimeTypes.VIDEO_H264))
         return decoders.any { decoder ->
-            (decoder.hardware || !av1 && format.height <= 1080) &&
+            (decoder.hardware || softwareOk) &&
                 runCatching { decoder.supports(format) }.getOrDefault(false)
         }
     }
+
+    /** Set on a TV: see [isDecodable]. */
+    @Volatile var preferHardware: Boolean = false
+
+    private fun hasHardware(mime: String): Boolean = decoders(mime)?.any { it.hardware } == true
 
     @Synchronized
     private fun decoders(mime: String): List<Decoder>? {

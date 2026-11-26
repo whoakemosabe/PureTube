@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import com.hhst.youtubelite.ui.components.AppAlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,9 +30,9 @@ fun UpdateDialog(ui: UpdateUi, progress: Float, onMain: () -> Unit, onDismiss: (
         else -> return
     }
     val downloading = ui is UpdateUi.Downloading
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = { if (!downloading) onDismiss() },
-        title = { Text("PureTube ${release.version} is available") },
+        title = { Text("Puretube ${release.version} is available") },
         text = {
             Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {

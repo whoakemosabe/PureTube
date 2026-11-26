@@ -278,7 +278,7 @@ class PlaybackEngine(
     private val player: ExoPlayer = ExoPlayer.Builder(context)
         .setRenderersFactory(PlaybackRenderersFactory(context).setEnableDecoderFallback(true))
         .setTrackSelector(trackSelector)
-        .setLoadControl(defaultLoadControl())
+        .setLoadControl(defaultLoadControl(runCatching { com.hhst.youtubelite.tv.TvDevice.isTelevision(context) }.getOrDefault(false)))
         .setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)
@@ -2486,8 +2486,18 @@ internal fun mediaBufferBudgetBytes(maxHeapBytes: Long): Int =
 
 /** Keep the time windows, but let the byte budget stop high-bitrate read-ahead. */
 @UnstableApi
-internal fun defaultLoadControl(): DefaultLoadControl = DefaultLoadControl.Builder()
-    .setBufferDurationsMs(50_000, 60_000, 500, 4_000)
+internal fun defaultLoadControl(television: Boolean = false): DefaultLoadControl = DefaultLoadControl.Builder()
+    .setBufferDurationsMs(50_000, 60_000,
+        // A TV on Wi-Fi: a little more before starting avoids a stall right after it, and
+        // catching up after one waits less.
+        if (television) TV_START_BUFFER_MS else 500,
+        if (television) TV_REBUFFER_MS else 4_000)
     .setTargetBufferBytes(mediaBufferBudgetBytes(Runtime.getRuntime().maxMemory()))
     .setPrioritizeTimeOverSizeThresholds(false)
+    // On a TV, the last 15 s stay in memory, so a 10 s rewind plays without fetching again.
+    .apply { if (television) setBackBuffer(TV_BACK_BUFFER_MS, true) }
     .build()
+
+private const val TV_START_BUFFER_MS = 1_500
+private const val TV_REBUFFER_MS = 2_500
+private const val TV_BACK_BUFFER_MS = 15_000

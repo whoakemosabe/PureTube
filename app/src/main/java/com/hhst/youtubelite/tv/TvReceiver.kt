@@ -63,9 +63,16 @@ internal class TvReceiver(context: Context, private val engine: PlaybackApi, sto
                 .collect { phone -> if (phone != null) server.send(TvAccountLink.info()) }
         }
         running.launch {
+            var quiet = 0
             while (isActive) {
                 delay(STATUS_INTERVAL_MS)
-                publish(statusOf(engine.snapshot.value))
+                // Nobody to tell with no phone connected; paused, the position doesn't move, so
+                // a slow heartbeat is enough (changes still go out at once above).
+                if (server.state.value.connectedPhone == null) continue
+                val snapshot = engine.snapshot.value
+                if (!snapshot.isPlaying && ++quiet < PAUSED_TICKS) continue
+                quiet = 0
+                publish(statusOf(snapshot))
             }
         }
     }
@@ -146,6 +153,7 @@ internal class TvReceiver(context: Context, private val engine: PlaybackApi, sto
 
     companion object {
         private const val STATUS_INTERVAL_MS = 1_000L
+        private const val PAUSED_TICKS = 5
         private const val SEEK_SLACK_MS = 2_000L
         private const val MIN_SPEED = 0.25f
         private const val MAX_SPEED = 2f

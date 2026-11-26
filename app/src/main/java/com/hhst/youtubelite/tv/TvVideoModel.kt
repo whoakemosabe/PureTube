@@ -24,6 +24,8 @@ import kotlinx.coroutines.launch
 internal data class TvVideoState(
     val videoId: String? = null,
     val video: WatchVideo? = null,
+    /** The watch page didn't load after its tries; [TvVideoModel.retry] asks again. */
+    val loadFailed: Boolean = false,
     val rating: VideoRating = VideoRating.None,
     val subscribed: Boolean = false,
     /** An account write is on its way; its button waits for the server. */
@@ -94,10 +96,33 @@ internal class TvVideoModel(private val scope: CoroutineScope, private val ops: 
         if (_state.value.videoId == videoId) return
         loadJob?.cancel()
         _state.value = TvVideoState(videoId = videoId)
+        fetch(videoId)
+    }
+
+    /** Reads the watch page again when it failed (a panel that needs it is open). */
+    fun retry() {
+        val current = _state.value
+        val videoId = current.videoId ?: return
+        if (current.video != null || loadJob?.isActive == true) return
+        _state.update { it.copy(loadFailed = false) }
+        fetch(videoId)
+    }
+
+    private fun fetch(videoId: String) {
         loadJob = scope.launch {
-            val video = attempt { ops.video(videoId) } ?: return@launch
+            // A couple of quiet retries: one bad answer shouldn't leave the video without its page.
+            var video: WatchVideo? = null
+            for (wait in LOAD_RETRY_WAITS_MS) {
+                if (wait > 0) kotlinx.coroutines.delay(wait)
+                video = attempt { ops.video(videoId) }
+                if (video != null || _state.value.videoId != videoId) break
+            }
             if (_state.value.videoId != videoId) return@launch
-            _state.update { it.copy(video = video, rating = video.rating, subscribed = video.subscribed) }
+            if (video == null) {
+                _state.update { it.copy(loadFailed = true) }
+                return@launch
+            }
+            _state.update { it.copy(video = video, loadFailed = false, rating = video.rating, subscribed = video.subscribed) }
             onVideo?.invoke(video)
             // The watch page often leaves the channel picture out; the phone looks it up the same way.
             if (video.avatar.isNullOrBlank() && video.channelId.startsWith("UC")) {
@@ -114,7 +139,7 @@ internal class TvVideoModel(private val scope: CoroutineScope, private val ops: 
     private fun rate(target: VideoRating) {
         val current = _state.value
         val videoId = current.videoId ?: return
-        if (current.busy) return
+        if (current.busy) return waitNotice()
         val next = if (current.rating == target) VideoRating.None else target
         write(videoId) {
             ops.rate(videoId, next, current.rating)
@@ -126,7 +151,7 @@ internal class TvVideoModel(private val scope: CoroutineScope, private val ops: 
         val current = _state.value
         val videoId = current.videoId ?: return
         val channelId = current.video?.channelId?.takeIf(String::isNotBlank) ?: return
-        if (current.busy) return
+        if (current.busy) return waitNotice()
         val next = !current.subscribed
         write(videoId) {
             ops.subscribe(channelId, next)
@@ -245,6 +270,9 @@ internal class TvVideoModel(private val scope: CoroutineScope, private val ops: 
 
     fun clearNotice() = _state.update { it.copy(notice = null) }
 
+    /** A press while YouTube is still answering the last one. */
+    private fun waitNotice() = _state.update { it.copy(notice = "One moment, still saving…") }
+
     private fun write(videoId: String, block: suspend () -> Unit) {
         _state.update { it.copy(busy = true, notice = null) }
         scope.launch {
@@ -266,6 +294,10 @@ internal class TvVideoModel(private val scope: CoroutineScope, private val ops: 
         throw error
     } catch (_: Exception) {
         null
+    }
+
+    private companion object {
+        val LOAD_RETRY_WAITS_MS = longArrayOf(0L, 2_000L, 5_000L)
     }
 
     private fun messageFor(error: Exception) = when (error) {

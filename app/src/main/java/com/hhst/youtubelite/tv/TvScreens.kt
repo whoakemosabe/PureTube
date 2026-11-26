@@ -63,8 +63,13 @@ import androidx.tv.material3.Text
 import com.hhst.youtubelite.R
 import com.hhst.youtubelite.player.engine.PlaybackApi
 import com.hhst.youtubelite.player.engine.PlaybackSnapshot
+import com.hhst.youtubelite.player.engine.PlaybackDiagnostics
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.structuralEqualityPolicy
+import androidx.compose.ui.draw.alpha
 import com.hhst.youtubelite.player.SleepChoice
 import com.hhst.youtubelite.player.surface.PlayerUi
+import com.hhst.youtubelite.player.surface.SubtitleStyle
 import com.hhst.youtubelite.ui.design.AppIcon
 import com.hhst.youtubelite.ui.design.Artwork
 import com.hhst.youtubelite.watch.domain.VideoRating
@@ -80,53 +85,97 @@ import com.hhst.youtubelite.extension.PreferenceKeys
 import com.hhst.youtubelite.watch.chat.LiveChatUiState
 import com.hhst.youtubelite.watch.chat.LiveChatViewModel
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 
 @Composable
 internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, browse: TvBrowseModels, player: TvPlayerSession,
     account: String?, accountPhoto: String?, settings: TvSettingsStore, version: String, chat: LiveChatViewModel,
+    captions: TvCaptionStyleStore,
     onSignOut: () -> Unit, openSignIn: () -> TvSignInSession, onOpenDownloads: () -> Unit,
     onDownload: (videoId: String, title: String, author: String?, artwork: String?) -> Unit, onExit: () -> Unit) {
     var signingIn by remember { mutableStateOf(false) }
-    val snapshot by receiver.snapshot.collectAsStateWithLifecycle()
+    // The player reads position (four times a second) only where it shows it; everything
+    // else sees a copy without it, so the whole overlay doesn't redraw on every tick.
+    val snapshotState = receiver.snapshot.collectAsStateWithLifecycle()
+    val snapshot by remember { derivedStateOf(structuralEqualityPolicy()) { withoutPosition(snapshotState.value) } }
+    val live: () -> PlaybackSnapshot = remember { { snapshotState.value } }
     val link by receiver.server.state.collectAsStateWithLifecycle()
     val nowPlaying by receiver.nowPlaying.collectAsStateWithLifecycle()
     val values by settings.values.collectAsStateWithLifecycle()
     /** The list the current video was started from, when it plays in order (a playlist, or Shorts). */
     var queue by remember { mutableStateOf<List<TvCard>>(emptyList()) }
+    /** The paged list behind [queue], so a long playlist keeps reading pages as it plays. */
+    var queueSource by remember { mutableStateOf<TvListModel?>(null) }
+    var queueShorts by remember { mutableStateOf(false) }
+    /** Cards put first with "Play next" from a tile's menu. */
+    var playNext by remember { mutableStateOf<List<TvCard>>(emptyList()) }
     val play: (TvCard, List<TvCard>) -> Unit = { card, list ->
         queue = playQueue(card, list)
+        queueSource = browse.sourceOf(list).takeIf { queue.isNotEmpty() }
+        queueShorts = card.short
+        playNext = playNext.filterNot { it.videoId == card.videoId }
         card.videoId?.let { receiver.playLocal(it, card.title, card.author) }
+    }
+    val currentQueue: () -> List<TvCard> = {
+        queueSource?.state?.value?.cards?.let { cards -> playQueue(cards.firstOrNull { it.short == queueShorts } ?: return@let null, cards) }
+            ?.takeIf { it.isNotEmpty() } ?: queue
     }
     Box(Modifier.fillMaxSize().background(TvColors.Background)) {
         val videoId = snapshot.videoId
         if (videoId != null) {
             val hasPhone = link.connectedPhone != null
             val related = if (values[PreferenceKeys.ENABLE_HIDE_RELATED] == true) NO_RELATED else browse.related(videoId)
+            val relatedState by related.state.collectAsStateWithLifecycle()
             val following: (Boolean) -> TvCard? = { forward ->
-                val index = queue.indexOfFirst { it.videoId == videoId }
-                queue.getOrNull(if (forward) index + 1 else index - 1).takeIf { index >= 0 }
+                val list = currentQueue()
+                val index = list.indexOfFirst { it.videoId == videoId }
+                list.getOrNull(if (forward) index + 1 else index - 1).takeIf { index >= 0 }
             }
             LaunchedEffect(videoId) { player.video.load(videoId) }
-            // Watching on the TV alone, the next video follows, like YouTube's autoplay: the next
-            // one in the playlist or Shorts it came from, else the top recommendation.
-            LaunchedEffect(videoId, snapshot.ended, hasPhone) {
-                if (snapshot.ended && !hasPhone && player.sleptOn != videoId && values[PreferenceKeys.ENABLE_AUTOPLAY] != false) {
-                    following(true)?.let { play(it, queue) }
-                        ?: related.state.value.cards.firstOrNull { it.videoId != null && it.videoId != videoId }?.let { play(it, emptyList()) }
-                }
+            // The next video comes from here even when the overlay (and its row) never opened.
+            LaunchedEffect(related) { related.loadFirst() }
+            // Near the end of what's loaded of a playlist or Shorts, read its next page.
+            LaunchedEffect(videoId, queueSource) {
+                val list = currentQueue()
+                val index = list.indexOfFirst { it.videoId == videoId }
+                if (index >= 0 && index >= list.size - QUEUE_PREFETCH) queueSource?.loadMore()
+            }
+            // Watching on the TV alone, the next video follows, like YouTube's autoplay: a
+            // "Play next" pick, the next one in the playlist or Shorts, else the top recommendation.
+            val autoplay = !hasPhone && player.sleptOn != videoId && values[PreferenceKeys.ENABLE_AUTOPLAY] != false
+            val nextUp = if (!snapshot.ended || !autoplay) null else
+                playNext.firstOrNull() ?: following(true)
+                    ?: relatedState.cards.firstOrNull { it.videoId != null && it.videoId != videoId }
+            // About 20 s before the end, get the next video's streams so it starts at once.
+            if (autoplay) LaunchedEffect(videoId) {
+                androidx.compose.runtime.snapshotFlow { live().let { it.durationMs > 0 && it.durationMs - it.positionMs in 1..WARM_NEXT_MS } }
+                    .first { it }
+                val next = playNext.firstOrNull() ?: following(true)
+                    ?: relatedState.cards.firstOrNull { it.videoId != null && it.videoId != videoId }
+                TvWarmup.now(next?.videoId)
             }
             PlayerScreen(
-                snapshot, nowPlaying, engine, player, chat,
-                canSkip = hasPhone || queue.isNotEmpty(),
+                snapshot, live, nowPlaying, engine, player, chat, captions,
+                canSkip = hasPhone || currentQueue().isNotEmpty() || playNext.isNotEmpty(),
                 related = related,
+                nextUp = nextUp,
+                waitingForNext = snapshot.ended && autoplay && nextUp == null && relatedState.loading,
+                onPlayNext = { card -> play(card, if (card in playNext) emptyList() else currentQueue()) },
                 onSkip = { forward ->
-                    if (hasPhone) receiver.skip(forward) else following(forward)?.let { play(it, queue) }
+                    when {
+                        hasPhone -> receiver.skip(forward)
+                        forward && playNext.isNotEmpty() -> play(playNext.first(), emptyList())
+                        else -> following(forward)?.let { play(it, currentQueue()) }
+                    }
                 },
                 onPlayCard = play,
                 onOpenChannel = { channelId ->
-                    receiver.stopPlayback()
-                    browse.openChannel(channelId)
+                    // Only leave the video for a channel that exists; before the page loads there's none.
+                    if (channelId.isNotBlank()) {
+                        receiver.stopPlayback()
+                        browse.openChannel(channelId)
+                    }
                 },
                 onDownload = onDownload,
                 onStop = receiver::stopPlayback,
@@ -134,12 +183,19 @@ internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, browse: TvBrowseMo
         } else if (signingIn) {
             TvSignInScreen(openSignIn, onClose = { signingIn = false })
         } else {
-            TvBrowse(browse, link, account, accountPhoto, settings, version, onPlay = play, onForgetPhones = receiver.server::forgetPhones,
+            TvBrowse(browse, link, account, accountPhoto, settings, version, onPlay = play,
+                onPlayNext = { card -> playNext = playNext + card },
+                onForgetPhones = receiver.server::forgetPhones,
                 onSignOut = onSignOut, onSignIn = { signingIn = true }, onOpenDownloads = onOpenDownloads, onExit = onExit)
             if (tvUpdateWaiting()) TvUpdatePanel()
         }
     }
 }
+
+/** The snapshot without the fields that change on every tick, for screens that don't show them. */
+internal fun withoutPosition(snapshot: PlaybackSnapshot): PlaybackSnapshot =
+    snapshot.copy(positionMs = 0L, bufferedPositionMs = 0L, diagnostics = PlaybackDiagnostics(), discontinuityEpoch = 0L,
+        subtitleCues = emptyList())
 
 /** Playlists and Shorts play in order; anything else is followed by its recommendations. */
 internal fun playQueue(card: TvCard, list: List<TvCard>): List<TvCard> = when {
@@ -156,12 +212,17 @@ private val NO_RELATED by lazy {
 @Composable
 private fun PlayerScreen(
     snapshot: PlaybackSnapshot,
+    live: () -> PlaybackSnapshot,
     nowPlaying: TvNowPlaying?,
     engine: PlaybackApi,
     player: TvPlayerSession,
     chat: LiveChatViewModel,
+    captions: TvCaptionStyleStore,
     canSkip: Boolean,
     related: TvListModel,
+    nextUp: TvCard?,
+    waitingForNext: Boolean,
+    onPlayNext: (TvCard) -> Unit,
     onSkip: (Boolean) -> Unit,
     onPlayCard: (TvCard, List<TvCard>) -> Unit,
     onOpenChannel: (String) -> Unit,
@@ -171,6 +232,7 @@ private fun PlayerScreen(
     val video by player.video.state.collectAsStateWithLifecycle()
     val chatState by chat.uiState.collectAsStateWithLifecycle()
     val sleep by player.sleep.collectAsStateWithLifecycle()
+    val captionStyle by captions.style.collectAsStateWithLifecycle()
     var panel by remember { mutableStateOf<TvPanel?>(null) }
     /** The settings row last opened, so going back lands on it again. */
     var settingsReturn by remember { mutableStateOf<String?>(null) }
@@ -199,6 +261,22 @@ private fun PlayerScreen(
         // The controls compose a frame later than this effect runs: retry until focus lands.
         if (panel == null) requestFocusSoon(if (controlsVisible) playFocus else screenFocus)
     }
+    // A failed video brings the controls up, where the error and Try again are.
+    LaunchedEffect(snapshot.error) { if (snapshot.error != null) controlsVisible = true }
+    // Up next, as on YouTube TV: a countdown that Back or Cancel stops.
+    var upNextCancelled by remember(snapshot.videoId) { mutableStateOf(false) }
+    val showUpNext = nextUp != null && !upNextCancelled
+    val showEnd = snapshot.ended && !showUpNext && !waitingForNext
+    LaunchedEffect(showUpNext, showEnd) { if (showUpNext || showEnd) { controlsVisible = false; panel = null } }
+    // Left and right with the controls hidden add up, and seek once the presses stop.
+    var pendingSeek by remember { mutableStateOf(0L) }
+    var seekPresses by remember { mutableIntStateOf(0) }
+    LaunchedEffect(seekPresses) {
+        if (pendingSeek == 0L) return@LaunchedEffect
+        delay(HIDDEN_SEEK_SETTLE_MS)
+        engine.seekRelative(pendingSeek)
+        pendingSeek = 0L
+    }
     LaunchedEffect(video.notice) {
         if (video.notice != null) {
             delay(NOTICE_MS)
@@ -216,7 +294,9 @@ private fun PlayerScreen(
     }
     BackHandler {
         when {
+            showUpNext -> upNextCancelled = true
             panel == TvPanel.Comments && player.video.closeReplies() -> {}
+            panel == TvPanel.CaptionStyle -> openPanel(TvPanel.Captions)
             panel in SETTINGS_CHILDREN -> openPanel(TvPanel.Settings)
             panel != null -> openPanel(null)
             controlsVisible -> controlsVisible = false
@@ -246,10 +326,14 @@ private fun PlayerScreen(
                     Key.MediaNext -> { if (canSkip) onSkip(true); true }
                     Key.MediaPrevious -> { if (canSkip) onSkip(false); true }
                     // With the controls up, the D-pad moves between them; the scrubber seeks.
-                    else -> if (controlsVisible || panel != null) false else {
+                    else -> if (controlsVisible || panel != null || showUpNext || showEnd) false else {
                         val handled = when (event.key) {
-                            Key.DirectionLeft -> { engine.seekRelative(-seekStep(event.nativeKeyEvent.repeatCount)); true }
-                            Key.DirectionRight -> { engine.seekRelative(seekStep(event.nativeKeyEvent.repeatCount)); true }
+                            Key.DirectionLeft, Key.DirectionRight -> {
+                                val step = seekStep(event.nativeKeyEvent.repeatCount)
+                                pendingSeek += if (event.key == Key.DirectionLeft) -step else step
+                                seekPresses++
+                                true
+                            }
                             // OK brings the controls up and leaves the video playing, as on YouTube TV.
                             Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> true
                             Key.DirectionUp, Key.DirectionDown -> true
@@ -276,9 +360,26 @@ private fun PlayerScreen(
             .focusable(),
     ) {
         VideoSurface(engine)
-        if (statsVisible) StatsOverlay(snapshot, Modifier.align(Alignment.TopStart).padding(32.dp))
-        if (snapshot.isBuffering && !controlsVisible) {
-            Text("Loading…", color = TvColors.Text, modifier = Modifier.align(Alignment.Center))
+        TvCaptionLayer(live, captionStyle, lifted = controlsVisible || panel != null)
+        if (statsVisible) StatsOverlay(live, Modifier.align(Alignment.TopStart).padding(32.dp))
+        // A spinner whenever the video is loading or catching up, controls or not.
+        if (snapshot.isBuffering && snapshot.error == null) {
+            androidx.compose.material3.CircularProgressIndicator(
+                color = TvColors.Text, strokeWidth = 4.dp,
+                modifier = Modifier.align(Alignment.Center).size(56.dp),
+            )
+        }
+        if (pendingSeek != 0L) {
+            Text((if (pendingSeek > 0) "+" else "−") + PlayerUi.formatTime(kotlin.math.abs(pendingSeek)),
+                color = TvColors.Text, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 18.dp, vertical = 8.dp))
+        }
+        if (showUpNext && nextUp != null) {
+            UpNextCard(nextUp, onPlay = { onPlayNext(nextUp) }, onCancel = { upNextCancelled = true },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(48.dp))
+        } else if (showEnd) {
+            EndCard(onReplay = { engine.seekTo(0L); engine.playOrPause() }, onBack = onStop, modifier = Modifier.align(Alignment.Center))
         }
         AnimatedVisibility(
             visible = controlsVisible && panel == null,
@@ -287,6 +388,7 @@ private fun PlayerScreen(
         ) {
             PlayerControls(
                 snapshot = snapshot,
+                live = live,
                 engine = engine,
                 video = video,
                 onPanel = openPanel,
@@ -314,7 +416,7 @@ private fun PlayerScreen(
             exit = fadeOut(tween(FADE_OUT_MS)),
         ) {
           shownPanel?.let { open ->
-            PlayerPanel(open, snapshot, video, sleep, engine, player, statsVisible, settingsReturn, chatState,
+            PlayerPanel(open, snapshot, video, sleep, engine, player, statsVisible, settingsReturn, chatState, captionStyle, captions::set,
                 onStats = { statsVisible = !statsVisible; openPanel(null) }, onPanel = openPanel,
                 onOpenChannel = onOpenChannel,
                 onDownload = {
@@ -350,6 +452,8 @@ private fun PlayerPanel(
     statsVisible: Boolean,
     settingsReturn: String?,
     chat: LiveChatUiState,
+    captionStyle: SubtitleStyle,
+    onCaptionStyle: (SubtitleStyle) -> Unit,
     onStats: () -> Unit,
     onPanel: (TvPanel?) -> Unit,
     onOpenChannel: (String) -> Unit,
@@ -376,6 +480,12 @@ private fun PlayerPanel(
         TvPanel.Chat -> TvSidePanel("Live chat", wide = true) { TvChatList(chat) }
         TvPanel.Channel -> TvSidePanel(video.video?.channel.orEmpty()) {
             val channelId = video.video?.channelId.orEmpty()
+            // Before the video's page is in there's no channel to open yet: read it again.
+            if (channelId.isBlank()) {
+                LaunchedEffect(Unit) { player.video.retry() }
+                Text(if (video.loadFailed) "Couldn't load this channel." else "Loading the channel…", color = TvColors.Muted)
+                return@TvSidePanel
+            }
             TvPanelList(listOf(
                 TvPanelRow(GO_TO_CHANNEL, "Go to channel"),
                 TvPanelRow(SUBSCRIBE, if (video.subscribed) "Unsubscribe" else "Subscribe"),
@@ -387,6 +497,7 @@ private fun PlayerPanel(
             }
         }
         TvPanel.Save -> TvSidePanel("Save to") {
+            LaunchedEffect(video.videoId) { player.video.openSaves() }
             val choices = video.saveChoices
             when {
                 video.savesFailed -> Text("Couldn't load your playlists.", color = TvColors.Muted)
@@ -404,13 +515,23 @@ private fun PlayerPanel(
                 when (row.key) {
                     STATS -> onStats()
                     DOWNLOAD -> onDownload()
+                    LOOP -> engine.setLoopMode(toggledLoop(snapshot.loopMode))
                     else -> onPanel(TvPanel.valueOf(row.key))
                 }
             }
         }
         TvPanel.Quality -> TvSidePanel("Quality") { TvPanelList(qualityRows(snapshot), onPick = pick) }
         TvPanel.Speed -> TvSidePanel("Playback speed") { TvPanelList(speedRows(snapshot), onPick = pick) }
-        TvPanel.Captions -> TvSidePanel("Captions") { TvPanelList(captionRows(snapshot), onPick = pick) }
+        TvPanel.Captions -> TvSidePanel("Captions") {
+            TvPanelList(captionRows(snapshot) + TvPanelRow(CAPTION_STYLE, "Caption style", captionSummary(captionStyle))) { row ->
+                if (row.key == CAPTION_STYLE) onPanel(TvPanel.CaptionStyle) else pick(row)
+            }
+        }
+        TvPanel.CaptionStyle -> TvSidePanel("Caption style") {
+            TvPanelList(captionStyleRows(captionStyle), focusKey = CaptionSetting.Size.name) { row ->
+                onCaptionStyle(stepCaptionStyle(captionStyle, CaptionSetting.valueOf(row.key)))
+            }
+        }
         TvPanel.Audio -> TvSidePanel("Audio track") { TvPanelList(audioRows(snapshot), onPick = pick) }
         TvPanel.Sleep -> TvSidePanel("Sleep timer") { TvPanelList(sleepRows(sleep), onPick = pick) }
     }
@@ -440,6 +561,7 @@ private fun VideoSurface(engine: PlaybackApi) {
 @Composable
 private fun PlayerControls(
     snapshot: PlaybackSnapshot,
+    live: () -> PlaybackSnapshot,
     engine: PlaybackApi,
     video: TvVideoState,
     onPanel: (TvPanel) -> Unit,
@@ -488,20 +610,8 @@ private fun PlayerControls(
                 .padding(top = 44.dp, bottom = 14.dp),
         ) {
           Column(Modifier.padding(horizontal = 48.dp)) {
-            Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.Bottom) {
-                val chapter = currentChapter(snapshot)
-                Text(
-                    PlayerUi.formatTime(snapshot.positionMs) + (chapter?.let { " • $it" } ?: ""),
-                    color = TvColors.Text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-                )
-                Text(
-                    if (snapshot.isLive) "LIVE" else PlayerUi.formatTime(snapshot.durationMs),
-                    color = if (snapshot.isLive) TvColors.Red else TvColors.Text,
-                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
-                )
-            }
-            Scrubber(snapshot, engine, Modifier.focusRequester(playFocus))
+            TimeRow(live)
+            Scrubber(live, engine, Modifier.focusRequester(playFocus))
             Spacer(Modifier.height(12.dp))
             Box(Modifier.fillMaxWidth()) {
                 Row(
@@ -540,8 +650,9 @@ private fun PlayerControls(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    FrostGroup {
-                        // Pressed thumbs fill in white, as on YouTube, instead of turning red.
+                    FrostGroup(Modifier.alpha(if (video.busy) 0.55f else 1f)) {
+                        // Pressed thumbs fill in white, as on YouTube, instead of turning red;
+                        // dimmed while YouTube is still answering.
                         FrostButton(if (video.rating == VideoRating.Like) AppIcon.LikeFilled else AppIcon.Like, "Like", onLike, size = 44.dp, glass = false)
                         FrostButton(if (video.rating == VideoRating.Dislike) AppIcon.DislikeFilled else AppIcon.Dislike, "Dislike", onDislike, size = 44.dp, glass = false)
                         FrostButton(AppIcon.Comment, if (hasChat) "Live chat" else "Comments",
@@ -560,7 +671,11 @@ private fun PlayerControls(
                 }
             }
             snapshot.error?.let {
-                Text(it, color = TvColors.Red, modifier = Modifier.padding(top = 12.dp), maxLines = 2)
+                Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(it, color = TvColors.Red, maxLines = 2, modifier = Modifier.weight(1f, fill = false))
+                    Spacer(Modifier.width(14.dp))
+                    FrostPill("Try again", engine::retry)
+                }
             }
           }
             Text(
@@ -575,6 +690,66 @@ private fun PlayerControls(
     }
 }
 
+/** Time and chapter over the bar: the only text that changes as the video plays. */
+@Composable
+private fun TimeRow(live: () -> PlaybackSnapshot) {
+    val snapshot = live()
+    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.Bottom) {
+        val chapter = currentChapter(snapshot)
+        Text(
+            PlayerUi.formatTime(snapshot.positionMs) + (chapter?.let { " • $it" } ?: ""),
+            color = TvColors.Text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+        )
+        Text(
+            if (snapshot.isLive) "LIVE" else PlayerUi.formatTime(snapshot.durationMs),
+            color = if (snapshot.isLive) TvColors.Red else TvColors.Text,
+            style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+/** Up next with a countdown, as on YouTube TV; it plays when the count runs out. */
+@Composable
+private fun UpNextCard(card: TvCard, onPlay: () -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier) {
+    var left by remember(card.key) { mutableIntStateOf(UP_NEXT_SECONDS) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(card.key) {
+        requestFocusSoon(focus)
+        while (left > 0) { delay(1_000L); left-- }
+        onPlay()
+    }
+    Column(modifier.width(380.dp).background(Color(0xE6181818), RoundedCornerShape(18.dp)).padding(18.dp)) {
+        Text("Up next in $left", style = MaterialTheme.typography.titleSmall, color = TvColors.Muted)
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Artwork(card.artwork, Modifier.width(140.dp).height(79.dp).clip(RoundedCornerShape(8.dp)))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(card.title, style = MaterialTheme.typography.titleSmall, color = TvColors.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                card.author?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = TvColors.Muted, maxLines = 1) }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FrostPill("Play now", onPlay, Modifier.focusRequester(focus))
+            FrostPill("Cancel", onCancel)
+        }
+    }
+}
+
+/** The end of a video with nothing to play next. */
+@Composable
+private fun EndCard(onReplay: () -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { requestFocusSoon(focus) }
+    Row(modifier.background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(18.dp)).padding(18.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        FrostPill("Replay", onReplay, Modifier.focusRequester(focus))
+        FrostPill("Back", onBack)
+    }
+}
+
 private fun currentChapter(snapshot: PlaybackSnapshot): String? =
     snapshot.chapters.lastOrNull { it.startSeconds * 1000L <= snapshot.positionMs }?.title?.takeIf { it.isNotBlank() }
 
@@ -583,7 +758,8 @@ private fun currentChapter(snapshot: PlaybackSnapshot): String? =
  * right seek (further the longer they are held), OK plays or pauses, down reaches the buttons.
  */
 @Composable
-private fun Scrubber(snapshot: PlaybackSnapshot, engine: PlaybackApi, modifier: Modifier = Modifier) {
+private fun Scrubber(live: () -> PlaybackSnapshot, engine: PlaybackApi, modifier: Modifier = Modifier) {
+    val snapshot = live()
     var focused by remember { mutableStateOf(false) }
     // Left and right move a target with a preview frame over it, as on YouTube TV; the video
     // jumps there once the presses stop, instead of seeking on every press.
@@ -620,7 +796,8 @@ private fun Scrubber(snapshot: PlaybackSnapshot, engine: PlaybackApi, modifier: 
                             true
                         }
                         Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                            target?.let { engine.seekTo(it); target = null } ?: engine.playOrPause()
+                            // Seeking now also restarts the settle wait, which then finds no target.
+                            target?.let { engine.seekTo(it); target = null; presses++ } ?: engine.playOrPause()
                             true
                         }
                         else -> false
@@ -730,8 +907,8 @@ private fun ProgressBar(snapshot: PlaybackSnapshot, thick: Boolean = false, head
 
 /** What the TV is actually doing, to compare buffering against other apps on the same TV. */
 @Composable
-private fun StatsOverlay(snapshot: PlaybackSnapshot, modifier: Modifier = Modifier) {
-    val lines = statsLines(snapshot)
+private fun StatsOverlay(live: () -> PlaybackSnapshot, modifier: Modifier = Modifier) {
+    val lines = statsLines(live())
     Column(
         modifier
             .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
@@ -761,6 +938,8 @@ internal fun statsLines(snapshot: PlaybackSnapshot): List<String> {
     )
 }
 
+private const val WARM_NEXT_MS = 20_000L
+private const val CAPTION_STYLE = "caption-style"
 private val SETTINGS_CHILDREN = setOf(TvPanel.Quality, TvPanel.Speed, TvPanel.Captions, TvPanel.Audio, TvPanel.Sleep)
 private const val NOTICE_MS = 3_000L
 /** How far the recommended row sits below: its label and the top of its thumbnails still show. */
@@ -777,3 +956,6 @@ private const val SUBSCRIBE = "subscribe"
 private const val FOCUS_TRIES = 60
 private const val CONTROLS_HIDE_MS = 5_000L
 private const val SEEK_STEP_MS = 10_000L
+private const val HIDDEN_SEEK_SETTLE_MS = 350L
+private const val UP_NEXT_SECONDS = 8
+private const val QUEUE_PREFETCH = 3

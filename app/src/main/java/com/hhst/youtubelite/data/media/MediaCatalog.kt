@@ -65,7 +65,28 @@ class MediaHomeRepository(private val client: MediaClient,
         }
     }
     override val filters = listOf("All", "Music", "Gaming", "Live", "News", "Sports")
+    /** The name of the first shelf on Home's first page: the one YouTube makes for you. */
+    @Volatile private var madeForYou: String? = null
+
+    /**
+     * Signed in, Home keeps only YouTube's "made for you" shelf (Matt, 2026-11-25): the later
+     * shelves (Trending, Music…) are the same for everyone and drowned the real picks.
+     * A later page with nothing left reads on, a few pages at most.
+     */
     override suspend fun loadHome(filter: String, continuation: String?): HomePage {
+        var page = loadHomePage(filter, continuation)
+        if (filter != "All" || !client.read { context, _ -> context.signedIn }) return page
+        if (continuation == null) madeForYou = firstShelf(page.items)
+        var hops = 0
+        while (true) {
+            val kept = keepShelf(page.items, madeForYou)
+            if (kept.isNotEmpty() || page.nextKey == null || hops >= MADE_FOR_YOU_HOPS) return page.copy(items = kept)
+            hops++
+            page = loadHomePage(filter, page.nextKey)
+        }
+    }
+
+    private suspend fun loadHomePage(filter: String, continuation: String?): HomePage {
         val catalog = HomeCatalog.forFilter(filter)
         val context = client.read { context, _ -> context }
         if (HomeDiscovery.owns(continuation)) {
@@ -94,7 +115,12 @@ class MediaHomeRepository(private val client: MediaClient,
                 if (cookie != null) MediaSession.rememberVisitorIdentity(homeContext.visitor, cookie, context.generation)
                 else MediaSession.rememberVisitor(page.visitor, context.generation)
             }
+            // YouTube's Home comes as shelves: the first is made for you, later ones are often
+            // general (Trending, Music…). Keep each video's shelf so screens can show them apart.
+            val shelfOf = homeShelfTitles(page.groups.map { group -> group.title to group.items.map { it.id } })
             val feed = homeFeed(page.items).map { item ->
+                if (item is FeedItem.Video) item.copy(group = shelfOf[item.id]) else item
+            }.map { item ->
                 if (item is FeedItem.Video && context.signedIn) item.copy(
                     dontRecommendToken = page.items.firstOrNull { it.id == item.id }?.dontRecommendToken(),
                     feedbackGeneration = context.generation,
@@ -144,6 +170,24 @@ class MediaHomeRepository(private val client: MediaClient,
  * its first video so rails keep identity across refreshes and appended rails cannot collide.
  * Mix/Post containers appear only when the parse produced one — never fabricated.
  */
+private const val MADE_FOR_YOU_HOPS = 3
+
+/** The shelf name of the first video that has one. */
+internal fun firstShelf(items: List<FeedItem>): String? = items.firstNotNullOfOrNull { (it as? FeedItem.Video)?.group }
+
+/** Everything but videos from a shelf other than [shelf]; with no known shelf, everything. */
+internal fun keepShelf(items: List<FeedItem>, shelf: String?): List<FeedItem> =
+    if (shelf == null) items else items.filter { it !is FeedItem.Video || it.group == null || it.group == shelf }
+
+/** Each video id to the title of the first shelf that holds it. */
+internal fun homeShelfTitles(groups: List<Pair<String?, List<String?>>>): Map<String, String> = buildMap {
+    groups.forEach { (title, ids) ->
+        val name = title?.trim().orEmpty()
+        if (name.isEmpty()) return@forEach
+        ids.forEach { id -> if (id != null && id !in this) put(id, name) }
+    }
+}
+
 internal fun homeFeed(items: List<MediaItem>): List<FeedItem> {
     val feed = ArrayList<FeedItem>()
     var rail = ArrayList<FeedItem.Video>()

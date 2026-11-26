@@ -79,7 +79,12 @@ class PlayerDataSource private constructor(
     fun vodHlsMedia(plan: MediaRequestPlan?): CacheDataSource? = plan?.let { hlsMediaFactory?.invoke(it) }
     companion object {
         private const val CACHE_DIR = "player"
-        private const val CACHE_BYTES = 512L * 1024 * 1024
+        /**
+         * Played video kept for rewinds and replays. It was 512 MB, which is most of what
+         * people saw as "cache" in Android's storage screen; 160 MB still holds several
+         * videos at 1080p.
+         */
+        private const val CACHE_BYTES = 160L * 1024 * 1024
         private const val CACHE_SINK_FRAGMENT_BYTES = 2L * 1024 * 1024
         const val PROGRESSIVE_LOAD_INTERVAL_BYTES = 128 * 1024
 
@@ -100,6 +105,15 @@ class PlayerDataSource private constructor(
             val legacy = File(context.noBackupFilesDir, CACHE_DIR)
             if (legacy.isDirectory && !legacy.renameTo(directory)) legacy.deleteRecursively()
             return directory
+        }
+
+        /**
+         * Empties the played-video cache. Spans in use by playback are skipped by
+         * SimpleCache and go on their own later.
+         */
+        fun clearCache(context: Context) {
+            val cache = getCache(context)
+            cache.keys.toList().forEach { key -> runCatching { cache.removeResource(key) } }
         }
 
         /** Builds the cache off the main thread before playback needs it. */

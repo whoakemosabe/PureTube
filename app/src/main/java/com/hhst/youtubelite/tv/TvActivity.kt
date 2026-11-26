@@ -39,6 +39,8 @@ import com.hhst.youtubelite.watch.chat.MediaLiveChatGateway
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
+import com.hhst.youtubelite.core.JsonCache
 
 /**
  * Puretube on a TV: the Google TV launcher opens this instead of the phone Home. It browses
@@ -54,6 +56,7 @@ class TvActivity : ComponentActivity() {
     private val accountPhoto = MutableStateFlow<String?>(null)
     private val prefs: ExtensionManager by inject()
     private lateinit var settings: ExtensionTvSettings
+    private val captions: TvCaptionStyleStore by lazy { CachedCaptionStyle(get<JsonCache>()) }
     private val chat: LiveChatViewModel by lazy {
         ViewModelProvider(this, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -67,6 +70,7 @@ class TvActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         (application as App).startMediaRuntime()
+        com.hhst.youtubelite.player.datasource.CodecCapabilities.preferHardware = true
         receiver = TvReceiver(this, engine, AndroidTvLinkStore(this, "tv"))
         player = TvPlayerSession(lifecycleScope, engine, RepositoryTvVideoOps(get<ContentRepositories>()), getKoin().getOrNull<PlaybackWatchReporting>())
         browse = TvBrowseModels(lifecycleScope, RepositoryTvBrowseSource(get<ContentRepositories>()) { FeedVisibility.fromPreferences(prefs) })
@@ -96,7 +100,7 @@ class TvActivity : ComponentActivity() {
             val photo by accountPhoto.collectAsStateWithLifecycle()
             TvTheme {
                 TvApp(receiver = receiver, engine = engine, browse = browse, player = player, account = signedInAs, accountPhoto = photo,
-                    settings = settings, version = Updater.installedVersion(this), chat = chat,
+                    settings = settings, version = Updater.installedVersion(this), chat = chat, captions = captions,
                     onSignOut = MediaSession::signOut,
                     openSignIn = { TvSignInSession(MediaSignInService(get<OkHttpClient>(), PreferencesAuthStore(this))) },
                     onOpenDownloads = { DownloadUi.openManager(this) },
@@ -120,15 +124,30 @@ class TvActivity : ComponentActivity() {
         TvHomeRows.videoOf(intent)?.let { receiver.playLocal(it, "", null) }
     }
 
-    /** Puts fresh Home picks and half-watched videos on the Google TV home screen. */
+    private var homeRowsAt = 0L
+
+    /**
+     * Puts fresh Home picks and half-watched videos on the Google TV home screen. It reuses
+     * the lists the TV's own Home reads (no second fetch) and runs at most every half hour.
+     */
     private fun refreshHomeRows() {
-        val source = RepositoryTvBrowseSource(get<ContentRepositories>()) { FeedVisibility.fromPreferences(prefs) }
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (homeRowsAt != 0L && now - homeRowsAt < HOME_ROWS_EVERY_MS) return
+        homeRowsAt = now
         lifecycleScope.launch {
-            val home = runCatching { source.home(null).cards }.getOrDefault(emptyList())
-            val watching = if (source.signedIn) runCatching { source.history(null).cards.filter(TvHomeRows::inProgress) }.getOrDefault(emptyList())
-                else emptyList()
-            TvHomeRows.publish(this@TvActivity, home, watching)
+            val home = settled(browse.list(com.hhst.youtubelite.tv.browse.TvSection.Home))
+            val watching = if (browse.signedIn) settled(browse.list(com.hhst.youtubelite.tv.browse.TvSection.History))
+                .filter(TvHomeRows::inProgress) else emptyList()
+            if (home.isNotEmpty() || watching.isNotEmpty()) TvHomeRows.publish(this@TvActivity, home, watching)
         }
+    }
+
+    /** The list's first page once it is in, or nothing if it fails or takes too long. */
+    private suspend fun settled(model: com.hhst.youtubelite.tv.browse.TvListModel): List<com.hhst.youtubelite.tv.browse.TvCard> {
+        model.loadFirst()
+        return kotlinx.coroutines.withTimeoutOrNull(HOME_ROWS_WAIT_MS) {
+            model.state.first { !it.loading && (it.cards.isNotEmpty() || it.failed || it.done) }
+        }?.cards.orEmpty()
     }
 
     override fun onDestroy() {
@@ -143,4 +162,14 @@ class TvActivity : ComponentActivity() {
         player.stop()
         super.onStop()
     }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        // In the background, give the thumbnails back, so Android keeps the app around and
+        // the next open is warm instead of a cold start.
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) com.hhst.youtubelite.core.YoutubeThumbnail.clearMemory()
+    }
 }
+
+private const val HOME_ROWS_EVERY_MS = 30 * 60_000L
+private const val HOME_ROWS_WAIT_MS = 20_000L

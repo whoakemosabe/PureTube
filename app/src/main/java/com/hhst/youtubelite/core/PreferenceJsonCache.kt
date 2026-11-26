@@ -8,6 +8,9 @@ import org.json.JSONObject
 class PreferenceJsonCache(
     private val kv: PreferenceStore,
 ) : JsonCache {
+    private companion object {
+        val UNTIL = Regex("\"until\"\\s*:\\s*(-?\\d+)")
+    }
 
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
 
@@ -53,6 +56,24 @@ class PreferenceJsonCache(
             AppLog.event(AppLog.Category.STORAGE, "cache_write_failed",
                 mapOf("namespace" to key.substringBefore(':').take(32), "value_type" to value.javaClass.simpleName), e, critical = true)
         }
+    }
+
+    /**
+     * Drops every expired entry. Entries were removed only when read again, so the stream
+     * and metadata of each video watched once stayed on disk for good; this runs at start.
+     * Returns how many it removed.
+     */
+    fun sweepExpired(now: Long = System.currentTimeMillis()): Int {
+        var removed = 0
+        kv.keys().forEach { key ->
+            val raw = kv.readString(key) ?: return@forEach
+            val until = UNTIL.find(raw)?.groupValues?.get(1)?.toLongOrNull()
+            if (until == null || until <= now) {
+                kv.remove(key)
+                removed++
+            }
+        }
+        return removed
     }
 
     override fun invalidate(key: String) {

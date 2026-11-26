@@ -1,0 +1,25 @@
+# Puretube's own startup profile. Sideloaded APKs get no profile from the Play Store, so
+# without this the TV and phone run these paths interpreted or JIT-compiled at first,
+# which shows as a slow start and stutter on the first scroll. Android compiles the
+# classes and methods listed here ahead of time when the APK is installed.
+# Compose and the other AndroidX libraries ship their own profiles; these rules cover ours.
+HSPLcom/hhst/youtubelite/App;->**(**)**
+Lcom/hhst/youtubelite/App;
+HSPLcom/hhst/youtubelite/tv/**;->**(**)**
+Lcom/hhst/youtubelite/tv/**;
+HSPLcom/hhst/youtubelite/tv/browse/**;->**(**)**
+Lcom/hhst/youtubelite/tv/browse/**;
+HSPLcom/hhst/youtubelite/home/**;->**(**)**
+Lcom/hhst/youtubelite/home/**;
+HSPLcom/hhst/youtubelite/player/**;->**(**)**
+Lcom/hhst/youtubelite/player/**;
+HSPLcom/hhst/youtubelite/ui/**;->**(**)**
+Lcom/hhst/youtubelite/ui/**;
+HSPLcom/hhst/youtubelite/core/**;->**(**)**
+Lcom/hhst/youtubelite/core/**;
+HSPLcom/hhst/youtubelite/data/media/**;->**(**)**
+Lcom/hhst/youtubelite/data/media/**;
+HSPLcom/hhst/youtubelite/extractor/**;->**(**)**
+Lcom/hhst/youtubelite/extractor/**;
+HSPLcom/hhst/youtubelite/di/**;->**(**)**
+Lcom/hhst/youtubelite/di/**;

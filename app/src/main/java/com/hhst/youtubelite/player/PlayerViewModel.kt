@@ -1876,7 +1876,7 @@ class PlayerViewModel(
     companion object {
         private const val SEEK_ACCUM_WINDOW_MS = 600L
         private const val KEY_RESIZE = "player:resize_mode"
-        private const val KEY_SUBTITLE_STYLE = "player:subtitle_style"
+        internal const val KEY_SUBTITLE_STYLE = "player:subtitle_style"
 
         /** Cast handoff: never wait on a stuck load forever. */
         private const val PREPARED_WAIT_TIMEOUT_MS = 30_000L

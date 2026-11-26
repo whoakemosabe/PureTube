@@ -1,5 +1,7 @@
 package com.hhst.youtubelite.tv
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.widthIn
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -109,7 +111,7 @@ internal fun FrostButton(
 ) {
     var focused by remember { mutableStateOf(false) }
     FrostShell(onClick, modifier.onFocusChanged { focused = it.isFocused }.semantics { this.contentDescription = contentDescription },
-        size, glass) {
+        size, glass, label = contentDescription.takeIf { focused }) {
         AppIcon(
             icon,
             Modifier.fillMaxSize().padding(size * 0.25f),
@@ -119,7 +121,7 @@ internal fun FrostButton(
 }
 
 @Composable
-private fun FrostShell(onClick: () -> Unit, modifier: Modifier, size: Dp, glass: Boolean, content: @Composable () -> Unit) {
+private fun FrostShell(onClick: () -> Unit, modifier: Modifier, size: Dp, glass: Boolean, label: String? = null, content: @Composable () -> Unit) {
     Surface(
         onClick = onClick,
         modifier = modifier.size(size),
@@ -139,6 +141,7 @@ private fun FrostShell(onClick: () -> Unit, modifier: Modifier, size: Dp, glass:
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
     ) {
         content()
+        if (label != null) FocusLabel(label)
     }
 }
 
@@ -181,14 +184,37 @@ internal fun FrostPill(
 
 /** The channel's picture in a glass ring, far left of the player's bottom row. */
 @Composable
-internal fun FrostAvatar(artwork: String?, contentDescription: String, onClick: () -> Unit, modifier: Modifier = Modifier) =
-    FrostShell(onClick, modifier.semantics { this.contentDescription = contentDescription }, 48.dp, glass = true) {
+internal fun FrostAvatar(artwork: String?, contentDescription: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    var focused by remember { mutableStateOf(false) }
+    // Focused, the channel's name shows small above the picture.
+    FrostShell(onClick, modifier.onFocusChanged { focused = it.isFocused }.semantics { this.contentDescription = contentDescription },
+        48.dp, glass = true, label = contentDescription.takeIf { focused && it.isNotBlank() }) {
         if (artwork.isNullOrBlank()) {
             AppIcon(AppIcon.You, Modifier.fillMaxSize().padding(12.dp), color = LocalContentColor.current)
         } else {
             Artwork(artwork, Modifier.fillMaxSize().padding(4.dp).clip(CircleShape))
         }
     }
+}
+
+/**
+ * The name of a round button, in small text just above it while it has focus, as the
+ * YouTube TV player labels its icons. It floats, so the row around it doesn't move.
+ */
+@Composable
+private fun FocusLabel(text: String) {
+    val lift = with(androidx.compose.ui.platform.LocalDensity.current) { -LABEL_LIFT.roundToPx() }
+    androidx.compose.ui.window.Popup(
+        alignment = Alignment.TopCenter,
+        offset = androidx.compose.ui.unit.IntOffset(0, lift),
+        properties = androidx.compose.ui.window.PopupProperties(focusable = false, clippingEnabled = false),
+    ) {
+        Text(text, style = MaterialTheme.typography.labelLarge, color = TvColors.Text, maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 320.dp).background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 10.dp, vertical = 4.dp))
+    }
+}
 
 /** A pill of glass holding several [FrostButton]s, like the YouTube TV player's action groups. */
 @Composable
@@ -203,3 +229,6 @@ internal fun FrostGroup(modifier: Modifier = Modifier, content: @Composable RowS
         content = content,
     )
 }
+
+/** How far above its button's top a focus label sits: its own height plus a small gap. */
+private val LABEL_LIFT = 40.dp

@@ -11,6 +11,7 @@ import com.hhst.youtubelite.channel.domain.ChannelVideo
 import com.hhst.youtubelite.explore.domain.ExploreCategory
 import com.hhst.youtubelite.search.domain.SearchChannel
 import com.hhst.youtubelite.search.domain.SearchFilters
+import com.hhst.youtubelite.data.media.SearchRowSet
 import com.hhst.youtubelite.search.domain.SearchResult
 import com.hhst.youtubelite.shorts.domain.ShortItem
 import kotlinx.coroutines.async
@@ -40,6 +41,10 @@ data class TvCard(
     val short: Boolean = false,
     /** A subscribed channel with videos you haven't seen. */
     val fresh: Boolean = false,
+    /** The channel a video belongs to, for its menu's "Go to channel". */
+    val ownerId: String? = null,
+    /** The YouTube Home shelf this came in, so TV Home can show YouTube's shelves by name. */
+    val group: String? = null,
 )
 
 /** One page of tiles and the cursor for the next, if the list goes on. */
@@ -93,7 +98,19 @@ internal interface TvChannelReads {
 internal interface TvBrowseSource {
     val signedIn: Boolean
     suspend fun home(cursor: String?): TvPage
+    /** Home's chips (All, Music, Gaming…), the first being everything. */
+    val homeFilters: List<String> get() = emptyList()
+    suspend fun home(filter: String, cursor: String?): TvPage = home(cursor)
     suspend fun subscriptions(cursor: String?): TvPage
+    suspend fun subscriptions(filter: SubscriptionsFilter, cursor: String?): TvPage = subscriptions(cursor)
+    suspend fun search(query: String, filters: SearchFilters, cursor: String?): TvPage = search(query, cursor)
+    /** Your recent searches, then YouTube's suggestions for [query]. */
+    suspend fun searchRows(query: String): SearchRowSet = SearchRowSet(emptyList(), emptyList())
+    fun recordSearch(query: String) {}
+    /** Server-confirmed: returns only after Watch later took the video. */
+    suspend fun saveToWatchLater(videoId: String) {}
+    /** Tells YouTube you're not interested; false when the tile can't say that (no account, not a feed tile). */
+    suspend fun notInterested(card: TvCard): Boolean = false
     suspend fun shorts(cursor: String?): TvPage
     /** The Explore page for one category; its shelves come flattened into one grid. */
     suspend fun explore(category: String, cursor: String?): TvPage
@@ -115,19 +132,47 @@ internal class RepositoryTvBrowseSource(
 ) : TvBrowseSource {
     override val signedIn: Boolean get() = MediaSession.signedIn()
 
-    override suspend fun home(cursor: String?): TvPage {
-        val page = repos.home.loadHome("All", cursor)
-        return TvPage(page.items.filter(visibility()::shows).flatMap(::cardsOf), page.nextKey)
+    override suspend fun home(cursor: String?): TvPage = home(HOME_ALL, cursor)
+
+    override val homeFilters: List<String> get() = repos.home.filters
+
+    /** Home's videos by key, so a tile's "Not interested" can find the feed item it came from. */
+    private val feedVideos = java.util.concurrent.ConcurrentHashMap<String, FeedItem.Video>()
+
+    override suspend fun home(filter: String, cursor: String?): TvPage {
+        val page = repos.home.loadHome(filter, cursor)
+        val items = page.items.filter(visibility()::shows)
+        items.filterIsInstance<FeedItem.Video>().forEach { feedVideos["v-${it.id}"] = it }
+        return TvPage(items.flatMap(::cardsOf), page.nextKey)
     }
 
-    override suspend fun subscriptions(cursor: String?): TvPage {
-        val page = repos.subscriptions.subscriptions(SubscriptionsFilter.All, cursor)
+    override suspend fun subscriptions(cursor: String?): TvPage = subscriptions(SubscriptionsFilter.All, cursor)
+
+    override suspend fun subscriptions(filter: SubscriptionsFilter, cursor: String?): TvPage {
+        val page = repos.subscriptions.subscriptions(filter, cursor)
         val shows = visibility()
         return TvPage(page.items.filterNot { it.short }.filter(shows::shows).map(::videoCard), page.nextKey)
     }
 
-    override suspend fun search(query: String, cursor: String?): TvPage {
-        val page = if (cursor == null) repos.search.search(query) else repos.search.next(query, SearchFilters(), cursor)
+    override suspend fun searchRows(query: String): SearchRowSet = repos.suggestions.rows(query)
+    override fun recordSearch(query: String) = repos.suggestions.record(query)
+
+    override suspend fun saveToWatchLater(videoId: String) = repos.saves.setContaining(WATCH_LATER, videoId, true)
+
+    override suspend fun notInterested(card: TvCard): Boolean {
+        val video = feedVideos[card.key] ?: return false
+        if (!signedIn) return false
+        val withMenu = repos.home.menu(video)
+        if (withMenu.notInterestedToken.isNullOrBlank()) return false
+        repos.home.feedback(withMenu, com.hhst.youtubelite.home.domain.FeedMenuAction.NotInterested)
+        feedVideos.remove(card.key)
+        return true
+    }
+
+    override suspend fun search(query: String, cursor: String?): TvPage = search(query, SearchFilters(), cursor)
+
+    override suspend fun search(query: String, filters: SearchFilters, cursor: String?): TvPage {
+        val page = if (cursor == null) repos.search.search(query, filters) else repos.search.next(query, filters, cursor)
         // Channels first, as YouTube shows them, then videos, Shorts and playlists.
         return TvPage(page.channels.map(::channelCard) + page.results.map(::searchCard) +
             page.shorts.map { searchCard(it).copy(key = "s-${it.id}", short = true) } + page.playlists.map(::playlistCard), page.nextCursor)
@@ -136,6 +181,8 @@ internal class RepositoryTvBrowseSource(
     private val shortsFeed by lazy { repos.shorts(null, null) }
 
     override suspend fun shorts(cursor: String?): TvPage {
+        // Hide Shorts empties the Shorts section and shelf too.
+        if (visibility().hideShorts) return TvPage(emptyList())
         var page = if (cursor == null) shortsFeed.shorts() else shortsFeed.shortsNext(cursor)
         // The feed's first answer can be an empty seed with only a cursor; read on to real Shorts.
         var skips = 0
@@ -235,7 +282,8 @@ internal class RepositoryTvBrowseSource(
     companion object {
         const val WATCH_LATER = "WL"
         private const val EMPTY_SHORTS_SKIPS = 2
-        private const val HYDRATE_PARALLEL = 4
+        private const val HYDRATE_PARALLEL = 3
+        const val HOME_ALL = "All"
         private const val HYDRATE_TIMEOUT_MS = 8_000L
         /** Keys of playlist entries; a list of only these plays in order. */
         const val ENTRY_PREFIX = "e-"
@@ -265,14 +313,15 @@ internal class RepositoryTvBrowseSource(
             key = "v-${video.id}", title = video.title,
             subtitle = listOf(video.author, video.metadata).filter(String::isNotBlank).joinToString(" • "),
             artwork = video.artwork, videoId = video.id, author = video.author, duration = video.duration,
-            progress = video.progress, live = video.live,
+            progress = video.progress, live = video.live, ownerId = video.channelId.ifBlank { null },
+            group = video.group,
         )
 
         internal fun searchCard(result: SearchResult) = TvCard(
             key = "v-${result.id}", title = result.title,
             subtitle = listOf(result.channel, result.views, result.age).filter(String::isNotBlank).joinToString(" • "),
             artwork = result.artwork, videoId = result.id, author = result.channel, duration = result.duration,
-            progress = result.progress,
+            progress = result.progress, ownerId = result.channelId.ifBlank { null },
         )
 
         internal fun historyCard(entry: HistoryEntry) = TvCard(
@@ -298,7 +347,7 @@ internal class RepositoryTvBrowseSource(
             key = "r-${related.id}", title = related.title,
             subtitle = listOf(related.channel, related.views, related.age).filter(String::isNotBlank).joinToString(" • "),
             artwork = related.artwork, videoId = related.id, author = related.channel, duration = related.duration,
-            progress = related.progress,
+            progress = related.progress, ownerId = related.channelId.ifBlank { null },
         )
     }
 }

@@ -85,6 +85,12 @@ class App : Application(), Configuration.Provider {
         Promise.DEFAULT_SCOPE.launch {
             PlayerDataSource.precache(this@App)
         }
+        // Housekeeping off the main thread: expired stream and metadata entries, and an
+        // update APK that is already installed.
+        Promise.DEFAULT_SCOPE.launch {
+            runCatching { (get<com.hhst.youtubelite.core.JsonCache>() as? com.hhst.youtubelite.core.PreferenceJsonCache)?.sweepExpired() }
+            runCatching { com.hhst.youtubelite.update.Updater.cleanup(this@App) }
+        }
         Promise.DEFAULT_SCOPE.launch {
             get<DownloadStartupReconciler>().reconcile()
         }
