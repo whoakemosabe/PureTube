@@ -41,6 +41,16 @@ internal fun rememberFeedLayout(): com.hhst.youtubelite.home.domain.FeedLayout {
 @Composable
 internal fun rememberPlayerGlow(): Boolean = rememberFeedPreference(PreferenceKeys.PLAYER_GLOW)
 
+/** How far into each video you got on this device; see [com.hhst.youtubelite.data.media.WatchProgress]. */
+val LocalWatchProgress = androidx.compose.runtime.compositionLocalOf { emptyMap<String, Float>() }
+
+@Composable
+internal fun rememberWatchProgress(): Map<String, Float> {
+    val store = remember { GlobalContext.getOrNull()?.getOrNull<com.hhst.youtubelite.data.media.WatchProgress>() }
+        ?: return emptyMap()
+    return store.progress.collectAsState().value
+}
+
 @Composable
 internal fun rememberWatchMarks(): Map<String, Boolean> {
     val marks = remember { GlobalContext.getOrNull()?.getOrNull<com.hhst.youtubelite.data.media.WatchMarks>() }

@@ -99,8 +99,9 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
             val feed = state.content as? HomeContent.Feed
             val hideWatched = com.hhst.youtubelite.ui.design.LocalHideWatched.current
             val watchMarks = com.hhst.youtubelite.ui.design.LocalWatchMarks.current
-            val visibleItems = remember(feed?.page?.items, hideShorts, hideWatched, watchMarks) {
-                feed?.page?.items.orEmpty().withWatchMarks(watchMarks).filter(com.hhst.youtubelite.home.domain.FeedVisibility(hideShorts, hideWatched)::shows)
+            val watchProgress = com.hhst.youtubelite.ui.design.LocalWatchProgress.current
+            val visibleItems = remember(feed?.page?.items, hideShorts, hideWatched, watchMarks, watchProgress) {
+                feed?.page?.items.orEmpty().withWatchMarks(watchMarks, watchProgress).filter(com.hhst.youtubelite.home.domain.FeedVisibility(hideShorts, hideWatched)::shows)
             }
             val warmCandidate by rememberUpdatedState(onWarmCandidate)
             val homeLifecycle = LocalLifecycleOwner.current.lifecycle
@@ -264,7 +265,8 @@ fun HomeScreen(state: HomeUiState, onAction: (HomeAction) -> Unit, modifier: Mod
                     onAction, overlay.kind, state.live, state.signedInPreview,
                     (state.content as? HomeContent.Feed)?.page?.items?.filterIsInstance<FeedItem.Video>()
                         ?.firstOrNull { it.id == overlay.itemId && it.feedbackGeneration == state.sessionGeneration }
-                        ?.withWatchMark(com.hhst.youtubelite.ui.design.LocalWatchMarks.current),
+                        ?.withWatchMark(com.hhst.youtubelite.ui.design.LocalWatchMarks.current,
+                            com.hhst.youtubelite.ui.design.LocalWatchProgress.current),
                     overlay,
                 )
                 is HomeOverlay.Save -> if (overlay.newPlaylist) NewPlaylistSheet(

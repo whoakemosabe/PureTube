@@ -57,6 +57,8 @@ class PlaybackWatchReporting(
         }
     },
     private val clock: () -> Long = { System.nanoTime() / 1_000_000L },
+    /** Where each video got to, for the progress bars in lists. */
+    private val progress: WatchProgress? = null,
 ) {
     @Volatile private var video: ReportingVideo? = null
     /** Endpoints armed from the playback response; keyed by the media identity they belong to. */
@@ -146,6 +148,7 @@ class PlaybackWatchReporting(
 
     fun finishPlayback(sample: PlaybackSample) {
         tick(sample)
+        progress?.flush()
         reporter.finish()
         sampledVideoId = null
         contextRefresh?.cancel()
@@ -165,6 +168,7 @@ class PlaybackWatchReporting(
             return
         }
         if (sample == null) return
+        progress?.record(sample.videoId, sample.positionMs, sample.durationMs)
         if (sample.videoId == null) {
             reporter.finish()
             armed = null

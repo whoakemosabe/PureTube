@@ -70,8 +70,13 @@ internal fun TvTheme(content: @Composable () -> Unit) {
             onSurface = TvColors.Text,
             onBackground = TvColors.Text,
         ),
-        content = content,
-    )
+    ) {
+        // Tiles read how far you got in each video from here.
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.hhst.youtubelite.ui.design.LocalWatchProgress provides com.hhst.youtubelite.ui.design.rememberWatchProgress(),
+            content = content,
+        )
+    }
 }
 
 /** Light catching the top edge of the glass, fading out by the middle. */

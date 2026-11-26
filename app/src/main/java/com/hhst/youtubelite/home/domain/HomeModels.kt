@@ -279,16 +279,20 @@ object HomeLayout {
 const val WATCHED_FRACTION = 0.9f
 fun FeedItem.Video.watched(): Boolean = (progress ?: 0f) >= WATCHED_FRACTION
 
-/** A watched mark fills the bar and an unwatched mark clears it; unmarked videos keep YouTube's progress. */
-fun FeedItem.Video.withWatchMark(marks: Map<String, Boolean>): FeedItem.Video =
+/**
+ * A watched mark fills the bar and an unwatched mark clears it. Unmarked, how far you got on
+ * this device ([local]) wins, since YouTube reports it for only some videos and often late;
+ * otherwise YouTube's progress stays.
+ */
+fun FeedItem.Video.withWatchMark(marks: Map<String, Boolean>, local: Map<String, Float> = emptyMap()): FeedItem.Video =
     when (marks[id]) {
         true -> if (progress == 1f) this else copy(progress = 1f)
         false -> if (progress == null) this else copy(progress = null)
-        null -> this
+        null -> local[id]?.takeIf { it != progress }?.let { copy(progress = it) } ?: this
     }
 
-fun <T : FeedItem> List<T>.withWatchMarks(marks: Map<String, Boolean>): List<T> =
-    if (marks.isEmpty()) this else map {
+fun <T : FeedItem> List<T>.withWatchMarks(marks: Map<String, Boolean>, local: Map<String, Float> = emptyMap()): List<T> =
+    if (marks.isEmpty() && local.isEmpty()) this else map {
         @Suppress("UNCHECKED_CAST")
-        if (it is FeedItem.Video) it.withWatchMark(marks) as T else it
+        if (it is FeedItem.Video) it.withWatchMark(marks, local) as T else it
     }

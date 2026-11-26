@@ -102,7 +102,8 @@ val appModule = module {
         com.hhst.youtubelite.data.media.ContentRepositories(get(), get(), get(), get(), postSessions::context)
     }
     single {
-        com.hhst.youtubelite.data.media.PlaybackWatchReporting(get(), { get<com.hhst.youtubelite.data.media.ContentRepositories>().localLibrary }).also { reporting ->
+        com.hhst.youtubelite.data.media.PlaybackWatchReporting(get(), { get<com.hhst.youtubelite.data.media.ContentRepositories>().localLibrary },
+            progress = get()).also { reporting ->
             get<com.hhst.youtubelite.extension.ExtensionManager>().addOnChangedListener { key ->
                 if (key == com.hhst.youtubelite.extension.PreferenceKeys.PRIVATE_BROWSING || key == "*")
                     reporting.onPrivacyChanged()
@@ -132,6 +133,7 @@ val appModule = module {
     single<DownloadPrefs> { PreferenceDownloadPrefs(get()) }
     single { ExtensionManager(get()) }
     single { com.hhst.youtubelite.data.media.WatchMarks(PreferenceStore.of(androidContext(), "watch-marks")) }
+    single { com.hhst.youtubelite.data.media.WatchProgress(PreferenceStore.of(androidContext(), "watch-progress")) }
     single { HapticsController(androidContext(), get()) }
 
     single { WebViewTimerOccupancy(AndroidWebViewTimerClock()) }

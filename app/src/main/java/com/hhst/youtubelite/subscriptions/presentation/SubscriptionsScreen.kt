@@ -285,8 +285,9 @@ private fun SubscriptionsFeed(content: SubscriptionsContent.Feed, width: Float, 
     val hidden = com.hhst.youtubelite.ui.design.LocalHideShorts.current
     val hideWatched = com.hhst.youtubelite.ui.design.LocalHideWatched.current
     val watchMarks = com.hhst.youtubelite.ui.design.LocalWatchMarks.current
-    val visibleItems = remember(content.page.items, hidden, hideWatched, watchMarks) {
-        content.page.items.withWatchMarks(watchMarks).filter(com.hhst.youtubelite.home.domain.FeedVisibility(hidden, hideWatched)::shows)
+    val watchProgress = com.hhst.youtubelite.ui.design.LocalWatchProgress.current
+    val visibleItems = remember(content.page.items, hidden, hideWatched, watchMarks, watchProgress) {
+        content.page.items.withWatchMarks(watchMarks, watchProgress).filter(com.hhst.youtubelite.home.domain.FeedVisibility(hidden, hideWatched)::shows)
     }
     val nearEnd by remember(gridState, visibleItems.size) { derivedStateOf {
         (gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1) >= visibleItems.size - 2

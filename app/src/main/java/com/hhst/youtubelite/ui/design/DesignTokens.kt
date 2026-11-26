@@ -97,6 +97,7 @@ fun AppTheme(content: @Composable () -> Unit) {
         .withAccent(accent, darkTheme, wallpaper),
         LocalMotionScale provides motion.value, LocalHideShorts provides rememberHideShorts(),
         LocalHideWatched provides rememberHideWatched(), LocalWatchMarks provides rememberWatchMarks(),
+        LocalWatchProgress provides rememberWatchProgress(),
         LocalFeedLayout provides rememberFeedLayout()) {
         com.hhst.youtubelite.ui.theme.AppTheme(darkTheme = darkTheme) { content() }
     }

@@ -141,8 +141,16 @@ internal fun TvBrowse(
     var exitArmedAt by remember { mutableStateOf(0L) }
     var exitHint by remember { mutableStateOf<String?>(null) }
 
-    // Start in the section's tiles, like YouTube TV, once they are on screen.
-    LaunchedEffect(identity) { requestFocusSoon(contentFocus) }
+    // Start in the section's tiles, like YouTube TV, once they are on screen. Coming back from
+    // a video, the screen puts focus back on the tile you played instead (its saved place).
+    LaunchedEffect(identity) {
+        val place = when (val top = opened.lastOrNull()) {
+            is TvOpen.Playlist -> "p-${top.id}"
+            is TvOpen.Channel -> null
+            null -> if (section == TvSection.Home) HOME_PLACE else section.name
+        }
+        if (place == null || browse.places[place]?.focusedKey == null) requestFocusSoon(contentFocus)
+    }
     BackHandler {
         when {
             opened.isNotEmpty() -> browse.closeTop()
@@ -542,7 +550,9 @@ internal fun VideoTile(card: TvCard, onClick: () -> Unit, onFocused: () -> Unit 
                             .padding(horizontal = 5.dp, vertical = 1.dp),
                     )
                 }
-                card.progress?.takeIf { it > 0f }?.let { progress ->
+                // How far you got on this device wins: YouTube reports it for only some videos.
+                val local = com.hhst.youtubelite.ui.design.LocalWatchProgress.current
+                (card.videoId?.let(local::get) ?: card.progress)?.takeIf { it > 0f }?.let { progress ->
                     Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = 0.35f))) {
                         Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight().background(TvColors.Red))
                     }

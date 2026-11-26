@@ -353,7 +353,7 @@ internal fun homeGroups(cards: List<TvCard>): List<Pair<String, List<TvCard>>> {
 /** Our own topic shelves; YouTube's Home shelves already cover them when it sends shelves. */
 private val TOPIC_SHELVES = setOf(TvSection.Music, TvSection.Gaming, TvSection.News, TvSection.Sports)
 private const val RECOMMENDED = "Recommended"
-private const val HOME_PLACE = "home"
+internal const val HOME_PLACE = "home"
 private const val SHELF_RETRIES = 2
 private const val SHELF_RETRY_MS = 2_500L
 private const val HERO_SETTLE_MS = 300L
