@@ -32,6 +32,7 @@ data class TvNowPlaying(val videoId: String, val title: String, val author: Stri
  * a video id and a position.
  */
 internal class TvReceiver(context: Context, private val engine: PlaybackApi, store: TvLinkStore) {
+    private val audio = context.applicationContext.getSystemService(android.media.AudioManager::class.java)
     val server = TvLinkServer(context, store, ::onCommand, onPhoneLeft = {})
     private val _nowPlaying = MutableStateFlow<TvNowPlaying?>(null)
     val nowPlaying: StateFlow<TvNowPlaying?> = _nowPlaying.asStateFlow()
@@ -52,7 +53,7 @@ internal class TvReceiver(context: Context, private val engine: PlaybackApi, sto
         running.launch {
             engine.snapshot.collect { snapshot ->
                 applyPendingStart(snapshot)
-                val status = statusOf(snapshot)
+                val status = withVolume(statusOf(snapshot))
                 // State changes go out at once; position alone rides the once-a-second tick.
                 if (lastSent?.copy(positionMs = 0, bufferedMs = 0) != status.copy(positionMs = 0, bufferedMs = 0)) publish(status)
             }
@@ -72,7 +73,7 @@ internal class TvReceiver(context: Context, private val engine: PlaybackApi, sto
                 val snapshot = engine.snapshot.value
                 if (!snapshot.isPlaying && ++quiet < PAUSED_TICKS) continue
                 quiet = 0
-                publish(statusOf(snapshot))
+                publish(withVolume(statusOf(snapshot)))
             }
         }
     }
@@ -118,11 +119,39 @@ internal class TvReceiver(context: Context, private val engine: PlaybackApi, sto
             TvLinkMessage.Pause -> engine.pause()
             is TvLinkMessage.Seek -> engine.seekTo(message.positionMs.coerceAtLeast(0))
             is TvLinkMessage.Speed -> engine.setSpeed(message.speed.coerceIn(MIN_SPEED, MAX_SPEED))
+            is TvLinkMessage.SetQuality -> engine.setQuality(message.label)
+            is TvLinkMessage.SetCaptions -> engine.setSubtitle(message.key)
+            is TvLinkMessage.SetAudio -> engine.setAudioTrack(message.key)
+            is TvLinkMessage.Volume -> changeVolume(message)
             TvLinkMessage.Stop -> stopPlayback()
             is TvLinkMessage.SignIn -> signIn(message)
             TvLinkMessage.SignOut -> MediaSession.signOut()
             else -> Unit
         }
+    }
+
+    /** The phone's volume keys: the TV's media volume, with its own volume bar showing. */
+    private fun changeVolume(message: TvLinkMessage.Volume) {
+        val manager = audio ?: return
+        val stream = android.media.AudioManager.STREAM_MUSIC
+        runCatching {
+            when {
+                message.level != null -> manager.setStreamVolume(stream,
+                    message.level.coerceIn(0, manager.getStreamMaxVolume(stream)), android.media.AudioManager.FLAG_SHOW_UI)
+                message.step != 0 -> manager.adjustStreamVolume(stream,
+                    if (message.step > 0) android.media.AudioManager.ADJUST_RAISE else android.media.AudioManager.ADJUST_LOWER,
+                    android.media.AudioManager.FLAG_SHOW_UI)
+            }
+        }
+        publish(withVolume(statusOf(engine.snapshot.value)))
+    }
+
+    private fun withVolume(status: TvLinkMessage.Status): TvLinkMessage.Status {
+        val manager = audio ?: return status
+        val stream = android.media.AudioManager.STREAM_MUSIC
+        return runCatching {
+            status.copy(volume = manager.getStreamVolume(stream), maxVolume = manager.getStreamMaxVolume(stream))
+        }.getOrDefault(status)
     }
 
     private fun signIn(message: TvLinkMessage.SignIn) {

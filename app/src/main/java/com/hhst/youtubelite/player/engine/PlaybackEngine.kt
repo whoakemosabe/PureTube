@@ -1198,6 +1198,11 @@ class PlaybackEngine(
      * the source carries no choice (single rep / muxed / live / pre-prepare).
      */
     override fun setQuality(label: String?) {
+        (castPlayer as? RemoteTrackControl)?.let { remote ->
+            remote.setRemoteQuality(label)
+            _snapshot.value = _snapshot.value.copy(qualityLabel = label)
+            return
+        }
         if (castPlayer != null && !localDivergedFromReceiver()) {
             // The receiver's format pool can differ from the paused local tracks. Keep the
             // requested pin until its source is published, including an explicit return to auto.
@@ -1479,6 +1484,11 @@ class PlaybackEngine(
         "${height}p" + if (fps > 30) "$fps" else ""
 
     override fun setAudioTrack(trackKey: String?) {
+        (castPlayer as? RemoteTrackControl)?.let { remote ->
+            remote.setRemoteAudio(trackKey)
+            _snapshot.value = _snapshot.value.copy(audioTrackKey = trackKey)
+            return
+        }
         // A manual dub applies to this video. Every new video starts with Original.
         audioPreference = trackKey
         val renditionMenu = _snapshot.value.audioTracks.any { it.key.startsWith("hls:") }
@@ -1560,6 +1570,11 @@ class PlaybackEngine(
      * remembered key so turning captions back on restores the same track.
      */
     override fun setSubtitle(trackKey: String?): Boolean {
+        (castPlayer as? RemoteTrackControl)?.let { remote ->
+            remote.setRemoteCaptions(trackKey)
+            _snapshot.value = _snapshot.value.copy(subtitleKey = trackKey, subtitleEnabled = trackKey != null)
+            return true
+        }
         val previousKey = _snapshot.value.subtitleKey
         if (trackKey != null &&
             !resolver.hasSubtitleTrack(currentStream?.subtitles.orEmpty(), trackKey)

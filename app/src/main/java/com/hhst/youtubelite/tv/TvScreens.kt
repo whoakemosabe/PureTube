@@ -243,6 +243,10 @@ private fun PlayerScreen(
     }
     var controlsVisible by remember { mutableStateOf(true) }
     var statsVisible by remember { mutableStateOf(false) }
+    // The clock dims while the video plays with nothing over it, and comes back with the controls.
+    val clockDimmed = LocalClockDimmed.current
+    androidx.compose.runtime.SideEffect { clockDimmed.value = !controlsVisible && panel == null }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { clockDimmed.value = false } }
     // Any key press restarts the hide timer.
     var activity by remember { mutableIntStateOf(0) }
     val screenFocus = remember { FocusRequester() }
@@ -463,8 +467,9 @@ private fun PlayerPanel(
         applyPick(panel, row.key, engine, player::setSleep)
         onPanel(TvPanel.Settings)
     }
+    val nowTitle = video.video?.title ?: snapshot.title
     when (panel) {
-        TvPanel.Description -> TvSidePanel(video.video?.title ?: snapshot.title) {
+        TvPanel.Description -> TvSidePanel(video.video?.title ?: snapshot.title, eyebrow = "Description") {
             val page = video.video
             TvDescription(
                 meta = listOfNotNull(page?.views, page?.age, page?.likes?.let { "$it likes" }).filter(String::isNotBlank).joinToString(" • "),
@@ -478,7 +483,7 @@ private fun PlayerPanel(
                 onMoreReplies = { video.comments.replyThread?.let(player.video::loadReplies) })
         }
         TvPanel.Chat -> TvSidePanel("Live chat", wide = true) { TvChatList(chat) }
-        TvPanel.Channel -> TvSidePanel(video.video?.channel.orEmpty()) {
+        TvPanel.Channel -> TvSidePanel(video.video?.channel.orEmpty(), eyebrow = "Channel") {
             val channelId = video.video?.channelId.orEmpty()
             // Before the video's page is in there's no channel to open yet: read it again.
             if (channelId.isBlank()) {
@@ -487,8 +492,8 @@ private fun PlayerPanel(
                 return@TvSidePanel
             }
             TvPanelList(listOf(
-                TvPanelRow(GO_TO_CHANNEL, "Go to channel"),
-                TvPanelRow(SUBSCRIBE, if (video.subscribed) "Unsubscribe" else "Subscribe"),
+                TvPanelRow(GO_TO_CHANNEL, "Go to channel", icon = AppIcon.ChannelGrid),
+                TvPanelRow(SUBSCRIBE, if (video.subscribed) "Unsubscribe" else "Subscribe", icon = AppIcon.Bell),
             )) { row ->
                 when (row.key) {
                     GO_TO_CHANNEL -> onOpenChannel(channelId)
@@ -496,7 +501,7 @@ private fun PlayerPanel(
                 }
             }
         }
-        TvPanel.Save -> TvSidePanel("Save to") {
+        TvPanel.Save -> TvSidePanel("Save to", eyebrow = nowTitle) {
             LaunchedEffect(video.videoId) { player.video.openSaves() }
             val choices = video.saveChoices
             when {
@@ -508,9 +513,9 @@ private fun PlayerPanel(
                 }
             }
         }
-        TvPanel.Settings -> TvSidePanel("Settings") {
-            TvPanelList(settingsRows(snapshot, sleep) + TvPanelRow(DOWNLOAD, "Download") +
-                TvPanelRow(STATS, "Stats for nerds", if (statsVisible) "On" else "Off"),
+        TvPanel.Settings -> TvSidePanel("Settings", eyebrow = nowTitle) {
+            TvPanelList(settingsRows(snapshot, sleep) + TvPanelRow(DOWNLOAD, "Download", icon = AppIcon.Download) +
+                TvPanelRow(STATS, "Stats for nerds", if (statsVisible) "On" else "Off", icon = AppIcon.Info),
                 focusKey = settingsReturn) { row ->
                 when (row.key) {
                     STATS -> onStats()
@@ -520,20 +525,20 @@ private fun PlayerPanel(
                 }
             }
         }
-        TvPanel.Quality -> TvSidePanel("Quality") { TvPanelList(qualityRows(snapshot), onPick = pick) }
-        TvPanel.Speed -> TvSidePanel("Playback speed") { TvPanelList(speedRows(snapshot), onPick = pick) }
-        TvPanel.Captions -> TvSidePanel("Captions") {
-            TvPanelList(captionRows(snapshot) + TvPanelRow(CAPTION_STYLE, "Caption style", captionSummary(captionStyle))) { row ->
+        TvPanel.Quality -> TvSidePanel("Quality", eyebrow = "Settings") { TvPanelList(qualityRows(snapshot), onPick = pick) }
+        TvPanel.Speed -> TvSidePanel("Playback speed", eyebrow = "Settings") { TvPanelList(speedRows(snapshot), onPick = pick) }
+        TvPanel.Captions -> TvSidePanel("Captions", eyebrow = "Settings") {
+            TvPanelList(captionRows(snapshot) + TvPanelRow(CAPTION_STYLE, "Caption style", captionSummary(captionStyle), icon = AppIcon.Palette, opens = true)) { row ->
                 if (row.key == CAPTION_STYLE) onPanel(TvPanel.CaptionStyle) else pick(row)
             }
         }
-        TvPanel.CaptionStyle -> TvSidePanel("Caption style") {
+        TvPanel.CaptionStyle -> TvSidePanel("Caption style", eyebrow = "Captions") {
             TvPanelList(captionStyleRows(captionStyle), focusKey = CaptionSetting.Size.name) { row ->
                 onCaptionStyle(stepCaptionStyle(captionStyle, CaptionSetting.valueOf(row.key)))
             }
         }
-        TvPanel.Audio -> TvSidePanel("Audio track") { TvPanelList(audioRows(snapshot), onPick = pick) }
-        TvPanel.Sleep -> TvSidePanel("Sleep timer") { TvPanelList(sleepRows(sleep), onPick = pick) }
+        TvPanel.Audio -> TvSidePanel("Audio track", eyebrow = "Settings") { TvPanelList(audioRows(snapshot), onPick = pick) }
+        TvPanel.Sleep -> TvSidePanel("Sleep timer", eyebrow = "Settings") { TvPanelList(sleepRows(sleep), onPick = pick) }
     }
 }
 

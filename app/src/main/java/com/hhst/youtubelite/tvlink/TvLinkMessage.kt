@@ -57,6 +57,12 @@ internal sealed interface TvLinkMessage {
     @Serializable @SerialName("speed") data class Speed(val speed: Float) : TvLinkMessage
     @Serializable @SerialName("stop") data object Stop : TvLinkMessage
     @Serializable @SerialName("ping") data object Ping : TvLinkMessage
+    /** Picks from the phone's player menus, applied by the TV's own player. Null is Auto / Off / Original. */
+    @Serializable @SerialName("quality") data class SetQuality(val label: String? = null) : TvLinkMessage
+    @Serializable @SerialName("captions") data class SetCaptions(val key: String? = null) : TvLinkMessage
+    @Serializable @SerialName("audio") data class SetAudio(val key: String? = null) : TvLinkMessage
+    /** The TV's volume: a step up or down ([step] ±1), or a level from 0 to the TV's maximum. */
+    @Serializable @SerialName("volume") data class Volume(val step: Int = 0, val level: Int? = null) : TvLinkMessage
 
     /**
      * The phone's sign-in, handed to a paired TV over the sealed channel so the TV can show
@@ -100,6 +106,9 @@ internal sealed interface TvLinkMessage {
         val bufferedMs: Long = 0,
         val speed: Float = 1f,
         val error: String? = null,
+        /** The TV's media volume and its maximum; -1 when unknown. */
+        val volume: Int = -1,
+        val maxVolume: Int = 0,
     ) : TvLinkMessage {
         companion object {
             const val STATE_IDLE = "idle"

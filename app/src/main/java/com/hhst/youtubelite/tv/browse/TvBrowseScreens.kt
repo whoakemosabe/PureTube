@@ -269,11 +269,20 @@ internal fun TvBrowse(
         )
         BrowseNotice(notice ?: exitHint, onDone = { browse.clearNotice(); exitHint = null }, Modifier.align(Alignment.TopCenter))
         sectionMenu?.let { held ->
-            ActionMenu(held.label, listOf("Refresh"), onPick = {
-                sectionMenu = null
-                browse.refresh(held)
-                pick(held)
-                exitHint = "Refreshing ${held.label}…"
+            SectionMenu(held, browse.signedIn, values, onPick = { action ->
+                when (action) {
+                    SectionAction.Refresh -> {
+                        sectionMenu = null
+                        browse.refresh(held)
+                        pick(held)
+                        exitHint = "Refreshing ${held.label}…"
+                    }
+                    SectionAction.SignIn -> { sectionMenu = null; onSignIn() }
+                    SectionAction.Search -> { sectionMenu = null; pick(TvSection.Search) }
+                    SectionAction.Settings -> { sectionMenu = null; pick(TvSection.Settings) }
+                    // Switches stay open, so several can be flipped; the feed reads again on its own.
+                    else -> action.key?.let { key -> settings.set(key, values[key] != true) }
+                }
             }, onClose = { sectionMenu = null })
         }
         menuCard?.let { card ->

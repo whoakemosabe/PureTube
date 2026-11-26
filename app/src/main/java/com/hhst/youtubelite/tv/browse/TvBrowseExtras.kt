@@ -39,6 +39,12 @@ import com.hhst.youtubelite.subscriptions.data.SubscriptionsFilter
 import com.hhst.youtubelite.tv.FrostButton
 import com.hhst.youtubelite.tv.FrostPill
 import com.hhst.youtubelite.tv.TvColors
+import com.hhst.youtubelite.tv.TvMenuRow
+import com.hhst.youtubelite.tv.TvSidePanel
+import com.hhst.youtubelite.tv.TvSwitch
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.hhst.youtubelite.tv.requestFocusSoon
 import com.hhst.youtubelite.ui.design.AppIcon
 import kotlinx.coroutines.delay
@@ -50,8 +56,12 @@ internal val LocalTileMenu = staticCompositionLocalOf<(TvCard) -> Unit> { {} }
 internal val LocalTvPlaces = staticCompositionLocalOf<MutableMap<String, TvPlace>> { mutableMapOf() }
 
 /** What a tile's menu offers, in YouTube's order. */
-internal enum class TileAction(val label: String) {
-    Play("Play"), PlayNext("Play next"), WatchLater("Save to Watch later"), Channel("Go to channel"), NotInterested("Not interested"),
+internal enum class TileAction(val label: String, val icon: AppIcon) {
+    Play("Play", AppIcon.Play),
+    PlayNext("Play next", AppIcon.QueueAdd),
+    WatchLater("Save to Watch later", AppIcon.Clock),
+    Channel("Go to channel", AppIcon.ChannelGrid),
+    NotInterested("Not interested", AppIcon.Block),
 }
 
 /** The actions that make sense for [card]: videos get all of them, a playlist only opens. */
@@ -65,44 +75,100 @@ internal fun tileActions(card: TvCard, signedIn: Boolean): List<TileAction> = bu
     if (signedIn && card.key.startsWith("v-")) add(TileAction.NotInterested)
 }
 
-/** The long-press menu over a tile: a short list in the middle of the screen. */
+/** The long-press menu over a tile, sliding in from the right like the player's menus. */
 @Composable
 internal fun TileMenu(card: TvCard, actions: List<TileAction>, onPick: (TileAction) -> Unit, onClose: () -> Unit) {
-    val first = remember { FocusRequester() }
-    LaunchedEffect(card.key) { requestFocusSoon(first) }
-    BackHandler(onBack = onClose)
-    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
-        Column(
-            Modifier.width(420.dp).background(Color(0xFF212121), RoundedCornerShape(20.dp)).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(card.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TvColors.Text,
-                maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(4.dp))
-            actions.forEachIndexed { index, action ->
-                FrostPill(action.label, { onPick(action) }, if (index == 0) Modifier.focusRequester(first).fillMaxWidth() else Modifier.fillMaxWidth())
+    SideMenu(card.title, card.author?.takeIf(String::isNotBlank) ?: card.subtitle.takeIf(String::isNotBlank),
+        onClose = onClose, focusKey = card.key) { first ->
+        actions.forEachIndexed { index, action ->
+            TvMenuRow(action.label, { onPick(action) }, if (index == 0) Modifier.focusRequester(first) else Modifier, icon = action.icon)
+        }
+    }
+}
+
+/** What holding OK on a sidebar section offers. */
+internal enum class SectionAction { Refresh, HideShorts, HideWatched, BetterTitles, SignIn, Search, Settings }
+
+internal fun sectionActions(section: TvSection, signedIn: Boolean): List<SectionAction> = buildList {
+    add(SectionAction.Refresh)
+    // The feed switches matter where there's a feed of videos.
+    if (section != TvSection.Shorts && section != TvSection.Playlists && section != TvSection.Channels) {
+        add(SectionAction.HideShorts)
+        add(SectionAction.HideWatched)
+    }
+    add(SectionAction.BetterTitles)
+    if (!signedIn) add(SectionAction.SignIn)
+    add(SectionAction.Search)
+    add(SectionAction.Settings)
+}
+
+internal val SectionAction.key: String? get() = when (this) {
+    SectionAction.HideShorts -> com.hhst.youtubelite.extension.PreferenceKeys.ENABLE_HIDE_SHORTS
+    SectionAction.HideWatched -> com.hhst.youtubelite.extension.PreferenceKeys.ENABLE_HIDE_WATCHED
+    SectionAction.BetterTitles -> com.hhst.youtubelite.extension.PreferenceKeys.DEARROW_TITLES
+    else -> null
+}
+
+/** The menu for a held sidebar section: refresh it, the feed switches, and quick ways out. */
+@Composable
+internal fun SectionMenu(
+    section: TvSection,
+    signedIn: Boolean,
+    values: Map<String, Boolean>,
+    onPick: (SectionAction) -> Unit,
+    onClose: () -> Unit,
+) {
+    SideMenu(section.label, "Options", onClose = onClose, focusKey = section) { first ->
+        sectionActions(section, signedIn).forEachIndexed { index, action ->
+            val modifier = if (index == 0) Modifier.focusRequester(first) else Modifier
+            val key = action.key
+            when (action) {
+                SectionAction.Refresh -> TvMenuRow("Refresh ${section.label}", { onPick(action) }, modifier, icon = AppIcon.Refresh)
+                SectionAction.SignIn -> TvMenuRow("Sign in", { onPick(action) }, modifier, icon = AppIcon.You,
+                    summary = "See your own recommendations", opens = true)
+                SectionAction.Search -> TvMenuRow("Search", { onPick(action) }, modifier, icon = AppIcon.Search, opens = true)
+                SectionAction.Settings -> TvMenuRow("All settings", { onPick(action) }, modifier, icon = AppIcon.Settings, opens = true)
+                else -> {
+                    val on = key != null && values[key] == true
+                    val (label, icon) = when (action) {
+                        SectionAction.HideShorts -> "Hide Shorts" to AppIcon.Shorts
+                        SectionAction.HideWatched -> "Hide watched videos" to AppIcon.Check
+                        else -> "Better titles (DeArrow)" to AppIcon.Sparkle
+                    }
+                    TvMenuRow(label, { onPick(action) }, modifier, icon = icon) { TvSwitch(on) }
+                }
             }
         }
     }
 }
 
-/** A small menu of [options] under a title, in the middle of the screen. */
+/** A small menu of [options] under a title, from the right. */
 @Composable
 internal fun ActionMenu(title: String, options: List<String>, onPick: (String) -> Unit, onClose: () -> Unit) {
-    val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) { requestFocusSoon(first) }
-    BackHandler(onBack = onClose)
-    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
-        Column(
-            Modifier.width(340.dp).background(Color(0xFF212121), RoundedCornerShape(20.dp)).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TvColors.Text)
-            Spacer(Modifier.height(4.dp))
-            options.forEachIndexed { index, option ->
-                FrostPill(option, { onPick(option) }, if (index == 0) Modifier.focusRequester(first).fillMaxWidth() else Modifier.fillMaxWidth())
-            }
+    SideMenu(title, null, onClose = onClose, focusKey = title) { first ->
+        options.forEachIndexed { index, option ->
+            TvMenuRow(option, { onPick(option) }, if (index == 0) Modifier.focusRequester(first) else Modifier)
         }
+    }
+}
+
+/** A menu in the same right-hand panel the player uses, with focus on its first row. */
+@Composable
+private fun SideMenu(
+    title: String,
+    eyebrow: String?,
+    onClose: () -> Unit,
+    focusKey: Any,
+    rows: @Composable (FocusRequester) -> Unit,
+) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(focusKey) { requestFocusSoon(first) }
+    BackHandler(onBack = onClose)
+    TvSidePanel(title, eyebrow = eyebrow) {
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).focusGroup(),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) { rows(first) }
     }
 }
 

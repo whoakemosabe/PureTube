@@ -67,16 +67,26 @@ import com.hhst.youtubelite.ui.design.AppIcon
 internal enum class TvPanel { Description, Comments, Chat, Channel, Save, Settings, Quality, Speed, Captions, CaptionStyle, Audio, Sleep }
 
 /** One row in a panel: a label, an optional value on the right, a check when it is the current pick. */
-internal data class TvPanelRow(val key: String, val label: String, val value: String? = null, val checked: Boolean = false)
+internal data class TvPanelRow(
+    val key: String,
+    val label: String,
+    val value: String? = null,
+    val checked: Boolean = false,
+    val icon: AppIcon? = null,
+    /** Opens another panel: drawn with an arrow. */
+    val opens: Boolean = false,
+)
 
 internal fun settingsRows(snapshot: PlaybackSnapshot, sleep: SleepChoice): List<TvPanelRow> = listOfNotNull(
-    TvPanelRow(TvPanel.Quality.name, "Quality", snapshot.qualityLabel ?: snapshot.activeQuality?.let { "Auto ($it)" } ?: "Auto"),
-    TvPanelRow(TvPanel.Speed.name, "Playback speed", speedLabel(snapshot.speed)),
-    TvPanelRow(TvPanel.Captions.name, "Captions", captionLabel(snapshot)),
-    TvPanelRow(TvPanel.Audio.name, "Audio track", snapshot.audioTracks.firstOrNull { it.key == snapshot.audioTrackKey }?.label ?: "Default")
+    TvPanelRow(TvPanel.Quality.name, "Quality", snapshot.qualityLabel ?: snapshot.activeQuality?.let { "Auto ($it)" } ?: "Auto",
+        icon = AppIcon.Sparkle, opens = true),
+    TvPanelRow(TvPanel.Speed.name, "Playback speed", speedLabel(snapshot.speed), icon = AppIcon.Clock, opens = true),
+    TvPanelRow(TvPanel.Captions.name, "Captions", captionLabel(snapshot), icon = AppIcon.Feedback, opens = true),
+    TvPanelRow(TvPanel.Audio.name, "Audio track", snapshot.audioTracks.firstOrNull { it.key == snapshot.audioTrackKey }?.label ?: "Default",
+        icon = AppIcon.Voice, opens = true)
         .takeIf { snapshot.audioTracks.size > 1 },
-    TvPanelRow(TvPanel.Sleep.name, "Sleep timer", sleepLabel(sleep)),
-    TvPanelRow(LOOP, "Loop video", if (snapshot.loopMode == LoopMode.LOOP_ONE) "On" else "Off"),
+    TvPanelRow(TvPanel.Sleep.name, "Sleep timer", sleepLabel(sleep), icon = AppIcon.Moon, opens = true),
+    TvPanelRow(LOOP, "Loop video", if (snapshot.loopMode == LoopMode.LOOP_ONE) "On" else "Off", icon = AppIcon.Refresh),
 )
 
 /** Loop on plays this video again and again; off goes back to playing what's next. */
@@ -143,20 +153,34 @@ internal const val OFF = "off"
 internal const val LOOP = "loop"
 private const val MAX_TV_SPEED = 2f
 
-/** A frosted panel down the right of the player, like the YouTube TV settings sheet. */
+/**
+ * A panel down the right of the player, like YouTube TV's settings sheet: a dark card that
+ * floats clear of the edges, with the video dimmed beside it. [eyebrow] is the small line
+ * over the title, saying where the panel opened from.
+ */
 @Composable
-internal fun TvSidePanel(title: String, modifier: Modifier = Modifier, wide: Boolean = false, content: @Composable () -> Unit) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+internal fun TvSidePanel(
+    title: String,
+    modifier: Modifier = Modifier,
+    wide: Boolean = false,
+    eyebrow: String? = null,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier.fillMaxSize().background(Brush.horizontalGradient(0.35f to Color.Transparent, 1f to TvMenu.Scrim)),
+        contentAlignment = Alignment.CenterEnd,
+    ) {
         Column(
             Modifier
-                .width(if (wide) 560.dp else 460.dp)
+                // Room above for the clock, which stays in the corner.
+                .padding(top = 72.dp, end = 32.dp, bottom = 32.dp)
+                .width(if (wide) 580.dp else 480.dp)
                 .fillMaxHeight()
-                .background(Brush.horizontalGradient(listOf(Color(0xE6161616), Color(0xF5161616))))
-                .padding(horizontal = 28.dp, vertical = 36.dp),
+                .background(TvMenu.Panel, TvMenu.PanelShape)
+                .padding(horizontal = 16.dp, vertical = 24.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TvColors.Text)
-            Spacer(Modifier.height(20.dp))
-            content()
+            TvMenuHeader(title, eyebrow)
+            Box(Modifier.padding(horizontal = 4.dp)) { content() }
         }
     }
 }
@@ -170,34 +194,21 @@ internal fun TvPanelList(rows: List<TvPanelRow>, focusKey: String? = null, onPic
         ?: rows.indexOfFirst { it.checked }.coerceAtLeast(0)
     // Open scrolled to that row, so a pick far down a long list (captions) is on screen to take focus.
     val list = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = (start - 2).coerceAtLeast(0))
-    LazyColumn(state = list, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    // A list of choices keeps a column for the check, so labels line up whichever is picked.
+    val checkable = rows.any { it.checked }
+    LazyColumn(state = list, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         items(rows.size, key = { rows[it].key }) { index ->
             val row = rows[index]
-            Surface(
+            TvMenuRow(
+                label = row.label,
                 onClick = { onPick(row) },
-                modifier = Modifier.fillMaxWidth().height(56.dp).then(if (index == start) Modifier.focusRequester(first) else Modifier),
-                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-                colors = ClickableSurfaceDefaults.colors(
-                    containerColor = Color.Transparent,
-                    contentColor = TvColors.Text,
-                    focusedContainerColor = TvColors.Focused,
-                    focusedContentColor = TvColors.OnFocused,
-                ),
-                scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-            ) {
-                Row(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(24.dp)) {
-                        if (row.checked) AppIcon(AppIcon.Check, Modifier.size(24.dp), color = androidx.tv.material3.LocalContentColor.current)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Text(row.label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f))
-                    row.value?.let {
-                        Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 1,
-                            color = androidx.tv.material3.LocalContentColor.current.copy(alpha = 0.7f))
-                    }
-                }
-            }
+                modifier = if (index == start) Modifier.focusRequester(first) else Modifier,
+                icon = row.icon,
+                value = row.value,
+                checked = row.checked,
+                checkable = checkable && row.icon == null,
+                opens = row.opens,
+            )
         }
     }
 }

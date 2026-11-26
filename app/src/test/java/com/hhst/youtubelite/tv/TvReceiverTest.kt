@@ -41,10 +41,20 @@ class TvReceiverTest {
             TvLinkMessage.Play, TvLinkMessage.Pause, TvLinkMessage.Seek(9), TvLinkMessage.Speed(1.25f),
             TvLinkMessage.Stop, TvLinkMessage.Ping, TvLinkMessage.Skip(forward = true), TvLinkMessage.NotPaired,
             TvLinkMessage.Status(videoId = "abc", state = TvLinkMessage.Status.STATE_READY, positionMs = 3),
+            TvLinkMessage.SetQuality("1080p"), TvLinkMessage.SetQuality(null),
+            TvLinkMessage.SetCaptions("en"), TvLinkMessage.SetCaptions(null), TvLinkMessage.SetAudio("es"),
+            TvLinkMessage.Volume(step = 1), TvLinkMessage.Volume(level = 7),
+            TvLinkMessage.Status(videoId = "abc", volume = 5, maxVolume = 15),
         )
         messages.forEach { assertEquals(it, TvLinkMessage.decodeOrNull(TvLinkMessage.encode(it))) }
         assertNull(TvLinkMessage.decodeOrNull("{\"t\":\"self_destruct\"}"))
         assertNull(TvLinkMessage.decodeOrNull("not json"))
+    }
+
+    @Test fun anOlderTvStatusHasNoVolume() {
+        val status = TvLinkMessage.decodeOrNull("{\"t\":\"status\",\"state\":\"idle\"}") as TvLinkMessage.Status
+        assertEquals(-1, status.volume)
+        assertEquals(0, status.maxVolume)
     }
 
     @Test fun statsShowWhatThePlayerIsDoing() {

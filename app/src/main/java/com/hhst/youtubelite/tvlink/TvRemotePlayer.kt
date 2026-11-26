@@ -3,6 +3,8 @@ package com.hhst.youtubelite.tvlink
 import android.os.Looper
 import android.os.SystemClock
 import androidx.media3.common.C
+import androidx.media3.common.DeviceInfo
+import com.hhst.youtubelite.player.engine.RemoteTrackControl
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
@@ -23,7 +25,10 @@ internal class TvRemotePlayer(
     private val send: (TvLinkMessage) -> Unit,
     looper: Looper = Looper.getMainLooper(),
     private val clock: () -> Long = SystemClock::elapsedRealtime,
-) : SimpleBasePlayer(looper) {
+) : SimpleBasePlayer(looper), RemoteTrackControl {
+    /** The TV's volume as it last reported it; the phone's volume keys move it. */
+    private var volume = -1
+    private var maxVolume = 0
     private var item: MediaItem? = null
     private var videoId: String? = null
     private var title = ""
@@ -75,6 +80,10 @@ internal class TvRemotePlayer(
         positionMs = status.positionMs.coerceAtLeast(0)
         bufferedMs = status.bufferedMs.coerceAtLeast(positionMs)
         if (status.durationMs > 0) durationMs = status.durationMs
+        if (status.volume >= 0 && status.maxVolume > 0) {
+            volume = status.volume
+            maxVolume = status.maxVolume
+        }
         sampledAt = clock()
         playing = status.playing
         val observed = if (status.state == TvLinkMessage.Status.STATE_BUFFERING && pendingPlayWhenReady != null) null else status.wantsPlay
@@ -116,7 +125,12 @@ internal class TvRemotePlayer(
             Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM, Player.COMMAND_SEEK_TO_DEFAULT_POSITION,
             Player.COMMAND_GET_CURRENT_MEDIA_ITEM, Player.COMMAND_GET_TIMELINE,
             Player.COMMAND_GET_METADATA, Player.COMMAND_SET_REPEAT_MODE, Player.COMMAND_SET_SPEED_AND_PITCH,
-        ).build()).setPlaylist(playlist).setPlaybackState(if (item == null) STATE_IDLE else state)
+            Player.COMMAND_GET_DEVICE_VOLUME, Player.COMMAND_SET_DEVICE_VOLUME_WITH_FLAGS,
+            Player.COMMAND_ADJUST_DEVICE_VOLUME_WITH_FLAGS,
+        ).build()).setPlaylist(playlist)
+            // A remote device: the phone's volume keys change the TV's volume, as with a Chromecast.
+            .setDeviceInfo(DeviceInfo.Builder(DeviceInfo.PLAYBACK_TYPE_REMOTE).setMaxVolume(maxVolume.coerceAtLeast(1)).build())
+            .setDeviceVolume(volume.coerceIn(0, maxVolume.coerceAtLeast(1))).setPlaybackState(if (item == null) STATE_IDLE else state)
             .setPlayWhenReady(wanted, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
             .setRepeatMode(repeat).setPlaybackParameters(parameters).setPlayerError(error)
             .setContentPositionMs(PositionSupplier { estimatedPosition() })
@@ -169,4 +183,23 @@ internal class TvRemotePlayer(
     }
 
     override fun handlePrepare(): ListenableFuture<*> = Futures.immediateVoidFuture()
+
+    override fun handleIncreaseDeviceVolume(flags: Int): ListenableFuture<*> = stepVolume(1)
+    override fun handleDecreaseDeviceVolume(flags: Int): ListenableFuture<*> = stepVolume(-1)
+
+    override fun handleSetDeviceVolume(deviceVolume: Int, flags: Int): ListenableFuture<*> {
+        send(TvLinkMessage.Volume(level = deviceVolume.coerceAtLeast(0)))
+        if (maxVolume > 0) volume = deviceVolume.coerceIn(0, maxVolume)
+        return Futures.immediateVoidFuture()
+    }
+
+    private fun stepVolume(step: Int): ListenableFuture<*> {
+        send(TvLinkMessage.Volume(step = step))
+        if (maxVolume > 0 && volume >= 0) volume = (volume + step).coerceIn(0, maxVolume)
+        return Futures.immediateVoidFuture()
+    }
+
+    override fun setRemoteQuality(label: String?) = send(TvLinkMessage.SetQuality(label))
+    override fun setRemoteCaptions(key: String?) = send(TvLinkMessage.SetCaptions(key))
+    override fun setRemoteAudio(key: String?) = send(TvLinkMessage.SetAudio(key))
 }

@@ -87,6 +87,31 @@ class TvLinkController internal constructor(
         if (discovery == null) discovery = CastV2Discovery(appContext, TvLinkServer.SERVICE_TYPE, requireVideoOut = false)
         // A TV typed in by its address stays in the list, for Wi-Fi that hides the TV's announcement.
         typedAddress()?.let { add(it, remember = false) }
+        // TVs found before are listed straight away; connecting needs no fresh announcement.
+        KnownTvs.fresh(knownTvs(), System.currentTimeMillis()).forEach { tv ->
+            if (endpoints.values.none { it.host == tv.host && it.port == tv.port }) {
+                endpoints[ID_PREFIX + "${tv.host}:${tv.port}"] = Endpoint(tv.name, tv.host, tv.port)
+            }
+        }
+        publishDevices()
+    }
+
+    private fun knownTvs(): List<KnownTv> =
+        KnownTvs.decode(appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KNOWN, null))
+
+    /** Notes [name] at [host]:[port] as met now, and drops the same TV's old addresses from the list. */
+    private fun meet(name: String, host: String, port: Int) {
+        val tv = KnownTv(name, host, port, System.currentTimeMillis())
+        val known = knownTvs()
+        val stale = KnownTvs.replacedBy(known, tv).map { ID_PREFIX + "${it.host}:${it.port}" }.toMutableSet()
+        // Also an endpoint heard this session that the list didn't hold yet.
+        endpoints.forEach { (id, endpoint) ->
+            if (KnownTvs.replacedBy(listOf(KnownTv(endpoint.name, endpoint.host, endpoint.port, 0)), tv).isNotEmpty()) stale += id
+        }
+        stale.remove(selectedId)
+        stale.forEach(endpoints::remove)
+        appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KNOWN, KnownTvs.encode(KnownTvs.remember(known, tv))).apply()
     }
 
     /**
@@ -126,6 +151,7 @@ class TvLinkController internal constructor(
         if (enabled) {
             discovery.start { name, host, port ->
                 endpoints[ID_PREFIX + "$host:$port"] = Endpoint(name, host, port)
+                meet(name, host, port)
                 publishDevices()
             }
         } else discovery.stop()
@@ -144,7 +170,10 @@ class TvLinkController internal constructor(
         when (val result = opened.result) {
             is PhoneHandshake.Result.Connected -> {
                 val connected = Connection(checkNotNull(opened.socket), result.channel)
-                withContext(Dispatchers.Main) { learnName(deviceId, result.tvName) }
+                withContext(Dispatchers.Main) {
+                    learnName(deviceId, result.tvName)
+                    meet(result.tvName.ifBlank { endpoint.name }, endpoint.host, endpoint.port)
+                }
                 withContext(Dispatchers.Main) { attach(connected, result.tvName) }
                 return ConnectResult.Connected
             }
@@ -320,6 +349,7 @@ class TvLinkController internal constructor(
         private const val PREFS = "puretube_tv_link_phone"
         private const val TYPED = "typed_address"
         private const val TYPED_NAME = "typed_name"
+        private const val KNOWN = "known_tvs"
 
         /** "192.168.1.20" or "192.168.1.20:48765" to host and port; null for anything else. */
         internal fun parseAddress(text: String): Pair<String, Int>? {

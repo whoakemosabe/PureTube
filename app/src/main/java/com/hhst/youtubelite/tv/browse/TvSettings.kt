@@ -36,6 +36,11 @@ import androidx.tv.material3.Text
 import com.hhst.youtubelite.extension.ExtensionManager
 import com.hhst.youtubelite.extension.PreferenceKeys
 import com.hhst.youtubelite.tv.TvColors
+import com.hhst.youtubelite.tv.TvMenu
+import com.hhst.youtubelite.tv.TvMenuHeader
+import com.hhst.youtubelite.tv.TvMenuRow
+import com.hhst.youtubelite.tv.TvSwitch
+import com.hhst.youtubelite.ui.design.AppIcon
 import com.hhst.youtubelite.tv.TvLinkUiState
 import androidx.compose.ui.platform.LocalContext
 import com.hhst.youtubelite.update.UpdateUi
@@ -64,7 +69,7 @@ internal class ExtensionTvSettings(private val prefs: ExtensionManager) : TvSett
 
 internal data class TvToggle(val key: String, val title: String, val summary: String = "")
 
-internal data class TvToggleGroup(val title: String, val toggles: List<TvToggle>)
+internal data class TvToggleGroup(val title: String, val toggles: List<TvToggle>, val icon: AppIcon? = null)
 
 /** Keys whose change alters what browse lists show, so they are read again. */
 internal val LIST_KEYS = setOf(PreferenceKeys.ENABLE_HIDE_SHORTS, PreferenceKeys.ENABLE_HIDE_WATCHED)
@@ -75,14 +80,14 @@ internal val TV_SETTING_GROUPS = listOf(
         TvToggle(PreferenceKeys.ENABLE_HIDE_SHORTS, "Hide Shorts", "Leave Shorts out of Home, Subscriptions and Explore"),
         TvToggle(PreferenceKeys.ENABLE_HIDE_WATCHED, "Hide watched videos", "Leave out videos you've already watched"),
         TvToggle(PreferenceKeys.ENABLE_HIDE_RELATED, "Hide recommended videos", "No recommended row under the player"),
-    )),
+    ), AppIcon.Home),
     TvToggleGroup("Playback", listOf(
         TvToggle(PreferenceKeys.ENABLE_AUTOPLAY, "Autoplay", "Play the next video when one ends"),
         TvToggle(PreferenceKeys.REMEMBER_LAST_POSITION, "Remember where I stopped", "Start videos where you left off"),
         TvToggle(PreferenceKeys.REMEMBER_QUALITY, "Remember quality"),
         TvToggle(PreferenceKeys.REMEMBER_PLAYBACK_SPEED, "Remember playback speed"),
         TvToggle(PreferenceKeys.USE_ORIGINAL_TITLE, "Original titles", "Show titles in their original language"),
-    )),
+    ), AppIcon.Play),
     TvToggleGroup("SponsorBlock", listOf(
         TvToggle(PreferenceKeys.SKIP_SPONSORS, "Skip sponsors"),
         TvToggle(PreferenceKeys.SKIP_SELF_PROMO, "Skip self-promotion"),
@@ -94,18 +99,21 @@ internal val TV_SETTING_GROUPS = listOf(
         TvToggle(PreferenceKeys.SKIP_FILLER, "Skip filler"),
         TvToggle(PreferenceKeys.SKIP_POI_HIGHLIGHT, "Jump to the highlight"),
         TvToggle(PreferenceKeys.SPONSOR_COUNTDOWN, "Count down before skipping"),
-    )),
+    ), AppIcon.Block),
     TvToggleGroup("DeArrow", listOf(
         TvToggle(PreferenceKeys.DEARROW_TITLES, "Better titles", "Crowd-sourced titles instead of clickbait"),
         TvToggle(PreferenceKeys.DEARROW_THUMBNAILS, "Better thumbnails", "Crowd-sourced thumbnails instead of clickbait"),
-    )),
+    ), AppIcon.Sparkle),
     TvToggleGroup("Privacy and data", listOf(
         TvToggle(PreferenceKeys.PRIVATE_BROWSING, "Private browsing", "Don't add what you watch to your history"),
         TvToggle(PreferenceKeys.DATA_SAVER, "Data saver", "Lower quality and smaller thumbnails"),
-    )),
+    ), AppIcon.Lock),
 )
 
-/** Settings, as one D-pad list: account, phones, then every setting group, then the version. */
+/**
+ * Settings, as one D-pad list of cards, in the same look as the player's menus: account,
+ * phones, then every setting group, then the version.
+ */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun SettingsSection(
@@ -121,48 +129,74 @@ internal fun SettingsSection(
     LazyColumn(
         modifier = Modifier.fillMaxSize().focusRestorer(),
         contentPadding = PaddingValues(start = 40.dp, top = 28.dp, end = 48.dp, bottom = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        item { Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TvColors.Text) }
-        item { GroupTitle("Account") }
-        item {
-            if (account != null) ActionRow("Sign out on this TV", "Signed in as $account", onSignOut)
-            else ActionRow("Sign in", "See your subscriptions, history and playlists", onSignIn)
+        item { TvMenuHeader("Settings", "Puretube $version", Modifier.widthIn(max = SETTINGS_WIDTH)) }
+        item(key = "account") {
+            SettingsCard("Account", AppIcon.You) {
+                if (account != null) TvMenuRow("Sign out on this TV", onSignOut, summary = "Signed in as $account")
+                else TvMenuRow("Sign in", onSignIn, summary = "See your subscriptions, history and playlists", opens = true)
+            }
         }
-        item { GroupTitle("Phones") }
-        item {
-            ActionRow(
-                "Forget paired phones",
-                if (link.pairedPhones.isEmpty()) "No paired phones. This TV is ${link.tvName}."
-                else link.pairedPhones.joinToString(", "),
-                onForgetPhones,
-                enabled = link.pairedPhones.isNotEmpty(),
-            )
+        item(key = "phones") {
+            SettingsCard("Phones", AppIcon.Device) {
+                TvMenuRow(
+                    "Forget paired phones",
+                    onForgetPhones,
+                    summary = if (link.pairedPhones.isEmpty()) "No paired phones. This TV is ${link.tvName}."
+                    else link.pairedPhones.joinToString(", "),
+                    enabled = link.pairedPhones.isNotEmpty(),
+                )
+            }
         }
         TV_SETTING_GROUPS.forEach { group ->
-            item(key = "g-${group.title}") { GroupTitle(group.title) }
-            group.toggles.forEach { toggle ->
-                item(key = toggle.key) {
-                    ToggleRow(toggle, values[toggle.key] == true) { settings.set(toggle.key, it) }
+            item(key = "g-${group.title}") {
+                SettingsCard(group.title, group.icon) {
+                    group.toggles.forEach { toggle ->
+                        val on = values[toggle.key] == true
+                        TvMenuRow(toggle.title, { settings.set(toggle.key, !on) }, summary = toggle.summary) { TvSwitch(on) }
+                    }
                 }
             }
         }
-        item { GroupTitle("About") }
-        item(key = "check-update") {
-            val context = LocalContext.current
-            val waiting = UpdateWatch.waitingVersion
-            ActionRow(
-                if (waiting != null) "Update to Puretube $waiting" else "Check for updates",
-                updateSummary(UpdateWatch.ui, version, waiting),
-                {
-                    // A newer version opens its panel, even one closed with Not now before.
-                    UpdateWatch.showBanner(context)
-                    if (waiting == null) UpdateWatch.checkOnly(context)
-                },
-            )
+        item(key = "about") {
+            SettingsCard("About", AppIcon.Info) {
+                val context = LocalContext.current
+                val waiting = UpdateWatch.waitingVersion
+                TvMenuRow(
+                    if (waiting != null) "Update to Puretube $waiting" else "Check for updates",
+                    {
+                        // A newer version opens its panel, even one closed with Not now before.
+                        UpdateWatch.showBanner(context)
+                        if (waiting == null) UpdateWatch.checkOnly(context)
+                    },
+                    summary = updateSummary(UpdateWatch.ui, version, waiting),
+                    icon = AppIcon.Refresh,
+                )
+            }
         }
     }
 }
+
+/** One settings group: a small titled heading, then its rows on a dark card. */
+@Composable
+private fun SettingsCard(title: String, icon: AppIcon?, rows: @Composable () -> Unit) {
+    Column(Modifier.widthIn(max = SETTINGS_WIDTH).fillMaxWidth()) {
+        Row(Modifier.padding(start = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                AppIcon(icon, Modifier.size(18.dp), color = TvColors.Muted)
+                Spacer(Modifier.width(10.dp))
+            }
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = TvColors.Muted)
+        }
+        Column(
+            Modifier.fillMaxWidth().background(TvMenu.Card, TvMenu.CardShape).padding(6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) { rows() }
+    }
+}
+
+private val SETTINGS_WIDTH = 820.dp
 
 /** What the Check for updates row says under its title. */
 internal fun updateSummary(ui: UpdateUi, installed: String, waiting: String?): String = when {
@@ -171,63 +205,4 @@ internal fun updateSummary(ui: UpdateUi, installed: String, waiting: String?): S
     waiting != null -> "You have $installed. Press to see what's new and install."
     ui is UpdateUi.UpToDate -> "You have the latest version, $installed."
     else -> "You have Puretube $installed."
-}
-
-@Composable
-private fun GroupTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, color = TvColors.Muted,
-        modifier = Modifier.padding(start = 16.dp, top = 22.dp, bottom = 4.dp))
-}
-
-@Composable
-private fun ActionRow(title: String, summary: String, onClick: () -> Unit, enabled: Boolean = true) =
-    SettingRow(title, summary, onClick, enabled) {}
-
-@Composable
-private fun ToggleRow(toggle: TvToggle, on: Boolean, onChange: (Boolean) -> Unit) =
-    SettingRow(toggle.title, toggle.summary, { onChange(!on) }) { Switch(on) }
-
-@Composable
-private fun SettingRow(title: String, summary: String, onClick: () -> Unit, enabled: Boolean = true, trailing: @Composable () -> Unit) {
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.widthIn(max = 760.dp).fillMaxWidth().heightIn(min = 60.dp),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            contentColor = TvColors.Text,
-            focusedContainerColor = TvColors.Focused,
-            focusedContentColor = TvColors.OnFocused,
-            disabledContainerColor = Color.Transparent,
-            disabledContentColor = TvColors.Muted,
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-    ) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                if (summary.isNotBlank()) {
-                    Text(summary, style = MaterialTheme.typography.bodyMedium, color = LocalContentColor.current.copy(alpha = 0.7f))
-                }
-            }
-            Spacer(Modifier.width(16.dp))
-            trailing()
-        }
-    }
-}
-
-/** A plain on/off pill; it follows the row's focus colours. */
-@Composable
-private fun Switch(on: Boolean) {
-    val ink = LocalContentColor.current
-    Box(
-        Modifier
-            .size(width = 44.dp, height = 24.dp)
-            .background(if (on) TvColors.Red else ink.copy(alpha = 0.3f), CircleShape)
-            .padding(3.dp),
-        contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
-    ) {
-        Box(Modifier.size(18.dp).background(Color.White, CircleShape))
-    }
 }

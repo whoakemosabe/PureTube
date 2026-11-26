@@ -6,6 +6,9 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.hhst.youtubelite.App
@@ -99,13 +102,20 @@ class TvActivity : ComponentActivity() {
             val signedInAs by account.collectAsStateWithLifecycle()
             val photo by accountPhoto.collectAsStateWithLifecycle()
             TvTheme {
+              val clockDimmed = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+              androidx.compose.runtime.CompositionLocalProvider(LocalClockDimmed provides clockDimmed) {
+               androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
                 TvApp(receiver = receiver, engine = engine, browse = browse, player = player, account = signedInAs, accountPhoto = photo,
-                    settings = settings, version = Updater.installedVersion(this), chat = chat, captions = captions,
+                    settings = settings, version = Updater.installedVersion(this@TvActivity), chat = chat, captions = captions,
                     onSignOut = MediaSession::signOut,
-                    openSignIn = { TvSignInSession(MediaSignInService(get<OkHttpClient>(), PreferencesAuthStore(this))) },
-                    onOpenDownloads = { DownloadUi.openManager(this) },
-                    onDownload = { id, title, author, artwork -> DownloadUi.showSingleConfirm(this, id, title, author, artwork) },
+                    openSignIn = { TvSignInSession(MediaSignInService(get<OkHttpClient>(), PreferencesAuthStore(this@TvActivity))) },
+                    onOpenDownloads = { DownloadUi.openManager(this@TvActivity) },
+                    onDownload = { id, title, author, artwork -> DownloadUi.showSingleConfirm(this@TvActivity, id, title, author, artwork) },
                     onExit = ::finish)
+                TvClock(clockDimmed.value, androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.TopEnd)
+                    .padding(top = 24.dp, end = 40.dp))
+               }
+              }
             }
         }
     }
