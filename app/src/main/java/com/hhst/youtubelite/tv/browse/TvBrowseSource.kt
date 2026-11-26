@@ -118,6 +118,8 @@ internal interface TvBrowseSource {
     suspend fun channel(id: String): TvChannelReads
     /** Server-confirmed: returns only after the server took the change. */
     suspend fun subscribe(channelId: String, subscribed: Boolean)
+    /** Whether the account subscribes to [channelId]; null when it can't tell. */
+    suspend fun isSubscribed(channelId: String): Boolean? = channel(channelId).header.subscribed
     suspend fun search(query: String, cursor: String?): TvPage
     suspend fun history(cursor: String?): TvPage
     suspend fun playlists(cursor: String?): TvPage

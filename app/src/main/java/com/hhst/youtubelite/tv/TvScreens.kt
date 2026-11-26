@@ -186,7 +186,8 @@ internal fun TvApp(receiver: TvReceiver, engine: PlaybackApi, browse: TvBrowseMo
             TvBrowse(browse, link, account, accountPhoto, settings, version, onPlay = play,
                 onPlayNext = { card -> playNext = playNext + card },
                 onForgetPhones = receiver.server::forgetPhones,
-                onSignOut = onSignOut, onSignIn = { signingIn = true }, onOpenDownloads = onOpenDownloads, onExit = onExit)
+                onSignOut = onSignOut, onSignIn = { signingIn = true }, onOpenDownloads = onOpenDownloads,
+                onDownload = onDownload, onExit = onExit)
             if (tvUpdateWaiting()) TvUpdatePanel()
         }
     }

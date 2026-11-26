@@ -162,6 +162,51 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
 
     suspend fun searchRows(text: String) = source.searchRows(text)
 
+    private val subscriptions = mutableMapOf<String, Boolean>()
+    private val _menuSubscribed = MutableStateFlow<Boolean?>(null)
+    /** For the open tile menu: whether its channel is subscribed; null while looking it up. */
+    val menuSubscribed: StateFlow<Boolean?> = _menuSubscribed.asStateFlow()
+    private var menuChannel: String? = null
+
+    /** A tile's menu opened: find out whether its channel is subscribed, for the Subscribe row. */
+    fun lookUpSubscription(card: TvCard) {
+        val channelId = card.ownerId?.takeIf(String::isNotBlank)
+        menuChannel = channelId
+        _menuSubscribed.value = channelId?.let(subscriptions::get)
+        if (channelId == null || !source.signedIn || channelId in subscriptions) return
+        scope.launch {
+            val subscribed = try {
+                source.isSubscribed(channelId)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                null
+            } ?: return@launch
+            subscriptions[channelId] = subscribed
+            if (menuChannel == channelId) _menuSubscribed.value = subscribed
+        }
+    }
+
+    /** A tile's menu: Subscribe or Unsubscribe to its channel. Says so once YouTube took it. */
+    fun toggleSubscription(card: TvCard) {
+        val channelId = card.ownerId?.takeIf(String::isNotBlank) ?: return
+        val next = subscriptions[channelId] != true
+        val name = card.author?.takeIf(String::isNotBlank) ?: "the channel"
+        scope.launch {
+            _notice.value = try {
+                source.subscribe(channelId, next)
+                subscriptions[channelId] = next
+                if (menuChannel == channelId) _menuSubscribed.value = next
+                lists[TvSection.Subscriptions]?.markStale()
+                if (next) "Subscribed to $name" else "Unsubscribed from $name"
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (error is SignInRequiredException) "Sign in to subscribe." else "That didn't go through. Try again."
+            }
+        }
+    }
+
     /** A tile's menu: Save to Watch later. Says so once the server took it. */
     fun saveToWatchLater(card: TvCard) {
         val videoId = card.videoId ?: return

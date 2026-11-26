@@ -8,7 +8,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import com.hhst.youtubelite.tv.FrostPill
 import com.hhst.youtubelite.tv.requestFocusSoon
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -92,7 +91,6 @@ internal fun HomeSection(
     dataSaver: Boolean = false,
 ) {
     val shelves = remember(browse.signedIn, hideShorts) { homeShelves(browse.signedIn, hideShorts) }
-    val homeFilter by browse.homeFilter.collectAsStateWithLifecycle()
     val recommended = browse.list(TvSection.Home)
     val first by recommended.state.collectAsStateWithLifecycle()
     var focused by remember { mutableStateOf<TvCard?>(null) }
@@ -129,22 +127,7 @@ internal fun HomeSection(
     Box(Modifier.fillMaxSize()) {
         Hero(shownHero, dataSaver)
         Column(Modifier.fillMaxSize()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SearchBar(onSearch)
-                val filters = browse.homeFilters
-                if (filters.size > 1) {
-                    androidx.compose.foundation.lazy.LazyRow(
-                        contentPadding = PaddingValues(start = 16.dp, end = 48.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.padding(top = 22.dp).focusRestorer(),
-                    ) {
-                        items(filters.size) { index ->
-                            val filter = filters[index]
-                            FrostPill(filter, { browse.filterHome(filter) }, selected = filter == homeFilter)
-                        }
-                    }
-                }
-            }
+            SearchBar(onSearch)
             HeroText(shownHero, Modifier.height(HERO_HEIGHT))
             when {
                 first.loading && first.cards.isEmpty() -> Message("Loading…")
@@ -155,27 +138,14 @@ internal fun HomeSection(
                     contentPadding = PaddingValues(bottom = 48.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
-                    // YouTube's Home arrives as its own shelves ("Recommended", then others that are
-                    // often general). Shown by name, as YouTube TV does, they don't blur into one row.
-                    val groups = homeGroups(first.cards)
-                    val youtubeShelves = groups.size > 1
-                    shelves.filterNot { youtubeShelves && it.section in TOPIC_SHELVES }.forEach { shelf ->
-                        if (shelf.section == TvSection.Home && youtubeShelves) {
-                            groups.forEachIndexed { index, (title, _) ->
-                                item(key = "home-$homeFilter-$title") {
-                                    Shelf(shelf.copy(title = title), recommended, onPlay, onOpen,
-                                        onFocused = { focused = it; lastFocus.value = it.key },
-                                        restoreKey = saved?.focusedKey,
-                                        firstTile = firstTile.takeIf { index == 0 },
-                                        select = { cards -> homeGroups(cards).firstOrNull { it.first == title }?.second.orEmpty() },
-                                        loadsMore = index == groups.lastIndex)
-                                }
-                            }
-                        } else item(key = shelf.section.name + if (shelf.section == TvSection.Home) homeFilter else "") {
+                    shelves.forEach { shelf ->
+                        item(key = shelf.section.name) {
                             Shelf(shelf, browse.list(shelf.section), onPlay, onOpen,
                                 onFocused = { focused = it; lastFocus.value = it.key },
                                 restoreKey = saved?.focusedKey,
-                                firstTile = firstTile.takeIf { shelf.section == TvSection.Home })
+                                firstTile = firstTile.takeIf { shelf.section == TvSection.Home },
+                                // Recommended keeps YouTube's picks for you, without its general shelves.
+                                select = if (shelf.section == TvSection.Home) ::personalCards else { cards -> cards })
                         }
                     }
                 }
@@ -350,8 +320,15 @@ internal fun homeGroups(cards: List<TvCard>): List<Pair<String, List<TvCard>>> {
     return groups.map { it.key to it.value.toList() }
 }
 
-/** Our own topic shelves; YouTube's Home shelves already cover them when it sends shelves. */
-private val TOPIC_SHELVES = setOf(TvSection.Music, TvSection.Gaming, TvSection.News, TvSection.Sports)
+/**
+ * Home's tiles minus YouTube's general shelves (Trending, Music, News…), which are the same
+ * for everyone and have their own rows further down. Untitled and personal shelves stay.
+ */
+internal fun personalCards(cards: List<TvCard>): List<TvCard> =
+    cards.filter { card -> card.group?.trim()?.lowercase()?.let { title -> GENERAL_SHELVES.any(title::contains) } != true }
+
+private val GENERAL_SHELVES = listOf("trending", "popular", "music", "gaming", "news", "sports", "live", "shorts",
+    "breaking", "top stories", "recently uploaded", "movies", "podcasts")
 private const val RECOMMENDED = "Recommended"
 internal const val HOME_PLACE = "home"
 private const val SHELF_RETRIES = 2

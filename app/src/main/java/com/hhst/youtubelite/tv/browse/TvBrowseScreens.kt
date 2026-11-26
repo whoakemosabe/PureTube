@@ -117,6 +117,7 @@ internal fun TvBrowse(
     onSignOut: () -> Unit,
     onSignIn: () -> Unit,
     onOpenDownloads: () -> Unit,
+    onDownload: (videoId: String, title: String, author: String?, artwork: String?) -> Unit,
     onExit: () -> Unit,
 ) {
     val identity by browse.identity.collectAsStateWithLifecycle()
@@ -286,10 +287,15 @@ internal fun TvBrowse(
             }, onClose = { sectionMenu = null })
         }
         menuCard?.let { card ->
-            TileMenu(card, tileActions(card, browse.signedIn), onPick = { action ->
+            LaunchedEffect(card.key) { browse.lookUpSubscription(card) }
+            val subscribed by browse.menuSubscribed.collectAsStateWithLifecycle()
+            TileMenu(card, tileActions(card, browse.signedIn), subscribed, onPick = { action ->
                 menuCard = null
                 when (action) {
                     TileAction.Play -> if (card.videoId != null) onPlay(card, emptyList()) else browse.open(card)
+                    TileAction.StartOver -> onPlay(card.copy(progress = null), emptyList())
+                    TileAction.Subscribe -> browse.toggleSubscription(card)
+                    TileAction.Download -> card.videoId?.let { onDownload(it, card.title, card.author, card.artwork) }
                     TileAction.PlayNext -> { onPlayNext(card); exitHint = "Plays next" }
                     TileAction.WatchLater -> browse.saveToWatchLater(card)
                     TileAction.Channel -> card.ownerId?.let(browse::openChannel)

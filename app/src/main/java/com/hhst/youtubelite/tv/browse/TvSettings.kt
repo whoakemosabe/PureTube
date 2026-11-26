@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -126,16 +127,20 @@ internal fun SettingsSection(
     onSignIn: () -> Unit,
 ) {
     val values by settings.values.collectAsStateWithLifecycle()
+    // Settings opens on its top row, not wherever the D-pad happens to land.
+    val top = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(Unit) { com.hhst.youtubelite.tv.requestFocusSoon(top) }
     LazyColumn(
-        modifier = Modifier.fillMaxSize().focusRestorer(),
+        modifier = Modifier.fillMaxSize().focusRestorer(top),
         contentPadding = PaddingValues(start = 40.dp, top = 28.dp, end = 48.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item { TvMenuHeader("Settings", "Puretube $version", Modifier.widthIn(max = SETTINGS_WIDTH)) }
         item(key = "account") {
             SettingsCard("Account", AppIcon.You) {
-                if (account != null) TvMenuRow("Sign out on this TV", onSignOut, summary = "Signed in as $account")
-                else TvMenuRow("Sign in", onSignIn, summary = "See your subscriptions, history and playlists", opens = true)
+                val first = Modifier.focusRequester(top)
+                if (account != null) TvMenuRow("Sign out on this TV", onSignOut, first, summary = "Signed in as $account")
+                else TvMenuRow("Sign in", onSignIn, first, summary = "See your subscriptions, history and playlists", opens = true)
             }
         }
         item(key = "phones") {

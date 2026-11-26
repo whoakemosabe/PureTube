@@ -58,9 +58,12 @@ internal val LocalTvPlaces = staticCompositionLocalOf<MutableMap<String, TvPlace
 /** What a tile's menu offers, in YouTube's order. */
 internal enum class TileAction(val label: String, val icon: AppIcon) {
     Play("Play", AppIcon.Play),
+    StartOver("Play from the start", AppIcon.Refresh),
     PlayNext("Play next", AppIcon.QueueAdd),
     WatchLater("Save to Watch later", AppIcon.Clock),
+    Subscribe("Subscribe", AppIcon.Bell),
     Channel("Go to channel", AppIcon.ChannelGrid),
+    Download("Download", AppIcon.Download),
     NotInterested("Not interested", AppIcon.Block),
 }
 
@@ -68,20 +71,43 @@ internal enum class TileAction(val label: String, val icon: AppIcon) {
 internal fun tileActions(card: TvCard, signedIn: Boolean): List<TileAction> = buildList {
     add(TileAction.Play)
     if (card.videoId == null) return@buildList
+    // Part-watched: Play carries on, this starts again.
+    if ((card.progress ?: 0f) > 0f && !card.live) add(TileAction.StartOver)
     add(TileAction.PlayNext)
     if (signedIn) add(TileAction.WatchLater)
-    if (!card.ownerId.isNullOrBlank()) add(TileAction.Channel)
+    val hasChannel = !card.ownerId.isNullOrBlank()
+    if (signedIn && hasChannel) add(TileAction.Subscribe)
+    if (hasChannel) add(TileAction.Channel)
+    if (!card.live) add(TileAction.Download)
     // Only Home's own tiles carry what YouTube needs for this.
     if (signedIn && card.key.startsWith("v-")) add(TileAction.NotInterested)
 }
 
 /** The long-press menu over a tile, sliding in from the right like the player's menus. */
 @Composable
-internal fun TileMenu(card: TvCard, actions: List<TileAction>, onPick: (TileAction) -> Unit, onClose: () -> Unit) {
+internal fun TileMenu(
+    card: TvCard,
+    actions: List<TileAction>,
+    subscribed: Boolean?,
+    onPick: (TileAction) -> Unit,
+    onClose: () -> Unit,
+) {
     SideMenu(card.title, card.author?.takeIf(String::isNotBlank) ?: card.subtitle.takeIf(String::isNotBlank),
         onClose = onClose, focusKey = card.key) { first ->
         actions.forEachIndexed { index, action ->
-            TvMenuRow(action.label, { onPick(action) }, if (index == 0) Modifier.focusRequester(first) else Modifier, icon = action.icon)
+            val modifier = if (index == 0) Modifier.focusRequester(first) else Modifier
+            if (action == TileAction.Subscribe) {
+                // Waits for YouTube's answer rather than guess which way it goes.
+                TvMenuRow(
+                    when (subscribed) { true -> "Unsubscribe"; false -> "Subscribe"; null -> "Subscribe" },
+                    { onPick(action) }, modifier, icon = AppIcon.Bell,
+                    summary = card.author?.takeIf(String::isNotBlank) ?: if (subscribed == null) "Checking…" else null,
+                    value = if (subscribed == true) "Subscribed" else null,
+                    enabled = subscribed != null,
+                )
+            } else {
+                TvMenuRow(action.label, { onPick(action) }, modifier, icon = action.icon)
+            }
         }
     }
 }

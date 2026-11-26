@@ -1,9 +1,6 @@
 package com.hhst.youtubelite.tv.browse
 
-import com.hhst.youtubelite.data.media.firstShelf
 import com.hhst.youtubelite.data.media.homeShelfTitles
-import com.hhst.youtubelite.data.media.keepShelf
-import com.hhst.youtubelite.home.domain.FeedItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -36,20 +33,19 @@ class TvHomeGroupsTest {
         val playlist = TvCard("p-1", "List", "", "", playlistId = "1")
         assertEquals(listOf(TileAction.Play), tileActions(playlist, signedIn = true))
         val home = video("x", owner = "UC1")
-        assertEquals(TileAction.entries.toList(), tileActions(home, signedIn = true))
+        assertEquals(TileAction.entries - TileAction.StartOver, tileActions(home, signedIn = true))
+        assertTrue(TileAction.StartOver in tileActions(home.copy(progress = 0.4f), signedIn = true))
+        assertTrue(TileAction.Subscribe !in tileActions(home, signedIn = false))
         val signedOut = tileActions(home, signedIn = false)
         assertTrue(TileAction.WatchLater !in signedOut && TileAction.NotInterested !in signedOut && TileAction.Channel in signedOut)
         val search = TvCard("s-x", "x", "", "", videoId = "x")
         assertTrue(TileAction.NotInterested !in tileActions(search, signedIn = true) && TileAction.Channel !in tileActions(search, true))
     }
 
-    private fun feed(id: String, group: String?) = FeedItem.Video(id, id, "", "", "", "", "", group = group)
-
     @Test
-    fun signedInHomeKeepsOnlyTheMadeForYouShelf() {
-        val items = listOf(feed("a", null), feed("b", "Recommended"), feed("c", "Trending"), feed("d", "Recommended"))
-        assertEquals("Recommended", firstShelf(items))
-        assertEquals(listOf("a", "b", "d"), keepShelf(items, "Recommended").map { it.id })
-        assertEquals(items, keepShelf(items, null))
+    fun recommendedDropsYouTubesGeneralShelves() {
+        val cards = listOf(video("a"), video("b", "Recommended"), video("c", "Trending"), video("d", "Music videos for you"),
+            video("e", "Because you watched X"), video("f", "Breaking news"))
+        assertEquals(listOf("a", "b", "e"), personalCards(cards).map(TvCard::title))
     }
 }
