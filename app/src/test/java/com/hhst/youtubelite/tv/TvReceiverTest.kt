@@ -57,6 +57,14 @@ class TvReceiverTest {
         assertEquals(0, status.maxVolume)
     }
 
+    @Test fun chapterNameFollowsThePosition() {
+        val snapshot = PlaybackSnapshot(chapters = listOf(
+            com.hhst.youtubelite.extractor.Chapter("Intro", 0), com.hhst.youtubelite.extractor.Chapter("Setting the PIN", 90)))
+        assertEquals("Intro", chapterAt(snapshot, 89_000))
+        assertEquals("Setting the PIN", chapterAt(snapshot, 90_000))
+        assertNull(chapterAt(PlaybackSnapshot(), 5_000))
+    }
+
     @Test fun statsShowWhatThePlayerIsDoing() {
         val lines = statsLines(PlaybackSnapshot(videoId = "abc", positionMs = 10_000, bufferedPositionMs = 40_000))
         assertTrue(lines.any { it.startsWith("Buffer") && it.contains("30s ahead") })

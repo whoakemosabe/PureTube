@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -756,8 +757,13 @@ private fun EndCard(onReplay: () -> Unit, onBack: () -> Unit, modifier: Modifier
     }
 }
 
-private fun currentChapter(snapshot: PlaybackSnapshot): String? =
-    snapshot.chapters.lastOrNull { it.startSeconds * 1000L <= snapshot.positionMs }?.title?.takeIf { it.isNotBlank() }
+private fun currentChapter(snapshot: PlaybackSnapshot): String? = chapterAt(snapshot, snapshot.positionMs)
+
+/** The name of the chapter playing at [positionMs]; null with no chapters. */
+internal fun chapterAt(snapshot: PlaybackSnapshot, positionMs: Long): String? =
+    snapshot.chapters.lastOrNull { it.startSeconds * 1000L <= positionMs }?.title?.takeIf { it.isNotBlank() }
+
+private val CHAPTER_GAP = 3.dp
 
 /**
  * The progress bar takes focus first when the controls come up, as on YouTube TV: left and
@@ -828,8 +834,10 @@ private fun ScrubPreview(snapshot: PlaybackSnapshot, targetMs: Long, durationMs:
         Column(Modifier.offset(x = left).width(width), horizontalAlignment = Alignment.CenterHorizontally) {
             frame?.let { StoryboardFrameImage(it, width) }
             Text(
-                PlayerUi.formatTime(targetMs),
+                PlayerUi.formatTime(targetMs) + (chapterAt(snapshot, targetMs)?.let { "  •  $it" } ?: ""),
                 color = TvColors.Text,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
@@ -891,7 +899,9 @@ private fun ProgressBar(snapshot: PlaybackSnapshot, thick: Boolean = false, head
     val buffered = (snapshot.bufferedPositionMs.toFloat() / duration).coerceIn(played, 1f)
     val chapterStarts = snapshot.chapters.map { it.startSeconds * 1000f / duration }.filter { it > 0f && it < 1f }
     val sponsors = snapshot.sponsorSegments.map { it to ((it.startMs.toFloat() / duration).coerceIn(0f, 1f) to (it.endMs.toFloat() / duration).coerceIn(0f, 1f)) }
-    Canvas(Modifier.fillMaxWidth().height(if (thick) 10.dp else 5.dp)) {
+    // Drawn offscreen so the chapter gaps cut clean through the bar, showing the video behind.
+    Canvas(Modifier.fillMaxWidth().height(if (thick) 10.dp else 5.dp)
+        .graphicsLayer(compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen)) {
         val h = size.height
         val corner = CornerRadius(h / 2, h / 2)
         drawRoundRect(Color.White.copy(alpha = 0.3f), size = size, cornerRadius = corner)
@@ -902,9 +912,11 @@ private fun ProgressBar(snapshot: PlaybackSnapshot, thick: Boolean = false, head
             val (start, end) = range
             drawRect(PlayerUi.segmentColor(segment.category), topLeft = Offset(size.width * start, 0f), size = Size(size.width * (end - start), h))
         }
-        // Chapter gaps, as in the YouTube TV bar.
+        // Chapter gaps, as in the YouTube TV bar: a clear cut between each chapter.
+        val gap = CHAPTER_GAP.toPx()
         chapterStarts.forEach { start ->
-            drawRect(Color.Black, topLeft = Offset(size.width * start - 2f, 0f), size = Size(4f, h))
+            drawRect(Color.Black, topLeft = Offset(size.width * start - gap / 2, 0f), size = Size(gap, h),
+                blendMode = androidx.compose.ui.graphics.BlendMode.Clear)
         }
         // The playhead, shown while the bar has focus.
         if (thick) drawCircle(TvColors.Text, radius = h * 1.3f, center = Offset(size.width * played, h / 2))
