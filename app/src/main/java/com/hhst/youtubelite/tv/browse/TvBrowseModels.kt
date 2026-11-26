@@ -207,6 +207,21 @@ internal class TvBrowseModels(private val scope: CoroutineScope, private val sou
         }
     }
 
+    /** A tile's menu: Dislike. Says so once YouTube took it. */
+    fun dislike(card: TvCard) {
+        val videoId = card.videoId ?: return
+        scope.launch {
+            _notice.value = try {
+                source.dislike(videoId)
+                "Disliked. You'll see fewer like this."
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (error is SignInRequiredException) "Sign in to rate videos." else "That didn't go through. Try again."
+            }
+        }
+    }
+
     /** A tile's menu: Save to Watch later. Says so once the server took it. */
     fun saveToWatchLater(card: TvCard) {
         val videoId = card.videoId ?: return

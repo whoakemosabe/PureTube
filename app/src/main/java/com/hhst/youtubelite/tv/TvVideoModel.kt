@@ -35,6 +35,8 @@ internal data class TvVideoState(
     val saveChoices: List<SaveChoice>? = null,
     val savesFailed: Boolean = false,
     val comments: TvComments = TvComments(),
+    /** Like and dislike counts, each only when its setting is on. */
+    val votes: com.hhst.youtubelite.watch.domain.VoteCounts? = null,
 )
 
 /** Top comments for the comments panel, paged as focus nears the end. */
@@ -65,9 +67,21 @@ internal interface TvVideoOps {
     suspend fun replies(videoId: String, thread: CommentThread, cursor: String?): RepliesPage
     /** The channel's picture when the watch page left it out; null when it can't be found. */
     suspend fun avatar(channelId: String): String? = null
+    /** Like and dislike counts as the settings allow; null when both are off or unknown. */
+    suspend fun votes(videoId: String): com.hhst.youtubelite.watch.domain.VoteCounts? = null
 }
 
-internal class RepositoryTvVideoOps(private val repos: ContentRepositories) : TvVideoOps {
+internal class RepositoryTvVideoOps(
+    private val repos: ContentRepositories,
+    /** Show likes, show dislikes: the phone's two settings. */
+    private val showVotes: () -> Pair<Boolean, Boolean> = { true to false },
+) : TvVideoOps {
+    override suspend fun votes(videoId: String): com.hhst.youtubelite.watch.domain.VoteCounts? {
+        val (likes, dislikes) = showVotes()
+        if (!likes && !dislikes) return null
+        val counts = repos.votes.counts(videoId)
+        return counts.copy(likes = counts.likes.takeIf { likes }, dislikes = counts.dislikes.takeIf { dislikes })
+    }
     override suspend fun video(videoId: String) = repos.watch.watch(videoId).video
     override suspend fun rate(videoId: String, rating: VideoRating, previous: VideoRating) = repos.videoActions.rate(videoId, rating, previous)
     override suspend fun subscribe(channelId: String, subscribed: Boolean) = repos.videoActions.subscribe(channelId, subscribed)
@@ -124,6 +138,10 @@ internal class TvVideoModel(private val scope: CoroutineScope, private val ops: 
             }
             _state.update { it.copy(video = video, loadFailed = false, rating = video.rating, subscribed = video.subscribed) }
             onVideo?.invoke(video)
+            launch {
+                val votes = attempt { ops.votes(videoId) } ?: return@launch
+                if (_state.value.videoId == videoId) _state.update { it.copy(votes = votes) }
+            }
             // The watch page often leaves the channel picture out; the phone looks it up the same way.
             if (video.avatar.isNullOrBlank() && video.channelId.startsWith("UC")) {
                 val avatar = attempt { ops.avatar(video.channelId) }?.takeIf(String::isNotBlank) ?: return@launch

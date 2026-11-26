@@ -131,6 +131,7 @@ internal fun TvBrowse(
     // The section now on screen, so focus moves only once the new tiles exist.
     var shown by remember { mutableStateOf<TvSection?>(null) }
     var typeSearch by remember { mutableStateOf(false) }
+    var homeEnter by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     val sidebarFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
     val values by settings.values.collectAsStateWithLifecycle()
@@ -183,7 +184,7 @@ internal fun TvBrowse(
                 is TvOpen.Channel -> key(top) { ChannelScreen(top.model, onPlay = onPlay, onOpen = browse::open) }
                 null -> when (section) {
                     TvSection.Search -> SearchSection(browse, onPlay, typeNow = typeSearch, onTyping = { typeSearch = false })
-                    TvSection.Home -> HomeSection(browse, onPlay, browse::open, hideShorts = TvSection.Shorts in hidden,
+                    TvSection.Home -> HomeSection(browse, onPlay, browse::open, hideShorts = TvSection.Shorts in hidden, enter = homeEnter,
                         dataSaver = values[com.hhst.youtubelite.extension.PreferenceKeys.DATA_SAVER] == true, onSearch = {
                         typeSearch = true
                         browse.select(TvSection.Search)
@@ -228,6 +229,11 @@ internal fun TvBrowse(
                     withFrameNanos { }
                     if (shown == target) {
                         withFrameNanos { }
+                        if (target == TvSection.Home) {
+                            // Home takes focus itself, into Recommended; stepping right would land on Search.
+                            homeEnter++
+                            repeat(HOME_ENTER_FRAMES) { if (!sidebarFocused) return@launch; withFrameNanos { } }
+                        }
                         enterContent(focusManager) { !sidebarFocused }
                         return@launch
                     }
@@ -295,6 +301,7 @@ internal fun TvBrowse(
                     TileAction.Play -> if (card.videoId != null) onPlay(card, emptyList()) else browse.open(card)
                     TileAction.StartOver -> onPlay(card.copy(progress = null), emptyList())
                     TileAction.Subscribe -> browse.toggleSubscription(card)
+                    TileAction.Dislike -> browse.dislike(card)
                     TileAction.Download -> card.videoId?.let { onDownload(it, card.title, card.author, card.artwork) }
                     TileAction.PlayNext -> { onPlayNext(card); exitHint = "Plays next" }
                     TileAction.WatchLater -> browse.saveToWatchLater(card)
@@ -884,6 +891,7 @@ private suspend fun enterContent(focusManager: androidx.compose.ui.focus.FocusMa
 }
 
 private const val ENTER_TRIES = 300
+private const val HOME_ENTER_FRAMES = 30
 private const val EXIT_WINDOW_MS = 2_500L
 /** Sections with a list to read again; the rest have nothing to refresh. */
 private val REFRESHABLE = TvSection.entries.toSet() - setOf(TvSection.Search, TvSection.Downloads, TvSection.Phone, TvSection.Settings)

@@ -75,7 +75,11 @@ class TvActivity : ComponentActivity() {
         (application as App).startMediaRuntime()
         com.hhst.youtubelite.player.datasource.CodecCapabilities.preferHardware = true
         receiver = TvReceiver(this, engine, AndroidTvLinkStore(this, "tv"))
-        player = TvPlayerSession(lifecycleScope, engine, RepositoryTvVideoOps(get<ContentRepositories>()), getKoin().getOrNull<PlaybackWatchReporting>())
+        player = TvPlayerSession(lifecycleScope, engine, RepositoryTvVideoOps(get<ContentRepositories>()) {
+            val prefs = get<ExtensionManager>()
+            prefs.isEnabled(com.hhst.youtubelite.extension.PreferenceKeys.ENABLE_SHOW_LIKES) to
+                prefs.isEnabled(com.hhst.youtubelite.extension.PreferenceKeys.ENABLE_DISPLAY_DISLIKES)
+        }, getKoin().getOrNull<PlaybackWatchReporting>())
         browse = TvBrowseModels(lifecycleScope, RepositoryTvBrowseSource(get<ContentRepositories>()) { FeedVisibility.fromPreferences(prefs) })
         settings = ExtensionTvSettings(prefs)
         lifecycleScope.launch {

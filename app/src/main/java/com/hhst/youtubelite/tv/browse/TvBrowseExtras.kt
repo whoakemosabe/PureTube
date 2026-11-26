@@ -20,6 +20,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.Key
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,11 +67,12 @@ internal enum class TileAction(val label: String, val icon: AppIcon) {
     Play("Play", AppIcon.Play),
     StartOver("Play from the start", AppIcon.Refresh),
     PlayNext("Play next", AppIcon.QueueAdd),
+    NotInterested("Not interested", AppIcon.Block),
+    Dislike("Dislike", AppIcon.Dislike),
     WatchLater("Save to Watch later", AppIcon.Clock),
     Subscribe("Subscribe", AppIcon.Bell),
     Channel("Go to channel", AppIcon.ChannelGrid),
     Download("Download", AppIcon.Download),
-    NotInterested("Not interested", AppIcon.Block),
 }
 
 /** The actions that make sense for [card]: videos get all of them, a playlist only opens. */
@@ -74,13 +82,14 @@ internal fun tileActions(card: TvCard, signedIn: Boolean): List<TileAction> = bu
     // Part-watched: Play carries on, this starts again.
     if ((card.progress ?: 0f) > 0f && !card.live) add(TileAction.StartOver)
     add(TileAction.PlayNext)
+    // Only Home's own tiles carry what YouTube needs for this.
+    if (signedIn && card.key.startsWith("v-")) add(TileAction.NotInterested)
+    if (signedIn) add(TileAction.Dislike)
     if (signedIn) add(TileAction.WatchLater)
     val hasChannel = !card.ownerId.isNullOrBlank()
     if (signedIn && hasChannel) add(TileAction.Subscribe)
     if (hasChannel) add(TileAction.Channel)
     if (!card.live) add(TileAction.Download)
-    // Only Home's own tiles carry what YouTube needs for this.
-    if (signedIn && card.key.startsWith("v-")) add(TileAction.NotInterested)
 }
 
 /** The long-press menu over a tile, sliding in from the right like the player's menus. */
@@ -190,13 +199,25 @@ private fun SideMenu(
     val first = remember { FocusRequester() }
     LaunchedEffect(focusKey) { requestFocusSoon(first) }
     BackHandler(onBack = onClose)
+    // The menu opens while OK is still held: letting go must not press its first row.
+    // Only an OK pressed inside the menu counts.
+    var pressedHere by remember(focusKey) { androidx.compose.runtime.mutableStateOf(false) }
     TvSidePanel(title, eyebrow = eyebrow) {
         Column(
-            Modifier.verticalScroll(rememberScrollState()).focusGroup(),
+            Modifier.verticalScroll(rememberScrollState()).focusGroup().onPreviewKeyEvent { event ->
+                if (!isOk(event.key)) return@onPreviewKeyEvent false
+                when (event.type) {
+                    KeyEventType.KeyDown -> { pressedHere = true; false }
+                    KeyEventType.KeyUp -> !pressedHere
+                    else -> false
+                }
+            },
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) { rows(first) }
     }
 }
+
+private fun isOk(key: Key) = key == Key.DirectionCenter || key == Key.Enter || key == Key.NumPadEnter
 
 /** A short line at the top of the screen that clears itself. */
 @Composable

@@ -84,6 +84,9 @@ internal val TV_SETTING_GROUPS = listOf(
     ), AppIcon.Home),
     TvToggleGroup("Playback", listOf(
         TvToggle(PreferenceKeys.ENABLE_AUTOPLAY, "Autoplay", "Play the next video when one ends"),
+        TvToggle(PreferenceKeys.SHORTS_AUTO_ADVANCE, "Shorts auto-advance", "Go to the next Short when one ends"),
+        TvToggle(PreferenceKeys.ENABLE_SHOW_LIKES, "Show likes", "Like counts on videos"),
+        TvToggle(PreferenceKeys.ENABLE_DISPLAY_DISLIKES, "Show dislikes", "Dislike counts from Return YouTube Dislike"),
         TvToggle(PreferenceKeys.REMEMBER_LAST_POSITION, "Remember where I stopped", "Start videos where you left off"),
         TvToggle(PreferenceKeys.REMEMBER_QUALITY, "Remember quality"),
         TvToggle(PreferenceKeys.REMEMBER_PLAYBACK_SPEED, "Remember playback speed"),

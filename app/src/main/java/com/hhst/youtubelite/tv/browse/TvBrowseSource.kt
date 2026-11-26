@@ -118,6 +118,7 @@ internal interface TvBrowseSource {
     suspend fun channel(id: String): TvChannelReads
     /** Server-confirmed: returns only after the server took the change. */
     suspend fun subscribe(channelId: String, subscribed: Boolean)
+    suspend fun dislike(videoId: String) {}
     /** Whether the account subscribes to [channelId]; null when it can't tell. */
     suspend fun isSubscribed(channelId: String): Boolean? = channel(channelId).header.subscribed
     suspend fun search(query: String, cursor: String?): TvPage
@@ -258,6 +259,8 @@ internal class RepositoryTvBrowseSource(
     }
 
     override suspend fun subscribe(channelId: String, subscribed: Boolean) = repos.videoActions.subscribe(channelId, subscribed)
+    override suspend fun dislike(videoId: String) = repos.videoActions.rate(videoId,
+        com.hhst.youtubelite.watch.domain.VideoRating.Dislike, com.hhst.youtubelite.watch.domain.VideoRating.None)
 
     override suspend fun history(cursor: String?): TvPage {
         val page = if (cursor == null) repos.library.history() else repos.library.historyNext(cursor)

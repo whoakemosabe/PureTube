@@ -147,6 +147,17 @@ internal fun applyPick(panel: TvPanel, key: String, engine: PlaybackApi, setSlee
     }
 }
 
+/** 845, 34.8K, 1.2M: as YouTube writes counts. */
+internal fun compactCount(n: Long): String = when {
+    n >= 1_000_000_000 -> trimmed(n / 1_000_000_000.0) + "B"
+    n >= 1_000_000 -> trimmed(n / 1_000_000.0) + "M"
+    n >= 1_000 -> trimmed(n / 1_000.0) + "K"
+    else -> n.toString()
+}
+
+private fun trimmed(value: Double): String =
+    if (value >= 100) value.toLong().toString() else "%.1f".format(java.util.Locale.US, value).removeSuffix(".0")
+
 private const val DESCRIPTION_STEP = 240f
 internal const val AUTO = "auto"
 internal const val OFF = "off"

@@ -474,7 +474,9 @@ private fun PlayerPanel(
         TvPanel.Description -> TvSidePanel(video.video?.title ?: snapshot.title, eyebrow = "Description") {
             val page = video.video
             TvDescription(
-                meta = listOfNotNull(page?.views, page?.age, page?.likes?.let { "$it likes" }).filter(String::isNotBlank).joinToString(" • "),
+                meta = listOfNotNull(page?.views, page?.age,
+                    video.votes?.likes?.let { "${compactCount(it)} likes" } ?: page?.likes?.let { "$it likes" },
+                    video.votes?.dislikes?.let { "${compactCount(it)} dislikes" }).filter(String::isNotBlank).joinToString(" • "),
                 text = page?.description.orEmpty(),
             )
         }

@@ -89,6 +89,8 @@ internal fun HomeSection(
     hideShorts: Boolean = false,
     /** Data saver: the big picture reuses the tile's thumbnail instead of a 1280 px one. */
     dataSaver: Boolean = false,
+    /** Goes up each time Home is picked in the sidebar: focus goes into Recommended, not the search bar. */
+    enter: Int = 0,
 ) {
     val shelves = remember(browse.signedIn, hideShorts) { homeShelves(browse.signedIn, hideShorts) }
     val recommended = browse.list(TvSection.Home)
@@ -110,6 +112,14 @@ internal fun HomeSection(
     }
     val scope = rememberCoroutineScope()
     val firstTile = remember { FocusRequester() }
+    val recommendedRow = remember { FocusRequester() }
+    LaunchedEffect(enter) {
+        if (enter == 0) return@LaunchedEffect
+        column.scrollToItem(0)
+        withFrameNanos { }
+        // The row brings back the tile last focused in it, else its first.
+        requestFocusSoon(recommendedRow)
+    }
     // Home starts on the first video, as YouTube TV does, not on the search bar.
     LaunchedEffect(first.cards.isNotEmpty()) {
         if (first.cards.isNotEmpty() && saved?.focusedKey == null) {
@@ -141,9 +151,11 @@ internal fun HomeSection(
                     shelves.forEach { shelf ->
                         item(key = shelf.section.name) {
                             Shelf(shelf, browse.list(shelf.section), onPlay, onOpen,
-                                onFocused = { focused = it; lastFocus.value = it.key },
-                                restoreKey = saved?.focusedKey,
+                                // Remembered with its row: the same video can sit in two rows.
+                                onFocused = { focused = it; lastFocus.value = shelf.section.name + "|" + it.key },
+                                restoreKey = saved?.focusedKey?.takeIf { it.startsWith(shelf.section.name + "|") }?.substringAfter('|'),
                                 firstTile = firstTile.takeIf { shelf.section == TvSection.Home },
+                                rowFocus = recommendedRow.takeIf { shelf.section == TvSection.Home },
                                 // Recommended keeps YouTube's picks for you, without its general shelves.
                                 select = if (shelf.section == TvSection.Home) ::personalCards else { cards -> cards })
                         }
@@ -243,6 +255,7 @@ private fun Shelf(
     select: (List<TvCard>) -> List<TvCard> = { it },
     /** Whether reaching the end of the row reads the next page. */
     loadsMore: Boolean = true,
+    rowFocus: FocusRequester? = null,
 ) {
     val state by model.state.collectAsStateWithLifecycle()
     // A shelf reads its list only once it scrolls into view (it keeps its height while it
@@ -276,8 +289,12 @@ private fun Shelf(
     Column(Modifier.fillMaxWidth()) {
         Text(shelf.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = TvColors.Text,
             modifier = Modifier.padding(start = 40.dp, bottom = 10.dp))
+        // Back from a video: open the row scrolled to the tile that was played, so it exists to take focus.
+        val row = androidx.compose.foundation.lazy.rememberLazyListState(
+            initialFirstVisibleItemIndex = cards.indexOfFirst { it.key == restoreKey }.coerceAtLeast(0).let { (it - 1).coerceAtLeast(0) })
         LazyRow(
-            modifier = Modifier.fillMaxWidth().focusRestorer(),
+            state = row,
+            modifier = Modifier.fillMaxWidth().then(rowFocus?.let { Modifier.focusRequester(it) } ?: Modifier).focusRestorer(),
             contentPadding = PaddingValues(start = 40.dp, end = 48.dp),
             horizontalArrangement = Arrangement.spacedBy(if (shelf.tall) 14.dp else 18.dp),
         ) {
